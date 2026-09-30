@@ -20,9 +20,9 @@ export default function CFBDynastyPage() {
   const [filterYear, setFilterYear] = useState("");
 
   async function loadGames() {
-    const { data } = await supabase.from("game_registry").select("*").eq("game_type", "cfb").order("game_name");
+    const { data } = await supabase.from("game_registry").select("*").eq("game_type", "cfb").order("display_name");
     const g = {};
-    (data || []).forEach((r) => { g[r.game_name] = r.prefix; });
+    (data || []).forEach((r) => { g[r.display_name] = r.table_prefix; });
     setGames(g);
     const names = Object.keys(g);
     if (names.length > 0 && !selectedGame) setSelectedGame(names[0]);

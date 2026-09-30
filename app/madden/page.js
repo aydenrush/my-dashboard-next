@@ -88,9 +88,9 @@ export default function MaddenFranchisePage() {
   const allproTable = `${prefix}_all_pro`;
 
   async function loadGames() {
-    const { data } = await supabase.from("game_registry").select("*").eq("game_type", "madden").order("game_name");
+    const { data } = await supabase.from("game_registry").select("*").eq("game_type", "madden").order("display_name");
     const g = {};
-    (data || []).forEach((r) => { g[r.game_name] = r.prefix; });
+    (data || []).forEach((r) => { g[r.display_name] = r.table_prefix; });
     setGames(g);
     const names = Object.keys(g);
     if (names.length > 0 && !selectedGame) setSelectedGame(names[0]);
@@ -102,7 +102,7 @@ export default function MaddenFranchisePage() {
       supabase.from(`${prefix}_seasons`).select("*").order("year"),
       supabase.from(`${prefix}_team_wins`).select("*").order("year"),
       supabase.from(`${prefix}_all_pro`).select("*").order("year"),
-      supabase.from("franchise_config").select("*").eq("prefix", prefix),
+      supabase.from("franchise_config").select("*").eq("game", prefix),
     ]);
     const sd = s.data || [];
     const wd = w.data || [];
@@ -219,7 +219,7 @@ export default function MaddenFranchisePage() {
 
   async function createFranchise() {
     if (!newFranName.trim()) return;
-    await supabase.from("franchise_config").upsert({ prefix, franchise: newFranName.trim(), primary_team: null });
+    await supabase.from("franchise_config").upsert({ game: prefix, franchise: newFranName.trim(), primary_team: null });
     setNewFranName("");
     flash("Franchise created.");
     loadData();

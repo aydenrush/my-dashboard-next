@@ -420,7 +420,7 @@ export default function RunningPage() {
 
   async function saveGpx() {
     if (!gpxPreview) return;
-    const { splits, ...row } = gpxPreview;
+    const { splits, moving_time_seconds, ...row } = gpxPreview;
     await supabase.from("run_logs").insert({ ...row, source: "gpx" });
     const match = schedule.find((r) => r.date === row.date && !r.completed);
     if (match) await supabase.from("running_schedule").update({ completed: true }).eq("id", match.id);
@@ -445,7 +445,7 @@ export default function RunningPage() {
 
   async function saveStravaRows() {
     if (!stravaRows?.length) return;
-    const inserts = stravaRows.map((r) => ({ ...r, source: "strava" }));
+    const inserts = stravaRows.map(({ moving_time_seconds, ...r }) => ({ ...r, source: "strava" }));
     await supabase.from("run_logs").insert(inserts);
     for (const r of stravaRows) {
       const match = schedule.find((s) => s.date === r.date && !s.completed);
