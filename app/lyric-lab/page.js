@@ -350,6 +350,8 @@ export default function LyricLabPage() {
   const [lyrics, setLyrics] = useState([]);
   const [rhymeInput, setRhymeInput] = useState("");
   const [sylInput, setSylInput] = useState("");
+  const [cmuData, setCmuData] = useState(null);
+  const [cmuLoading, setCmuLoading] = useState(false);
   const [pasteArea, setPasteArea] = useState("");
   const [loadedId, setLoadedId] = useState(null);
   const [loadedTitle, setLoadedTitle] = useState("");
@@ -404,6 +406,17 @@ export default function LyricLabPage() {
       }
     }
     return results;
+  }
+
+  async function lookupCmu(word) {
+    if (!word) { setCmuData(null); return; }
+    setCmuLoading(true);
+    try {
+      const resp = await fetch(`/api/cmu?word=${encodeURIComponent(word)}`);
+      const data = await resp.json();
+      setCmuData(data);
+    } catch { setCmuData(null); }
+    setCmuLoading(false);
   }
 
   const rhymeWord = rhymeInput.trim();
@@ -566,13 +579,19 @@ export default function LyricLabPage() {
         {/* Rhyme Finder */}
         <div style={{ flex: "3 1 300px" }}>
           <h3>Rhyme Finder</h3>
-          <input
-            type="text"
-            placeholder="Type a word..."
-            value={rhymeInput}
-            onChange={(e) => setRhymeInput(e.target.value)}
-            style={{ width: "100%", padding: 8, marginBottom: 8, boxSizing: "border-box" }}
-          />
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <input
+              type="text"
+              placeholder="Type a word..."
+              value={rhymeInput}
+              onChange={(e) => { setRhymeInput(e.target.value); setCmuData(null); }}
+              onKeyDown={(e) => e.key === "Enter" && lookupCmu(rhymeInput.trim())}
+              style={{ flex: 1, padding: 8, boxSizing: "border-box" }}
+            />
+            <button className="btn btn-primary" onClick={() => lookupCmu(rhymeInput.trim())} disabled={cmuLoading || !rhymeInput.trim()}>
+              {cmuLoading ? "..." : "CMU Lookup"}
+            </button>
+          </div>
           {rhymeWord && (
             rhymeResults.length ? (
               <div>
@@ -589,6 +608,26 @@ export default function LyricLabPage() {
             ) : (
               <p style={{ color: "#888", fontSize: "0.85em" }}>No rhymes found for <em>{rhymeWord}</em> ({countSyllables(rhymeWord)} syl)</p>
             )
+          )}
+          {cmuData && cmuData.phonemes && (
+            <div style={{ marginTop: 12, padding: 8, background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 6 }}>
+              <p style={{ fontSize: "0.9em", fontWeight: 600 }}>CMU Phonemes</p>
+              <p style={{ fontSize: "0.85em", fontFamily: "monospace", margin: "4px 0" }}>{cmuData.phonemes[0]}</p>
+              <p style={{ fontSize: "0.8em", color: "var(--muted)" }}>
+                {cmuData.syllables} syllable{cmuData.syllables !== 1 ? "s" : ""} &middot; stress: {cmuData.stress.split("").map((s) => s === "1" ? "PRIMARY" : s === "2" ? "SECONDARY" : "none").join(", ")}
+              </p>
+              {cmuData.rhymes.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <p style={{ fontSize: "0.85em", fontWeight: 600 }}>{cmuData.rhymes.length} phoneme rhymes:</p>
+                  <pre style={{ background: "#1a1a2e", padding: 8, borderRadius: 4, fontSize: "0.85em", whiteSpace: "pre-wrap", maxHeight: 200, overflow: "auto" }}>
+                    {cmuData.rhymes.join(" / ")}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+          {cmuData && !cmuData.phonemes && (
+            <p style={{ fontSize: "0.8em", color: "#888", marginTop: 4 }}>Not in CMU dictionary</p>
           )}
         </div>
 

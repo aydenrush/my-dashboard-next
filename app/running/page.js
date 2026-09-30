@@ -86,6 +86,138 @@ function fmtMD(iso) {
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+// --- GPX / Strava helpers ---
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 3958.8; // miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function parseGpx(xmlText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, "application/xml");
+  const trkpts = doc.querySelectorAll("trkpt");
+  if (!trkpts.length) throw new Error("No trackpoints found in GPX file");
+
+  const points = Array.from(trkpts).map((pt) => ({
+    lat: parseFloat(pt.getAttribute("lat")),
+    lon: parseFloat(pt.getAttribute("lon")),
+    ele: pt.querySelector("ele") ? parseFloat(pt.querySelector("ele").textContent) : null,
+    time: pt.querySelector("time") ? new Date(pt.querySelector("time").textContent) : null,
+  }));
+
+  let totalDist = 0;
+  let elevGain = 0;
+  let movingTime = 0;
+  const splits = [];
+  let splitStart = 0;
+  let splitDist = 0;
+  let splitMoving = 0;
+
+  for (let i = 1; i < points.length; i++) {
+    const d = haversine(points[i - 1].lat, points[i - 1].lon, points[i].lat, points[i].lon);
+    totalDist += d;
+    splitDist += d;
+
+    // elevation gain
+    if (points[i].ele != null && points[i - 1].ele != null) {
+      const diff = points[i].ele - points[i - 1].ele;
+      if (diff > 0) elevGain += diff;
+    }
+
+    // moving time: skip gaps > 60s and speed < 2 mph
+    if (points[i].time && points[i - 1].time) {
+      const dt = (points[i].time - points[i - 1].time) / 1000;
+      if (dt > 0 && dt <= 60) {
+        const speed = d / (dt / 3600); // mph
+        if (speed >= 2) {
+          movingTime += dt;
+          splitMoving += dt;
+        }
+      }
+    }
+
+    // per-mile splits
+    if (splitDist >= 1.0) {
+      splits.push({ mile: splits.length + 1, pace_seconds: splitMoving > 0 ? Math.round(splitMoving / splitDist) : 0 });
+      splitDist = 0;
+      splitMoving = 0;
+    }
+  }
+  // partial last split
+  if (splitDist > 0.1) {
+    splits.push({ mile: splits.length + 1, pace_seconds: splitMoving > 0 ? Math.round(splitMoving / splitDist) : 0 });
+  }
+
+  const firstTime = points.find((p) => p.time)?.time;
+  const lastTime = [...points].reverse().find((p) => p.time)?.time;
+  const elapsed = firstTime && lastTime ? (lastTime - firstTime) / 1000 : 0;
+  // elevation from meters to feet
+  const elevGainFt = Math.round(elevGain * 3.28084);
+  const pace = totalDist > 0 && movingTime > 0 ? Math.round(movingTime / totalDist) : 0;
+  const date = firstTime ? firstTime.toISOString().slice(0, 10) : isoToday();
+
+  return {
+    date,
+    distance_miles: +totalDist.toFixed(2),
+    duration_seconds: Math.round(elapsed),
+    moving_time_seconds: Math.round(movingTime),
+    pace_seconds: pace,
+    elevation_gain_ft: elevGainFt,
+    splits,
+  };
+}
+
+function parseStravaCsv(text) {
+  const lines = text.trim().split("\n");
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+  const idx = (name) => headers.findIndex((h) => h.toLowerCase() === name.toLowerCase());
+  const iDate = idx("Activity Date");
+  const iType = idx("Activity Type");
+  const iElapsed = idx("Elapsed Time");
+  const iDist = idx("Distance");
+  const iMoving = idx("Moving Time");
+  const iElev = idx("Elevation Gain");
+  if (iDate < 0 || iDist < 0) throw new Error("CSV missing required columns (Activity Date, Distance)");
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    // handle quoted CSV fields
+    const vals = [];
+    let cur = "", inQ = false;
+    for (const ch of lines[i]) {
+      if (ch === '"') { inQ = !inQ; continue; }
+      if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = ""; continue; }
+      cur += ch;
+    }
+    vals.push(cur.trim());
+
+    const type = iType >= 0 ? vals[iType] : "Run";
+    if (type !== "Run") continue;
+
+    const rawDate = vals[iDate];
+    // Strava dates: "Oct 1, 2026, 7:30:00 AM" or "2026-10-01 ..."
+    let date;
+    try { date = new Date(rawDate).toISOString().slice(0, 10); }
+    catch { continue; }
+
+    const distKm = parseFloat(vals[iDist]) || 0;
+    const distMi = +(distKm / 1.60934).toFixed(2);
+    const elapsed = parseInt(vals[iElapsed]) || 0;
+    const moving = iMoving >= 0 ? (parseInt(vals[iMoving]) || elapsed) : elapsed;
+    const elev = iElev >= 0 ? parseFloat(vals[iElev]) || 0 : 0;
+    const elevFt = Math.round(elev * 3.28084);
+    const pace = distMi > 0 && moving > 0 ? Math.round(moving / distMi) : 0;
+
+    rows.push({ date, distance_miles: distMi, duration_seconds: elapsed, moving_time_seconds: moving, pace_seconds: pace, elevation_gain_ft: elevFt });
+  }
+  return rows;
+}
+
 // ============================================================
 
 export default function RunningPage() {
@@ -107,6 +239,13 @@ export default function RunningPage() {
   const [mrSecs, setMrSecs] = useState("");
   const [mrNotes, setMrNotes] = useState("");
   const [showLogForm, setShowLogForm] = useState(false);
+
+  // GPX / Strava upload
+  const [gpxPreview, setGpxPreview] = useState(null);
+  const [stravaRows, setStravaRows] = useState(null);
+  const [showGpx, setShowGpx] = useState(false);
+  const [showStrava, setShowStrava] = useState(false);
+  const [stravaPaste, setStravaPaste] = useState("");
 
   // add schedule form
   const [showAddSchedule, setShowAddSchedule] = useState(false);
@@ -266,6 +405,53 @@ export default function RunningPage() {
   async function deleteRunLog(id) {
     await supabase.from("run_logs").delete().eq("id", id);
     load();
+  }
+
+  function handleGpxFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try { setGpxPreview(parseGpx(reader.result)); }
+      catch (err) { alert(err.message); }
+    };
+    reader.readAsText(file);
+  }
+
+  async function saveGpx() {
+    if (!gpxPreview) return;
+    const { splits, ...row } = gpxPreview;
+    await supabase.from("run_logs").insert({ ...row, source: "gpx" });
+    const match = schedule.find((r) => r.date === row.date && !r.completed);
+    if (match) await supabase.from("running_schedule").update({ completed: true }).eq("id", match.id);
+    setGpxPreview(null); setShowGpx(false); load();
+  }
+
+  function handleStravaFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try { setStravaRows(parseStravaCsv(reader.result)); }
+      catch (err) { alert(err.message); }
+    };
+    reader.readAsText(file);
+  }
+
+  function handleStravaPaste() {
+    try { setStravaRows(parseStravaCsv(stravaPaste)); }
+    catch (err) { alert(err.message); }
+  }
+
+  async function saveStravaRows() {
+    if (!stravaRows?.length) return;
+    const inserts = stravaRows.map((r) => ({ ...r, source: "strava" }));
+    await supabase.from("run_logs").insert(inserts);
+    for (const r of stravaRows) {
+      const match = schedule.find((s) => s.date === r.date && !s.completed);
+      if (match) await supabase.from("running_schedule").update({ completed: true }).eq("id", match.id);
+    }
+    setStravaRows(null); setShowStrava(false); setStravaPaste(""); load();
   }
 
   async function uploadSchedule() {
@@ -804,6 +990,86 @@ export default function RunningPage() {
               ) : null}
               <button type="submit" className="btn btn-primary" style={{ marginTop: "12px" }}>Log Run</button>
             </form>
+          )}
+
+          <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+            <button className="btn" onClick={() => { setShowGpx(!showGpx); setShowStrava(false); }}>
+              {showGpx ? "Cancel" : "Upload GPX"}
+            </button>
+            <button className="btn" onClick={() => { setShowStrava(!showStrava); setShowGpx(false); }}>
+              {showStrava ? "Cancel" : "Import Strava CSV"}
+            </button>
+          </div>
+
+          {showGpx && (
+            <div className="card" style={{ marginTop: "12px" }}>
+              <h3 style={{ marginBottom: "8px" }}>Upload GPX File</h3>
+              <input type="file" accept=".gpx" onChange={handleGpxFile} />
+              {gpxPreview && (
+                <div style={{ marginTop: "12px" }}>
+                  <div className="metrics-row">
+                    <div className="metric"><div className="metric-label">Date</div><div className="metric-value">{gpxPreview.date}</div></div>
+                    <div className="metric"><div className="metric-label">Distance</div><div className="metric-value">{gpxPreview.distance_miles} mi</div></div>
+                    <div className="metric"><div className="metric-label">Pace</div><div className="metric-value">{fmtPace(gpxPreview.pace_seconds)}</div></div>
+                    <div className="metric"><div className="metric-label">Elev Gain</div><div className="metric-value">{gpxPreview.elevation_gain_ft} ft</div></div>
+                  </div>
+                  {gpxPreview.splits.length > 0 && (
+                    <div style={{ marginTop: "8px" }}>
+                      <strong style={{ fontSize: "0.85em" }}>Splits:</strong>
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
+                        {gpxPreview.splits.map((s) => (
+                          <span key={s.mile} style={{ fontSize: "0.8em", padding: "2px 6px", background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "4px" }}>
+                            Mi {s.mile}: {fmtPace(s.pace_seconds)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <button className="btn btn-primary" onClick={saveGpx} style={{ marginTop: "12px" }}>Save to Log</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {showStrava && (
+            <div className="card" style={{ marginTop: "12px" }}>
+              <h3 style={{ marginBottom: "8px" }}>Import Strava CSV</h3>
+              <p style={{ fontSize: "0.8em", color: "var(--muted)", marginBottom: "8px" }}>
+                Upload your activities.csv from Strava data export, or paste the contents below.
+              </p>
+              <input type="file" accept=".csv" onChange={handleStravaFile} />
+              <div style={{ marginTop: "8px" }}>
+                <textarea rows={4} value={stravaPaste} onChange={(e) => setStravaPaste(e.target.value)}
+                  placeholder="Or paste CSV content here..." style={{ width: "100%", fontFamily: "monospace", fontSize: "0.8em" }} />
+                <button className="btn" onClick={handleStravaPaste} style={{ marginTop: "4px" }}>Parse Pasted CSV</button>
+              </div>
+              {stravaRows && (
+                <div style={{ marginTop: "12px" }}>
+                  <p style={{ fontSize: "0.85em" }}>{stravaRows.length} run{stravaRows.length !== 1 ? "s" : ""} found</p>
+                  {stravaRows.length > 0 && (
+                    <div style={{ overflowX: "auto", marginTop: "8px" }}>
+                      <table style={{ fontSize: "0.8em" }}>
+                        <thead><tr><th>Date</th><th>Distance</th><th>Pace</th><th>Elev</th></tr></thead>
+                        <tbody>
+                          {stravaRows.slice(0, 10).map((r, i) => (
+                            <tr key={i}>
+                              <td>{r.date}</td>
+                              <td>{r.distance_miles} mi</td>
+                              <td>{fmtPace(r.pace_seconds)}</td>
+                              <td>{r.elevation_gain_ft} ft</td>
+                            </tr>
+                          ))}
+                          {stravaRows.length > 10 && <tr><td colSpan={4} style={{ color: "var(--muted)" }}>...{stravaRows.length - 10} more</td></tr>}
+                        </tbody>
+                      </table>
+                      <button className="btn btn-primary" onClick={saveStravaRows} style={{ marginTop: "8px" }}>
+                        Import {stravaRows.length} Run{stravaRows.length !== 1 ? "s" : ""}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

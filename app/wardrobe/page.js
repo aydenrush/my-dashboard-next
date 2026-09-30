@@ -52,6 +52,37 @@ function colorsCompatible(c1, c2) {
   return false;
 }
 
+function extractColors(imgSrc, count = 3) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const size = 64;
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, size, size);
+      const { data } = ctx.getImageData(0, 0, size, size);
+      const buckets = {};
+      for (let i = 0; i < data.length; i += 4) {
+        const r = Math.round(data[i] / 32) * 32;
+        const g = Math.round(data[i + 1] / 32) * 32;
+        const b = Math.round(data[i + 2] / 32) * 32;
+        const key = `${r},${g},${b}`;
+        buckets[key] = (buckets[key] || 0) + 1;
+      }
+      const sorted = Object.entries(buckets).sort((a, b) => b[1] - a[1]);
+      const hexes = sorted.slice(0, count).map(([k]) => {
+        const [r, g, b] = k.split(",").map(Number);
+        return "#" + [r, g, b].map((v) => Math.min(255, v).toString(16).padStart(2, "0")).join("");
+      });
+      resolve(hexes);
+    };
+    img.onerror = () => resolve(["#333333"]);
+    img.src = imgSrc;
+  });
+}
+
 export default function WardrobePage() {
   const [items, setItems] = useState([]);
   const [category, setCategory] = useState("Tops");
@@ -59,6 +90,7 @@ export default function WardrobePage() {
   const [showOutfit, setShowOutfit] = useState(false);
   const [form, setForm] = useState({ name: "", category: "Tops", colors: ["#333333"], weather_tags: [], is_layer: false });
   const [outfit, setOutfit] = useState({});
+  const [extracting, setExtracting] = useState(false);
 
   async function load() {
     const { data } = await supabase.from("wardrobe_items").select("*").order("created_at");
@@ -203,6 +235,20 @@ export default function WardrobePage() {
             <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}>
               {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.85rem" }}>Colors from image:</span>
+            <input type="file" accept="image/*" disabled={extracting} onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setExtracting(true);
+              const url = URL.createObjectURL(file);
+              const colors = await extractColors(url, 3);
+              URL.revokeObjectURL(url);
+              setForm((f) => ({ ...f, colors }));
+              setExtracting(false);
+            }} style={{ fontSize: "0.8rem" }} />
+            {extracting && <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Extracting...</span>}
           </div>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap" }}>
             <span style={{ fontSize: "0.85rem" }}>Colors:</span>

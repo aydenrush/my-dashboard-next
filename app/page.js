@@ -28,6 +28,9 @@ export default function HomePage() {
   const [quickType, setQuickType] = useState("running");
   const [quickSlot, setQuickSlot] = useState("Morning");
   const [quickNotes, setQuickNotes] = useState("");
+  const [calEvents, setCalEvents] = useState([]);
+  const [icalUrl, setIcalUrl] = useState("");
+  const [showIcalSetup, setShowIcalSetup] = useState(false);
 
   const today = useMemo(() => isoDate(new Date()), []);
   const weekStart = useMemo(() => {
@@ -51,6 +54,17 @@ export default function HomePage() {
 
   useEffect(() => { loadAll(); }, []);
 
+  useEffect(() => {
+    const saved = localStorage.getItem("ical_url");
+    if (saved) {
+      setIcalUrl(saved);
+      fetch(`/api/ical?url=${encodeURIComponent(saved)}`)
+        .then((r) => r.ok ? r.json() : [])
+        .then((events) => setCalEvents(events || []))
+        .catch(() => {});
+    }
+  }, []);
+
   const focusDay = jsWeekday(focusDate);
   const focusDateObj = new Date(focusDate + "T00:00:00");
   const isToday = focusDate === today;
@@ -61,6 +75,10 @@ export default function HomePage() {
   const focusActs = activities.filter((a) => a.date === focusDate);
   const focusRuns = runSchedule.filter((r) => r.date === focusDate);
   const reading = books.filter((b) => b.status === "reading");
+  const focusCal = calEvents.filter((e) => {
+    const eDate = (e.start || "").slice(0, 10);
+    return eDate === focusDate;
+  });
 
   const completedDates = new Set();
   activities.filter((a) => a.completed).forEach((a) => completedDates.add(a.date));
@@ -131,6 +149,18 @@ export default function HomePage() {
         </div>
       ))}
 
+      {focusCal.map((e, i) => {
+        const time = e.start?.length > 10
+          ? new Date(e.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+          : "All day";
+        return (
+          <div key={i} style={{ borderLeft: "3px solid #9C27B0", padding: "4px 8px", margin: "4px 0", borderRadius: "3px", fontSize: "0.9rem" }}>
+            <span style={{ color: "#9C27B0", fontSize: "0.8rem" }}>{time}</span> {e.summary}
+            {e.location && <span style={{ color: "var(--muted)", fontSize: "0.8rem" }}> · {e.location}</span>}
+          </div>
+        );
+      })}
+
       {focusRuns.map((r) => {
         const wo = r.workout_type || r.workout || "";
         const isRest = wo.startsWith("Rest");
@@ -162,7 +192,7 @@ export default function HomePage() {
         );
       })}
 
-      {focusClasses.length === 0 && focusRuns.length === 0 && focusActs.length === 0 && (
+      {focusClasses.length === 0 && focusRuns.length === 0 && focusActs.length === 0 && focusCal.length === 0 && (
         <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>Nothing scheduled.</p>
       )}
 
@@ -253,6 +283,35 @@ export default function HomePage() {
           </div>
         )}
       </div>
+
+      <hr className="divider" />
+      <button className="btn" onClick={() => setShowIcalSetup(!showIcalSetup)} style={{ fontSize: "0.8rem" }}>
+        {showIcalSetup ? "Close" : icalUrl ? "Change Calendar" : "Connect Google Calendar"}
+      </button>
+      {showIcalSetup && (
+        <div style={{ marginTop: "0.5rem" }}>
+          <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "4px" }}>
+            Paste your Google Calendar iCal URL (Settings &gt; calendar &gt; Secret address in iCal format)
+          </p>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <input type="text" value={icalUrl} onChange={(e) => setIcalUrl(e.target.value)}
+              placeholder="https://calendar.google.com/calendar/ical/..." style={{ flex: 1, fontSize: "0.8rem" }} />
+            <button className="btn btn-primary" onClick={() => {
+              if (icalUrl.trim()) {
+                localStorage.setItem("ical_url", icalUrl.trim());
+                fetch(`/api/ical?url=${encodeURIComponent(icalUrl.trim())}`)
+                  .then((r) => r.ok ? r.json() : [])
+                  .then((events) => { setCalEvents(events || []); setShowIcalSetup(false); })
+                  .catch(() => {});
+              } else {
+                localStorage.removeItem("ical_url");
+                setCalEvents([]);
+                setShowIcalSetup(false);
+              }
+            }}>Save</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
