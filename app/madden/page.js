@@ -5,7 +5,7 @@ import {
   SEASON_DISPLAY_COLS, SEASON_COL_NAMES, AWARD_COLS,
   NFL_DIVISIONS, ALL_DIV_TEAMS,
   AP_POSITIONS_OFF, AP_POSITIONS_DEF, AP_POSITIONS_ST, AP_POSITIONS_ALL,
-  apDisplayLabel,
+  apDisplayLabel, NFL_COLORS,
 } from "@/lib/constants";
 
 const AWARD_FIELD_COLS = [...Object.keys(AWARD_COLS), "ninety_nine_club"];
@@ -742,47 +742,51 @@ export default function MaddenFranchisePage() {
                   {yearAp.length > 0 && (
                     <div style={{ marginTop: "0.5rem" }}>
                       {[["Offense", AP_POSITIONS_OFF, [
-                        { pos: "QB", x: 50, y: 85 },
-                        { pos: "RB", x: 50, y: 95 },
-                        { pos: "FB", x: 50, y: 90 },
-                        { pos: "WR", x: 5, y: 80 }, { pos: "WR", x: 95, y: 80, idx: 1 }, { pos: "WR", x: 15, y: 85, idx: 2 },
-                        { pos: "TE", x: 30, y: 80 },
-                        { pos: "OT", x: 35, y: 78 }, { pos: "OT", x: 65, y: 78, idx: 1 },
-                        { pos: "OG", x: 42, y: 78 }, { pos: "OG", x: 58, y: 78, idx: 1 },
-                        { pos: "C", x: 50, y: 78 },
+                        { label: "RB 1st", x: 50, y: 12 },
+                        { label: "FB 1st", x: 50, y: 25 },
+                        { label: "QB 1st", x: 50, y: 38 },
+                        { label: "WR 1st", x: 8, y: 55 }, { label: "WR 2nd", x: 92, y: 55 }, { label: "WR 3rd", x: 18, y: 62 },
+                        { label: "TE 1st", x: 28, y: 62 },
+                        { label: "OT 1st", x: 32, y: 72 }, { label: "OT 2nd", x: 68, y: 72 },
+                        { label: "OG 1st", x: 40, y: 72 }, { label: "OG 2nd", x: 60, y: 72 },
+                        { label: "C 1st", x: 50, y: 72 },
                       ]], ["Defense", AP_POSITIONS_DEF, [
-                        { pos: "EDGE", x: 10, y: 72 }, { pos: "EDGE", x: 90, y: 72, idx: 1 },
-                        { pos: "DT", x: 40, y: 72 }, { pos: "DT", x: 60, y: 72, idx: 1 },
-                        { pos: "SAM", x: 75, y: 65 },
-                        { pos: "MIKE", x: 50, y: 65 },
-                        { pos: "WILL", x: 25, y: 65 },
-                        { pos: "CB", x: 5, y: 55 }, { pos: "CB", x: 95, y: 55, idx: 1 },
-                        { pos: "S", x: 35, y: 50 }, { pos: "S", x: 65, y: 50, idx: 1 },
+                        { label: "EDGE 1st", x: 12, y: 82 }, { label: "EDGE 2nd", x: 88, y: 82 },
+                        { label: "DT 1st", x: 40, y: 82 }, { label: "DT 2nd", x: 60, y: 82 },
+                        { label: "WILL 1st", x: 25, y: 62 },
+                        { label: "MIKE 1st", x: 50, y: 62 },
+                        { label: "SAM 1st", x: 75, y: 62 },
+                        { label: "CB 1st", x: 8, y: 38 }, { label: "CB 2nd", x: 92, y: 38 },
+                        { label: "S 1st", x: 35, y: 18 }, { label: "S 2nd", x: 65, y: 18 },
                       ]]].map(([section, positions, layout]) => {
                         const sectionPlayers = yearAp.filter((a) => positions.includes(a.position_label));
                         if (sectionPlayers.length === 0) return null;
                         return (
-                          <div key={section} style={{ marginBottom: "1rem" }}>
-                            <p style={{ fontWeight: 700, fontSize: "0.9rem", borderBottom: "1px solid var(--border)", paddingBottom: "2px", marginBottom: "8px" }}>{section}</p>
-                            <div style={{ position: "relative", width: "100%", paddingTop: "60%", background: "linear-gradient(to bottom, #2e7d32, #388e3c)", borderRadius: "8px", overflow: "hidden" }}>
-                              {/* yard lines */}
-                              {[20, 40, 60, 80].map((pct) => (
-                                <div key={pct} style={{ position: "absolute", left: 0, right: 0, top: `${pct}%`, borderTop: "1px solid rgba(255,255,255,0.2)" }} />
+                          <div key={section} style={{ marginBottom: "1.5rem" }}>
+                            <p style={{ fontWeight: 700, fontSize: "0.95rem", borderBottom: "2px solid var(--border)", paddingBottom: "4px", marginBottom: "10px" }}>{section}</p>
+                            <div style={{ position: "relative", width: "100%", paddingTop: "55%", background: "linear-gradient(180deg, #1b5e20 0%, #2e7d32 30%, #388e3c 70%, #2e7d32 100%)", borderRadius: "10px", overflow: "hidden", border: "3px solid rgba(255,255,255,0.15)" }}>
+                              {[16, 33, 50, 66, 83].map((pct) => (
+                                <div key={pct} style={{ position: "absolute", left: "3%", right: "3%", top: `${pct}%`, borderTop: "1px solid rgba(255,255,255,0.12)" }} />
                               ))}
-                              {layout.map(({ pos, x, y, idx = 0 }) => {
-                                const label = `${pos} ${idx > 0 ? `${idx + 1}` : "1"}st`;
-                                const match = yearAp.find((a) => a.position_label?.startsWith(pos) && a.position_label === (yearAp.filter((ap) => ap.position_label?.startsWith(pos))[idx]?.position_label));
+                              <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", borderLeft: "1px dashed rgba(255,255,255,0.08)" }} />
+                              {layout.map(({ label, x, y }) => {
+                                const match = yearAp.find((a) => a.position_label === label);
                                 if (!match) return null;
+                                const posAbbr = label.split(" ")[0];
+                                const lastName = match.player?.split(" ").pop() || "";
+                                const tc = match.team && NFL_COLORS[match.team.toUpperCase()];
+                                const bg = tc ? tc[0] : "rgba(0,0,0,0.5)";
+                                const border = tc ? tc[1] : "rgba(255,255,255,0.3)";
+                                const posColor = tc ? tc[1] : "#FFD700";
                                 return (
-                                  <div key={`${pos}-${idx}`} style={{
+                                  <div key={label} style={{
                                     position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)",
                                     textAlign: "center", zIndex: 2,
                                   }}>
-                                    <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "rgba(255,255,255,0.9)", margin: "0 auto 2px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.6rem", fontWeight: 700, color: "#1a1a1a" }}>
-                                      {pos}
-                                    </div>
-                                    <div style={{ fontSize: "0.6rem", color: "white", textShadow: "1px 1px 2px rgba(0,0,0,0.8)", whiteSpace: "nowrap", maxWidth: "80px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                      {match.player?.split(" ").pop()}
+                                    <div style={{ background: bg, border: `2px solid ${border}`, borderRadius: "8px", padding: "4px 8px", minWidth: "60px", boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>
+                                      <div style={{ fontSize: "0.55rem", fontWeight: 700, color: posColor, letterSpacing: "0.5px" }}>{posAbbr}</div>
+                                      <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#fff", whiteSpace: "nowrap" }}>{lastName}</div>
+                                      {match.ovr && <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.7)" }}>{match.ovr} OVR</div>}
                                     </div>
                                   </div>
                                 );
@@ -790,17 +794,19 @@ export default function MaddenFranchisePage() {
                             </div>
 
                             {/* list view below */}
+                            <div style={{ marginTop: "8px" }}>
                             {positions.map((pos) => {
                               const p = yearAp.find((a) => a.position_label === pos);
                               if (!p) return null;
-                              const extras = [p.team, p.ovr].filter(Boolean).join(" ");
+                              const extras = [p.team, p.ovr != null && `${p.ovr} OVR`].filter(Boolean).join(" · ");
                               return (
-                                <div key={pos} style={{ display: "flex", gap: "8px", alignItems: "baseline", margin: "2px 0" }}>
+                                <div key={pos} style={{ display: "flex", gap: "8px", alignItems: "baseline", margin: "3px 0" }}>
                                   <span style={{ fontWeight: 700, minWidth: "60px", fontSize: "0.85rem", color: "var(--accent)" }}>{apDisplayLabel(pos)}</span>
                                   <span style={{ fontSize: "0.85rem" }}>{p.player}{extras ? ` (${extras})` : ""}</span>
                                 </div>
                               );
                             })}
+                            </div>
                           </div>
                         );
                       })}
@@ -810,13 +816,13 @@ export default function MaddenFranchisePage() {
                         if (stPlayers.length === 0) return null;
                         return (
                           <div style={{ marginBottom: "0.5rem" }}>
-                            <p style={{ fontWeight: 700, fontSize: "0.9rem", borderBottom: "1px solid var(--border)", paddingBottom: "2px" }}>Special Teams</p>
+                            <p style={{ fontWeight: 700, fontSize: "0.95rem", borderBottom: "2px solid var(--border)", paddingBottom: "4px" }}>Special Teams</p>
                             {AP_POSITIONS_ST.map((pos) => {
                               const p = yearAp.find((a) => a.position_label === pos);
                               if (!p) return null;
-                              const extras = [p.team, p.ovr].filter(Boolean).join(" ");
+                              const extras = [p.team, p.ovr != null && `${p.ovr} OVR`].filter(Boolean).join(" · ");
                               return (
-                                <div key={pos} style={{ display: "flex", gap: "8px", alignItems: "baseline", margin: "2px 0" }}>
+                                <div key={pos} style={{ display: "flex", gap: "8px", alignItems: "baseline", margin: "3px 0" }}>
                                   <span style={{ fontWeight: 700, minWidth: "60px", fontSize: "0.85rem", color: "var(--accent)" }}>{apDisplayLabel(pos)}</span>
                                   <span style={{ fontSize: "0.85rem" }}>{p.player}{extras ? ` (${extras})` : ""}</span>
                                 </div>
