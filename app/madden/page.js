@@ -21,6 +21,23 @@ function parseTeamOvr(text) {
   return { team, ovr };
 }
 
+function resolvePlayer(row) {
+  let name = row.player || "—";
+  let team = row.team || null;
+  let ovr = row.ovr != null ? Number(row.ovr) : null;
+  if (!team) {
+    const m = name.match(/\((\d+)\s*(?:OVR)?\)\s*$/);
+    if (m) { ovr = ovr || parseInt(m[1]); name = name.slice(0, m.index).trim(); }
+    const words = name.split(" ");
+    for (let i = words.length - 1; i > 0; i--) {
+      const w = words[i].toUpperCase();
+      if (NFL_COLORS[w] || ALL_DIV_TEAMS.includes(w)) { team = w; words.splice(i, 1); break; }
+    }
+    name = words.join(" ");
+  }
+  return { name, team, ovr };
+}
+
 function parseRecord(rec) {
   const parts = rec.trim().split("-");
   const w = parseInt(parts[0]);
@@ -770,23 +787,24 @@ export default function MaddenFranchisePage() {
                               ))}
                               <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", borderLeft: "1px dashed rgba(255,255,255,0.08)" }} />
                               {layout.map(({ label, x, y }) => {
-                                const match = yearAp.find((a) => a.position_label === label);
-                                if (!match) return null;
+                                const raw = yearAp.find((a) => a.position_label === label);
+                                if (!raw) return null;
+                                const { name, team, ovr } = resolvePlayer(raw);
                                 const posAbbr = label.split(" ")[0];
-                                const lastName = match.player?.split(" ").pop() || "";
-                                const tc = match.team && NFL_COLORS[match.team.toUpperCase()];
+                                const lastName = name.split(" ").pop();
+                                const tc = team && NFL_COLORS[team];
                                 const bg = tc ? tc[0] : "rgba(0,0,0,0.5)";
-                                const border = tc ? tc[1] : "rgba(255,255,255,0.3)";
+                                const bdr = tc ? tc[1] : "rgba(255,255,255,0.3)";
                                 const posColor = tc ? tc[1] : "#FFD700";
                                 return (
                                   <div key={label} style={{
                                     position: "absolute", left: `${x}%`, top: `${y}%`, transform: "translate(-50%, -50%)",
                                     textAlign: "center", zIndex: 2,
                                   }}>
-                                    <div style={{ background: bg, border: `2px solid ${border}`, borderRadius: "8px", padding: "4px 8px", minWidth: "60px", boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>
+                                    <div style={{ background: bg, border: `2px solid ${bdr}`, borderRadius: "8px", padding: "4px 8px", minWidth: "60px", boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>
                                       <div style={{ fontSize: "0.55rem", fontWeight: 700, color: posColor, letterSpacing: "0.5px" }}>{posAbbr}</div>
                                       <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#fff", whiteSpace: "nowrap" }}>{lastName}</div>
-                                      {match.ovr && <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.7)" }}>{match.ovr} OVR</div>}
+                                      {ovr && <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.7)" }}>{ovr} OVR</div>}
                                     </div>
                                   </div>
                                 );
@@ -796,13 +814,16 @@ export default function MaddenFranchisePage() {
                             {/* list view below */}
                             <div style={{ marginTop: "8px" }}>
                             {positions.map((pos) => {
-                              const p = yearAp.find((a) => a.position_label === pos);
-                              if (!p) return null;
-                              const extras = [p.team, p.ovr != null && `${p.ovr} OVR`].filter(Boolean).join(" · ");
+                              const raw = yearAp.find((a) => a.position_label === pos);
+                              if (!raw) return null;
+                              const { name, team, ovr } = resolvePlayer(raw);
+                              const tc = team && NFL_COLORS[team];
+                              const extras = [team, ovr != null && `${ovr} OVR`].filter(Boolean).join(" · ");
                               return (
-                                <div key={pos} style={{ display: "flex", gap: "8px", alignItems: "baseline", margin: "3px 0" }}>
+                                <div key={pos} style={{ display: "flex", gap: "8px", alignItems: "center", margin: "3px 0" }}>
                                   <span style={{ fontWeight: 700, minWidth: "60px", fontSize: "0.85rem", color: "var(--accent)" }}>{apDisplayLabel(pos)}</span>
-                                  <span style={{ fontSize: "0.85rem" }}>{p.player}{extras ? ` (${extras})` : ""}</span>
+                                  {tc && <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "50%", background: tc[0], border: `1.5px solid ${tc[1]}`, flexShrink: 0 }} />}
+                                  <span style={{ fontSize: "0.85rem" }}>{name}{extras ? ` (${extras})` : ""}</span>
                                 </div>
                               );
                             })}
@@ -818,13 +839,16 @@ export default function MaddenFranchisePage() {
                           <div style={{ marginBottom: "0.5rem" }}>
                             <p style={{ fontWeight: 700, fontSize: "0.95rem", borderBottom: "2px solid var(--border)", paddingBottom: "4px" }}>Special Teams</p>
                             {AP_POSITIONS_ST.map((pos) => {
-                              const p = yearAp.find((a) => a.position_label === pos);
-                              if (!p) return null;
-                              const extras = [p.team, p.ovr != null && `${p.ovr} OVR`].filter(Boolean).join(" · ");
+                              const raw = yearAp.find((a) => a.position_label === pos);
+                              if (!raw) return null;
+                              const { name, team, ovr } = resolvePlayer(raw);
+                              const tc = team && NFL_COLORS[team];
+                              const extras = [team, ovr != null && `${ovr} OVR`].filter(Boolean).join(" · ");
                               return (
-                                <div key={pos} style={{ display: "flex", gap: "8px", alignItems: "baseline", margin: "3px 0" }}>
+                                <div key={pos} style={{ display: "flex", gap: "8px", alignItems: "center", margin: "3px 0" }}>
                                   <span style={{ fontWeight: 700, minWidth: "60px", fontSize: "0.85rem", color: "var(--accent)" }}>{apDisplayLabel(pos)}</span>
-                                  <span style={{ fontSize: "0.85rem" }}>{p.player}{extras ? ` (${extras})` : ""}</span>
+                                  {tc && <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "50%", background: tc[0], border: `1.5px solid ${tc[1]}`, flexShrink: 0 }} />}
+                                  <span style={{ fontSize: "0.85rem" }}>{name}{extras ? ` (${extras})` : ""}</span>
                                 </div>
                               );
                             })}
