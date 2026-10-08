@@ -18,6 +18,14 @@ const SCHOOL_SCHEDULE = [
 ];
 
 function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function parseTimeStr(s) {
+  const m = s.match(/(\d{1,2}):(\d{2})/);
+  if (!m) return 480;
+  let h = parseInt(m[1]);
+  const min = parseInt(m[2]);
+  if (s.toUpperCase().includes("PM") && h < 12) h += 12;
+  return h * 60 + min;
+}
 function localDate(d) { return typeof d === "string" ? new Date(d + "T12:00:00") : d; }
 function addDays(d, n) { const r = localDate(d); r.setDate(r.getDate() + n); return r; }
 function getMonday(d) { const r = localDate(d); const day = r.getDay(); r.setDate(r.getDate() - ((day + 6) % 7)); return r; }
@@ -105,6 +113,13 @@ export default function HomePage() {
   const focusRuns = runSchedule.filter((r) => r.date === focusDate);
   const reading = books.filter((b) => b.status === "reading");
   const focusCal = calEvents.filter((e) => (e.start || "").slice(0, 10) === focusDate);
+
+  const focusTimeline = [
+    ...focusClasses.map((c) => ({ type: "class", sortMin: parseTimeStr(c.time), data: c })),
+    ...focusCal.map((e) => ({ type: "cal", sortMin: e.start?.length > 10 ? new Date(e.start).getHours() * 60 + new Date(e.start).getMinutes() : 0, data: e })),
+    ...focusRuns.map((r) => ({ type: "run", sortMin: (r.workout || "").startsWith("Rest") ? 480 : 21 * 60, data: r })),
+    ...focusActs.map((a) => { const [h, m] = TIME_HOURS[a.time_slot] || [8, 0]; return { type: "act", sortMin: h * 60 + m, data: a }; }),
+  ].sort((a, b) => a.sortMin - b.sortMin);
 
   const completedDates = new Set();
   activities.filter((a) => a.completed).forEach((a) => completedDates.add(a.date));
@@ -285,47 +300,48 @@ export default function HomePage() {
 
       <hr className="divider" />
 
-      {/* Day schedule */}
-      {focusClasses.map((c, i) => (
-        <div key={i} style={{ borderLeft: "3px solid #FF6F00", padding: "4px 8px", margin: "4px 0", borderRadius: "3px", fontSize: "0.9rem", background: "rgba(255,111,0,0.08)" }}>
-          <span style={{ color: "#FF6F00", fontSize: "0.8rem" }}>{c.time}</span> {c.name} <span style={{ color: "var(--muted)", fontSize: "0.8rem" }}>{c.room}</span>
-        </div>
-      ))}
-
-      {focusCal.map((e, i) => {
-        const time = e.start?.length > 10
-          ? new Date(e.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-          : "All day";
-        return (
-          <div key={i} style={{ borderLeft: "3px solid #e94560", padding: "4px 8px", margin: "4px 0", borderRadius: "3px", fontSize: "0.9rem" }}>
-            <span style={{ color: "#e94560", fontSize: "0.8rem" }}>{time}</span> {e.summary}
-            {e.location && <span style={{ color: "var(--muted)", fontSize: "0.8rem" }}> · {e.location}</span>}
-          </div>
-        );
-      })}
-
-      {focusRuns.map((r) => {
-        const wo = r.workout || "";
-        const isRest = wo.startsWith("Rest");
-        return (
-          <div key={r.id} style={{
-            borderLeft: `3px solid ${isRest ? "#607D8B" : "#F44336"}`,
-            padding: "4px 8px", margin: "4px 0", borderRadius: "3px", fontSize: "0.9rem",
-            opacity: r.completed ? 0.5 : 1, textDecoration: r.completed ? "line-through" : "none",
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-          }}>
-            <span><span style={{ color: "#F44336", fontSize: "0.8rem" }}>Run</span> {wo}{r.distance ? ` · ${r.distance} mi` : ""}{r.notes ? ` — ${r.notes}` : ""}</span>
-            {!isRest && <button className="btn" onClick={() => toggleRun(r.id, r.completed)} style={{ padding: "2px 8px", fontSize: "0.75rem" }}>{r.completed ? "Undo" : "Done"}</button>}
-          </div>
-        );
-      })}
-
-      {focusActs.map((a) => {
+      {/* Day schedule — unified timeline */}
+      {focusTimeline.map((item, i) => {
+        if (item.type === "class") {
+          const c = item.data;
+          return (
+            <div key={`c${i}`} style={{ borderLeft: "3px solid #FF6F00", padding: "4px 8px", margin: "4px 0", borderRadius: "3px", fontSize: "0.9rem", background: "rgba(255,111,0,0.08)" }}>
+              <span style={{ color: "#FF6F00", fontSize: "0.8rem" }}>{c.time}</span> {c.name} <span style={{ color: "var(--muted)", fontSize: "0.8rem" }}>{c.room}</span>
+            </div>
+          );
+        }
+        if (item.type === "cal") {
+          const e = item.data;
+          const time = e.start?.length > 10 ? new Date(e.start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "All day";
+          return (
+            <div key={`e${i}`} style={{ borderLeft: "3px solid #e94560", padding: "4px 8px", margin: "4px 0", borderRadius: "3px", fontSize: "0.9rem" }}>
+              <span style={{ color: "#e94560", fontSize: "0.8rem" }}>{time}</span> {e.summary}
+              {e.location && <span style={{ color: "var(--muted)", fontSize: "0.8rem" }}> · {e.location}</span>}
+            </div>
+          );
+        }
+        if (item.type === "run") {
+          const r = item.data;
+          const wo = r.workout || "";
+          const isRest = wo.startsWith("Rest");
+          return (
+            <div key={`r${r.id}`} style={{
+              borderLeft: `3px solid ${isRest ? "#607D8B" : "#F44336"}`,
+              padding: "4px 8px", margin: "4px 0", borderRadius: "3px", fontSize: "0.9rem",
+              opacity: r.completed ? 0.5 : 1, textDecoration: r.completed ? "line-through" : "none",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <span><span style={{ color: "#F44336", fontSize: "0.8rem" }}>Run</span> {wo}{r.distance ? ` · ${r.distance} mi` : ""}{r.notes ? ` — ${r.notes}` : ""}</span>
+              {!isRest && <button className="btn" onClick={() => toggleRun(r.id, r.completed)} style={{ padding: "2px 8px", fontSize: "0.75rem" }}>{r.completed ? "Undo" : "Done"}</button>}
+            </div>
+          );
+        }
+        const a = item.data;
         const at = ACTIVITY_TYPES[a.activity_type] || { label: a.activity_type, color: "#607D8B" };
         const title = a.title || at.label;
         const timeStr = TIME_DISPLAY[a.time_slot] || a.time_slot || "";
         return (
-          <div key={a.id} style={{
+          <div key={`a${a.id}`} style={{
             borderLeft: `3px solid ${at.color}`, padding: "4px 8px", margin: "4px 0",
             borderRadius: "3px", fontSize: "0.9rem",
             opacity: a.completed ? 0.5 : 1, textDecoration: a.completed ? "line-through" : "none",
@@ -340,7 +356,7 @@ export default function HomePage() {
         );
       })}
 
-      {focusClasses.length === 0 && focusRuns.length === 0 && focusActs.length === 0 && focusCal.length === 0 && (
+      {focusTimeline.length === 0 && (
         <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>Nothing scheduled.</p>
       )}
 
