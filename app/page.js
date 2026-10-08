@@ -18,9 +18,10 @@ const SCHOOL_SCHEDULE = [
 ];
 
 function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
-function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
-function getMonday(d) { const r = new Date(d); const day = r.getDay(); r.setDate(r.getDate() - ((day + 6) % 7)); return r; }
-function jsWeekday(d) { return (new Date(d).getDay() + 6) % 7; }
+function localDate(d) { return typeof d === "string" ? new Date(d + "T12:00:00") : d; }
+function addDays(d, n) { const r = localDate(d); r.setDate(r.getDate() + n); return r; }
+function getMonday(d) { const r = localDate(d); const day = r.getDay(); r.setDate(r.getDate() - ((day + 6) % 7)); return r; }
+function jsWeekday(d) { return (localDate(d).getDay() + 6) % 7; }
 function fmtDay(d) { return new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric" }); }
 
 export default function HomePage() {
