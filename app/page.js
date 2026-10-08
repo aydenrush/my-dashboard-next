@@ -11,7 +11,7 @@ const DURATION_MAP = { lifting: 45, cycling: 60, frisbee_golf: 120, rap_writing:
 
 const SCHOOL_SCHEDULE = [
   { name: "CS 25000 Lab", days: [3], time: "9:30 - 11:20 AM", start: "2026-08-27", end: "2026-12-10", room: "SL 251" },
-  { name: "CS 25100 Pso", days: [2], time: "11:30 AM - 12:20 PM", start: "2026-08-26", end: "2026-12-09", room: "SL 247" },
+  { name: "CS 25100 Pso", days: [2], time: "12:30 - 1:20 PM", start: "2026-08-26", end: "2026-12-09", room: "SL 247" },
   { name: "CS 25000", days: [1, 3], time: "1:30 - 2:45 PM", start: "2026-08-25", end: "2026-12-10", room: "ES 2107" },
   { name: "CS 25100", days: [0, 2, 4], time: "2:30 - 3:20 PM", start: "2026-08-24", end: "2026-12-11", room: "ES 2107" },
   { name: "MA 26500", days: [0, 2, 4], time: "4:30 - 5:20 PM", start: "2026-08-24", end: "2026-12-11", room: "SL 011" },
