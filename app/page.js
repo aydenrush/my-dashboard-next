@@ -213,7 +213,9 @@ export default function HomePage() {
       const dtend = `${d}T${String(eh).padStart(2, "0")}${String(em).padStart(2, "0")}00`;
       lines.push("BEGIN:VEVENT", `UID:act-${act.id}@mydashboard`,
         `DTSTART;TZID=${tz}:${dtstart}`, `DTEND;TZID=${tz}:${dtend}`,
-        `SUMMARY:${summary}`, "END:VEVENT");
+        `SUMMARY:${summary}`);
+      if (act.notes) lines.push(`DESCRIPTION:${act.notes}`);
+      lines.push("END:VEVENT");
     });
 
     runSchedule.forEach((run) => {
@@ -221,9 +223,11 @@ export default function HomePage() {
       if (!wo.trim() || wo.startsWith("Rest")) return;
       const title = wo.split("\n")[0];
       const d = run.date.replace(/-/g, "");
+      const details = wo.split("\n").slice(1).map((l) => l.trim().replace(/^- /, "")).filter(Boolean);
+      const desc = details.length ? details.join(" | ") : title;
       lines.push("BEGIN:VEVENT", `UID:run-${run.id}@mydashboard`,
         `DTSTART;TZID=${tz}:${d}T210000`, `DTEND;TZID=${tz}:${d}T220000`,
-        `SUMMARY:Running: ${title}`, "END:VEVENT");
+        `SUMMARY:Running: ${title}`, `DESCRIPTION:${desc}`, "END:VEVENT");
     });
 
     lines.push("END:VCALENDAR");
@@ -321,13 +325,13 @@ export default function HomePage() {
             borderLeft: `3px solid ${at.color}`, padding: "4px 8px", margin: "4px 0",
             borderRadius: "3px", fontSize: "0.9rem",
             opacity: a.completed ? 0.5 : 1, textDecoration: a.completed ? "line-through" : "none",
-            display: "flex", justifyContent: "space-between", alignItems: "center",
+            display: "flex", justifyContent: "space-between", alignItems: "flex-start",
           }}>
-            <span>
+            <div>
               <span style={{ color: at.color, fontSize: "0.8rem" }}>{timeStr ? `${timeStr} ` : ""}{at.label}</span> {title !== at.label ? title : ""}
-              {a.notes ? ` — ${a.notes}` : ""}
-            </span>
-            <button className="btn" onClick={() => toggleActivity(a.id, a.completed)} style={{ padding: "2px 8px", fontSize: "0.75rem" }}>{a.completed ? "Undo" : "Done"}</button>
+              {a.notes && <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "1px" }}>{a.notes}</div>}
+            </div>
+            <button className="btn" onClick={() => toggleActivity(a.id, a.completed)} style={{ padding: "2px 8px", fontSize: "0.75rem", flexShrink: 0 }}>{a.completed ? "Undo" : "Done"}</button>
           </div>
         );
       })}
