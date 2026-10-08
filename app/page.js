@@ -6,7 +6,7 @@ import { ACTIVITY_TYPES, PRIORITY_COLORS } from "@/lib/constants";
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TIME_SLOTS = ["Morning", "Midday", "Afternoon", "Evening"];
 const TIME_DISPLAY = { Morning: "8 AM", Midday: "11 AM", Afternoon: "2 PM", Evening: "5:30 PM" };
-const TIME_HOURS = { Morning: [8, 0], Midday: [11, 0], Afternoon: [14, 0], Evening: [17, 30] };
+const TIME_HOURS = { Morning: [8, 0], Midday: [11, 0], Afternoon: [14, 0], Evening: [17, 30], "7:30 AM": [7, 30], "8:30 AM": [8, 30], "11:00 PM": [23, 0], "11:59 PM": [23, 59] };
 const DURATION_MAP = { lifting: 45, cycling: 60, frisbee_golf: 120, rap_writing: 90, running: 45, other: 60 };
 
 const SCHOOL_SCHEDULE = [
@@ -97,7 +97,11 @@ export default function HomePage() {
   const focusClasses = SCHOOL_SCHEDULE.filter((c) =>
     c.days.includes(focusDay) && focusDate >= c.start && focusDate <= c.end
   );
-  const focusActs = activities.filter((a) => a.date === focusDate);
+  const focusActs = activities.filter((a) => a.date === focusDate).sort((a, b) => {
+    const [ah, am] = TIME_HOURS[a.time_slot] || [8, 0];
+    const [bh, bm] = TIME_HOURS[b.time_slot] || [8, 0];
+    return (ah * 60 + am) - (bh * 60 + bm);
+  });
   const focusRuns = runSchedule.filter((r) => r.date === focusDate);
   const reading = books.filter((b) => b.status === "reading");
   const focusCal = calEvents.filter((e) => (e.start || "").slice(0, 10) === focusDate);
