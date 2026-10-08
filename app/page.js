@@ -17,7 +17,7 @@ const SCHOOL_SCHEDULE = [
   { name: "MA 26500", days: [0, 2, 4], time: "4:30 - 5:20 PM", start: "2026-08-24", end: "2026-12-11", room: "SL 011" },
 ];
 
-function isoDate(d) { return d.toISOString().slice(0, 10); }
+function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
 function getMonday(d) { const r = new Date(d); const day = r.getDay(); r.setDate(r.getDate() - ((day + 6) % 7)); return r; }
 function jsWeekday(d) { return (new Date(d).getDay() + 6) % 7; }

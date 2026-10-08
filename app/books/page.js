@@ -5,7 +5,8 @@ import { supabase } from "@/lib/supabase";
 const STATUS_LABELS = { reading: "Currently Reading", completed: "Completed", want_to_read: "Want to Read" };
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function daysBetween(a, b) {
