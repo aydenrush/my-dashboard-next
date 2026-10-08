@@ -229,6 +229,20 @@ export default function HomePage() {
     return lines.join("\r\n");
   }
 
+  const [syncMsg, setSyncMsg] = useState("");
+
+  async function publishFeed() {
+    setSyncMsg("Publishing...");
+    const icsBytes = new TextEncoder().encode(buildIcs());
+    const opts = { contentType: "text/calendar", cacheControl: "max-age=300", upsert: true };
+    const { error } = await supabase.storage.from("ical").upload("training_plan.ics", icsBytes, opts);
+    if (error) {
+      setSyncMsg("Error: " + error.message);
+    } else {
+      setSyncMsg("Published! Subscribe with the URL below.");
+    }
+  }
+
   function downloadIcs() {
     const blob = new Blob([buildIcs()], { type: "text/calendar" });
     const url = URL.createObjectURL(blob);
@@ -493,11 +507,18 @@ export default function HomePage() {
         <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Sync to phone</summary>
         <div style={{ marginBottom: "1rem" }}>
           <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem" }}>
-            Download your training plan as an .ics file and import it into your phone calendar.
+            Publish your training plan so your phone calendar updates automatically.
           </p>
-          <button className="btn btn-primary" onClick={downloadIcs}>Download .ics</button>
-          <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.5rem" }}>
-            Contains all activities and running schedule entries. Import into Google Calendar, Apple Calendar, or Outlook.
+          <div style={{ display: "flex", gap: "8px", marginBottom: "0.5rem" }}>
+            <button className="btn btn-primary" onClick={publishFeed}>Publish feed</button>
+            <button className="btn" onClick={downloadIcs}>Download .ics</button>
+          </div>
+          {syncMsg && <p style={{ fontSize: "0.85rem", color: syncMsg.startsWith("Error") ? "var(--danger)" : "var(--success)", marginBottom: "0.5rem" }}>{syncMsg}</p>}
+          <code style={{ display: "block", fontSize: "0.75rem", wordBreak: "break-all", padding: "6px 8px", background: "var(--bg-secondary)", borderRadius: "4px", marginBottom: "4px" }}>
+            {process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("https://", "webcal://")}/storage/v1/object/public/ical/training_plan.ics
+          </code>
+          <p style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+            Add this URL as a calendar subscription on your phone. It refreshes automatically.
           </p>
         </div>
       </details>
