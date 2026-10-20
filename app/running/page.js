@@ -396,9 +396,7 @@ function refitWorkout(analysis, { warmup, reps: repDefs, cooldown }) {
   if (!repDefs?.length) return null;
   const { paceData: pd, pts, mt, threshold } = analysis;
   if (!pts || !mt) return null;
-  const warmupS = (warmup || 0) * 60;
   const cooldownS = (cooldown || 0) * 60;
-  const thr = threshold || 9;
 
   const hav = (a, b) => {
     const R = 6371000, toRad = (x) => (x * Math.PI) / 180;
@@ -407,47 +405,62 @@ function refitWorkout(analysis, { warmup, reps: repDefs, cooldown }) {
     return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
   };
 
-  const reps = [];
-  let t = warmupS;
-  for (let i = 0; i < repDefs.length; i++) {
-    const hardS = repDefs[i].hard * 60;
-    // seek forward past slow recovery to find where actual hard effort begins
-    const seekPts = pd.filter((p) => p.t >= t && p.t < t + 600);
-    const fastPt = seekPts.find((p) => p.pace < thr);
-    if (fastPt) t = Math.max(t, fastPt.t - 10);
-    // compute raw GPS distance over the rep window for accurate pace
-    let iStart = -1, iEnd = -1;
-    for (let k = 0; k < pts.length; k++) {
-      if (mt[k] >= t && iStart < 0) iStart = k;
-      if (mt[k] <= t + hardS) iEnd = k;
-    }
-    if (iStart >= 0 && iEnd > iStart) {
-      let dist = 0, hrSum = 0, hrN = 0;
-      for (let k = iStart; k < iEnd; k++) {
-        if (mt[k + 1] > mt[k]) dist += hav(pts[k], pts[k + 1]);
-        if (pts[k].hr) { hrSum += pts[k].hr; hrN++; }
+  // compute reps starting from a given offset, seeking past slow sections
+  function tryOffset(startT) {
+    const thr = threshold || 9;
+    const result = [];
+    let t = startT;
+    for (let i = 0; i < repDefs.length; i++) {
+      const hardS = repDefs[i].hard * 60;
+      const seekPts = pd.filter((p) => p.t >= t && p.t < t + 600);
+      const fastPt = seekPts.find((p) => p.pace < thr);
+      if (fastPt) t = Math.max(t, fastPt.t - 10);
+      let iStart = -1, iEnd = -1;
+      for (let k = 0; k < pts.length; k++) {
+        if (mt[k] >= t && iStart < 0) iStart = k;
+        if (mt[k] <= t + hardS) iEnd = k;
       }
-      const elapsed = mt[iEnd] - mt[iStart];
-      if (dist > 0 && elapsed > 0) {
-        reps.push({ duration: hardS, pace: (elapsed / 60) / (dist / 1609.34), hr: hrN ? hrSum / hrN : 0 });
+      if (iStart >= 0 && iEnd > iStart) {
+        let dist = 0, hrSum = 0, hrN = 0;
+        for (let k = iStart; k < iEnd; k++) {
+          if (mt[k + 1] > mt[k]) dist += hav(pts[k], pts[k + 1]);
+          if (pts[k].hr) { hrSum += pts[k].hr; hrN++; }
+        }
+        const elapsed = mt[iEnd] - mt[iStart];
+        if (dist > 0 && elapsed > 0) {
+          result.push({ duration: hardS, pace: (elapsed / 60) / (dist / 1609.34), hr: hrN ? hrSum / hrN : 0 });
+        }
+      }
+      t += hardS;
+      if (i < repDefs.length - 1) {
+        const nextFast = pd.find((p) => p.t > t + 30 && p.pace < thr);
+        if (nextFast) t = nextFast.t - 10;
+        else t += (repDefs[i].easy || 0) * 60;
       }
     }
-    // advance past hard rep, then seek to next fast section for next rep
-    t += hardS;
-    if (i < repDefs.length - 1) {
-      const nextFast = pd.find((p) => p.t > t + 30 && p.pace < thr);
-      if (nextFast) t = nextFast.t - 10;
-      else t += (repDefs[i].easy || 0) * 60;
+    return result;
+  }
+
+  // try offsets around the user's warmup to find best alignment (fastest avg rep pace)
+  const warmupS = (warmup || 0) * 60;
+  let bestReps = null, bestPace = Infinity, bestWu = warmupS;
+  const step = 15, range = 120;
+  for (let off = Math.max(0, warmupS - range); off <= warmupS + range; off += step) {
+    const r = tryOffset(off);
+    if (r.length === repDefs.length) {
+      const avg = r.reduce((a, x) => a + x.pace, 0) / r.length;
+      if (avg < bestPace) { bestPace = avg; bestReps = r; bestWu = off; }
     }
   }
+  const reps = bestReps || tryOffset(warmupS);
   if (!reps.length) return null;
 
-  const workoutS = t - warmupS;
+  const workoutS = reps.reduce((a, r) => a + r.duration, 0) + repDefs.slice(0, -1).reduce((a, r) => a + (r.easy || 0) * 60, 0);
   const avgPace = reps.reduce((a, r) => a + r.pace, 0) / reps.length;
   const allSame = reps.length > 1 && reps.every((r) => r.duration === reps[0].duration);
 
   let summary = "";
-  if (warmupS) summary += `${warmup} min WU → `;
+  if (bestWu) summary += `${(bestWu / 60).toFixed(0)} min WU → `;
   if (allSame) {
     summary += `${reps.length} x ${repDefs[0].hard} min @ ${fmtPaceMin(avgPace)}`;
     if (repDefs[0].easy) summary += ` / ${repDefs[0].easy} min easy`;
@@ -1372,6 +1385,11 @@ export default function RunningPage() {
                       </div>
 
                       <p style={{ margin: "8px 0 0", fontSize: "0.9em" }}>{gpxAnalysis.summary}</p>
+                      {gpxAnalysis.type === "easy" && (
+                        <p style={{ margin: "4px 0 0", fontSize: "0.8em", color: "#888" }}>
+                          No intervals detected — pace stayed within {((gpxAnalysis.easyPace - gpxAnalysis.fastPace) * 60).toFixed(0)}s/mi range. Use &quot;Doesn&apos;t look right?&quot; to define the workout.
+                        </p>
+                      )}
 
                       {(() => {
                         const planned = schedule.find((s) => s.date === gpxPreview.date);
@@ -1488,13 +1506,17 @@ export default function RunningPage() {
                           ))}
                           <button className="btn" style={{ marginTop: "6px", fontSize: "0.85em" }}
                             onClick={() => setCorReps([...corReps, { ...corReps[corReps.length - 1] }])}>+ Rep</button>
-                          <div style={{ marginTop: "8px" }}>
+                          <div style={{ marginTop: "8px", display: "flex", gap: "8px" }}>
                             <button className="btn btn-primary" onClick={() => {
                               const reps = corReps.filter((r) => parseFloat(r.hard) > 0).map((r) => ({ hard: parseFloat(r.hard), easy: parseFloat(r.easy) || 0 }));
                               if (!reps.length) return;
                               const result = refitWorkout(gpxAnalysis, { warmup: parseFloat(corWu) || 0, reps, cooldown: parseFloat(corCd) || 0 });
                               if (result) { setGpxAnalysis({ ...gpxAnalysis, ...result }); setShowCorrection(false); }
                             }}>Re-analyze</button>
+                            <button className="btn" onClick={() => {
+                              setGpxAnalysis({ ...gpxAnalysis, type: "easy", summary: "Easy run", reps: [], segments: [], corrected: true });
+                              setShowCorrection(false);
+                            }}>Just an easy run</button>
                           </div>
                         </div>
                       )}
