@@ -26,7 +26,7 @@ function parseTimeStr(s) {
   if (s.toUpperCase().includes("PM") && h < 12) h += 12;
   return h * 60 + min;
 }
-function localDate(d) { return typeof d === "string" ? new Date(d + "T12:00:00") : d; }
+function localDate(d) { return typeof d === "string" ? new Date(d + "T12:00:00") : new Date(d); }
 function addDays(d, n) { const r = localDate(d); r.setDate(r.getDate() + n); return r; }
 function getMonday(d) { const r = localDate(d); const day = r.getDay(); r.setDate(r.getDate() - ((day + 6) % 7)); return r; }
 function jsWeekday(d) { return (localDate(d).getDay() + 6) % 7; }
