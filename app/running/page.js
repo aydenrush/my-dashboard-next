@@ -47,6 +47,13 @@ function fmtDuration(secs) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function fmtPaceMin(p) {
+  if (!p || !isFinite(p)) return "--";
+  const m = Math.floor(p);
+  const s = Math.round((p % 1) * 60);
+  return `${m}:${String(s).padStart(2, "0")}/mi`;
+}
+
 function toDate(d) {
   if (!d) return null;
   const s = typeof d === "string" ? d.slice(0, 10) : d;
@@ -216,6 +223,201 @@ function parseStravaCsv(text) {
   return rows;
 }
 
+// --- Workout analyzer (ports scratchpad/analyze-gpx.mjs to client-side) ---
+
+function analyzeWorkout(gpxText) {
+  const blocks = gpxText.split("<trkpt ").slice(1);
+  const pts = [];
+  for (const blk of blocks) {
+    const latM = blk.match(/lat="([^"]+)"/);
+    const lonM = blk.match(/lon="([^"]+)"/);
+    const timeM = blk.match(/<time>([^<]+)/);
+    if (!latM || !lonM || !timeM) continue;
+    const hrM = blk.match(/<(?:gpxtpx:)?hr>(\d+)/);
+    const cadM = blk.match(/<(?:gpxtpx:)?cad>(\d+)/);
+    pts.push({
+      lat: parseFloat(latM[1]), lon: parseFloat(lonM[1]),
+      time: new Date(timeM[1]),
+      hr: hrM ? parseInt(hrM[1]) : null,
+      cad: cadM ? parseInt(cadM[1]) : null,
+    });
+  }
+  if (pts.length < 20) return null;
+
+  const hav = (a, b) => {
+    const R = 6371000, toRad = (x) => (x * Math.PI) / 180;
+    const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+    const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+  };
+
+  const mt = [0];
+  const pauseAt = new Set();
+  for (let i = 1; i < pts.length; i++) {
+    const dt = pts[i].time - pts[i - 1].time;
+    const d = hav(pts[i - 1], pts[i]);
+    const spd = d / (dt / 1000);
+    const pause = (dt > 10000 && spd < 1) || dt > 60000;
+    mt.push(mt[i - 1] + (pause ? 0 : dt / 1000));
+    if (pause) pauseAt.add(i);
+  }
+
+  const pd = [];
+  for (let i = 1; i < pts.length; i++) {
+    let j = i;
+    while (j > 0 && mt[i] - mt[j] < 15 && !pauseAt.has(j)) j--;
+    if (pauseAt.has(j)) j++;
+    if (j >= i) continue;
+    const dt = mt[i] - mt[j];
+    if (dt < 5) continue;
+    let dist = 0;
+    for (let k = j; k < i; k++) dist += hav(pts[k], pts[k + 1]);
+    if (dist < 1) continue;
+    pd.push({ t: mt[i], pace: (dt / 60) / (dist / 1609.34), hr: pts[i].hr });
+  }
+  if (pd.length < 20) return null;
+
+  const rp = pd.map((p) => p.pace).filter((p) => p > 4 && p < 12);
+  if (rp.length < 20) return null;
+  let c1 = Math.min(...rp), c2 = Math.max(...rp);
+  for (let it = 0; it < 20; it++) {
+    const g1 = rp.filter((p) => Math.abs(p - c1) <= Math.abs(p - c2));
+    const g2 = rp.filter((p) => Math.abs(p - c1) > Math.abs(p - c2));
+    if (!g1.length || !g2.length) break;
+    c1 = g1.reduce((a, b) => a + b) / g1.length;
+    c2 = g2.reduce((a, b) => a + b) / g2.length;
+  }
+  const thr = c1 + (c2 - c1) * 0.3;
+
+  let segs = [];
+  let cz = null, segS = 0;
+  for (const p of pd) {
+    const z = p.pace < thr ? "fast" : p.pace < 12 ? "easy" : "slow";
+    if (z !== cz) {
+      if (cz) segs.push({ z: cz, s: segS, e: p.t });
+      cz = z; segS = p.t;
+    }
+  }
+  if (cz) segs.push({ z: cz, s: segS, e: pd[pd.length - 1].t });
+
+  let merged = [segs[0]];
+  for (let i = 1; i < segs.length; i++) {
+    if (segs[i].e - segs[i].s < 30) merged[merged.length - 1].e = segs[i].e;
+    else merged.push({ ...segs[i] });
+  }
+
+  let m2 = [merged[0]];
+  for (let i = 1; i < merged.length; i++) {
+    const prev = m2[m2.length - 1], cur = merged[i];
+    if (prev.z === "fast" && cur.z === "fast" && cur.s - prev.e < 40) prev.e = cur.e;
+    else if (prev.z === "fast" && cur.z !== "fast" && cur.e - cur.s < 40 && i + 1 < merged.length && merged[i + 1].z === "fast") { prev.e = merged[i + 1].e; i++; }
+    else m2.push({ ...cur });
+  }
+
+  for (const s of m2) {
+    if (s.z !== "fast") continue;
+    if (s.e - s.s < 60) { s.z = "easy"; continue; }
+    const sp = pd.filter((p) => p.t >= s.s && p.t <= s.e);
+    const ap = sp.reduce((a, p) => a + p.pace, 0) / sp.length;
+    const hp = sp.filter((p) => p.hr);
+    const ah = hp.length ? hp.reduce((a, p) => a + p.hr, 0) / hp.length : 0;
+    if (ap > thr) { s.z = "easy"; continue; }
+    if (ah && ah < 155) s.z = "easy";
+  }
+
+  let fin = [m2[0]];
+  for (let i = 1; i < m2.length; i++) {
+    if (m2[i].z === fin[fin.length - 1].z) fin[fin.length - 1].e = m2[i].e;
+    else fin.push({ ...m2[i] });
+  }
+
+  const fast = fin.filter((s) => s.z === "fast");
+  const tt = pd[pd.length - 1].t;
+
+  if (!fast.length) return { type: "easy", summary: "Easy run", reps: [], segments: fin, paceData: pd, fastPace: c1, easyPace: c2, threshold: thr };
+
+  if (fast.length === 1 && fast[0].e - fast[0].s > 600) {
+    const sp = pd.filter((p) => p.t >= fast[0].s && p.t <= fast[0].e);
+    const ap = sp.reduce((a, p) => a + p.pace, 0) / sp.length;
+    return { type: "tempo", summary: `Tempo: ${((fast[0].e - fast[0].s) / 60).toFixed(1)} min @ ${fmtPaceMin(ap)}`, reps: [{ duration: fast[0].e - fast[0].s, pace: ap, hr: 0 }], segments: fin, paceData: pd, fastPace: c1, easyPace: c2, threshold: thr };
+  }
+
+  const wu = fast[0].s, cd = tt - fast[fast.length - 1].e;
+  const wkDur = fast[fast.length - 1].e - fast[0].s;
+  const reps = fast.map((s) => {
+    const sp = pd.filter((p) => p.t >= s.s && p.t <= s.e);
+    const ap = sp.reduce((a, p) => a + p.pace, 0) / sp.length;
+    const hp = sp.filter((p) => p.hr);
+    const ah = hp.length ? hp.reduce((a, p) => a + p.hr, 0) / hp.length : 0;
+    return { duration: s.e - s.s, pace: ap, hr: ah };
+  });
+  const recs = [];
+  for (let i = 0; i < fast.length - 1; i++) recs.push(fast[i + 1].s - fast[i].e);
+  const avgDur = reps.reduce((a, r) => a + r.duration, 0) / reps.length;
+  const avgPace = reps.reduce((a, r) => a + r.pace, 0) / reps.length;
+  const avgRec = recs.length ? recs.reduce((a, b) => a + b) / recs.length : 0;
+
+  let summary = "";
+  if (wu > 120) summary += `${(wu / 60).toFixed(1)} min WU → `;
+  summary += `${(wkDur / 60).toFixed(1)} min — ${reps.length} x ${(avgDur / 60).toFixed(1)} min @ ${fmtPaceMin(avgPace)}`;
+  if (avgRec > 0) summary += ` / ${(avgRec / 60).toFixed(1)} min easy`;
+  if (cd > 120) summary += ` → ${(cd / 60).toFixed(1)} min CD`;
+
+  return { type: "intervals", warmup_s: wu, cooldown_s: cd, workout_s: wkDur, reps, recoveries: recs, segments: fin, paceData: pd, fastPace: c1, easyPace: c2, threshold: thr, summary };
+}
+
+function parseWorkoutDesc(text) {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  let warmup = null, cooldown = null, repDur = null, recDur = null, totalDur = null, numReps = null;
+  const wuM = t.match(/(\d+)\s*min\s*(?:wu|warmup|warm[\s-]?up)/);
+  if (wuM) warmup = parseInt(wuM[1]) * 60;
+  const cdM = t.match(/(\d+)\s*min\s*(?:cd|cooldown|cool[\s-]?down)/);
+  if (cdM) cooldown = parseInt(cdM[1]) * 60;
+  const repM = t.match(/(\d+)\s*min\s*(?:hard|on|fast)\s*,?\s*(\d+)\s*(?:min\s*)?(?:easy|off|rest|recovery)/);
+  if (repM) { repDur = parseInt(repM[1]) * 60; recDur = parseInt(repM[2]) * 60; }
+  const nxM = t.match(/(\d+)\s*x\s*(\d+)\s*min/);
+  if (nxM) { numReps = parseInt(nxM[1]); if (!repDur) repDur = parseInt(nxM[2]) * 60; }
+  const forM = t.match(/for\s+(\d+)\s*min/);
+  if (forM) totalDur = parseInt(forM[1]) * 60;
+  return { warmup, cooldown, repDur, recDur, totalDur, numReps };
+}
+
+function refitWorkout(paceData, desc) {
+  const p = parseWorkoutDesc(desc);
+  if (!p.repDur) return null;
+  const totalTime = paceData[paceData.length - 1].t;
+  const wuEnd = p.warmup || 0;
+  const cdLen = p.cooldown || 0;
+  const cdStart = cdLen ? totalTime - cdLen : totalTime;
+  const recDur = p.recDur || 60;
+  const cycleTime = p.repDur + recDur;
+  const workoutTime = p.totalDur || (cdStart - wuEnd);
+  const nReps = p.numReps || Math.round(workoutTime / cycleTime);
+
+  const reps = [];
+  let t = wuEnd;
+  for (let i = 0; i < nReps && t + p.repDur <= cdStart + 30; i++) {
+    const segPts = paceData.filter((pt) => pt.t >= t && pt.t <= t + p.repDur);
+    if (segPts.length) {
+      const avgPace = segPts.reduce((a, pt) => a + pt.pace, 0) / segPts.length;
+      const hrPts = segPts.filter((pt) => pt.hr);
+      const avgHR = hrPts.length ? hrPts.reduce((a, pt) => a + pt.hr, 0) / hrPts.length : 0;
+      reps.push({ duration: p.repDur, pace: avgPace, hr: avgHR });
+    }
+    t += p.repDur + recDur;
+  }
+  if (!reps.length) return null;
+
+  const avgPace = reps.reduce((a, r) => a + r.pace, 0) / reps.length;
+  let summary = "";
+  if (p.warmup) summary += `${(p.warmup / 60).toFixed(0)} min WU → `;
+  summary += `${reps.length} x ${(p.repDur / 60).toFixed(1)} min @ ${fmtPaceMin(avgPace)}`;
+  summary += ` / ${(recDur / 60).toFixed(0)} min easy`;
+  if (cdLen) summary += ` → ${(cdLen / 60).toFixed(0)} min CD`;
+
+  return { type: "intervals", warmup_s: p.warmup || 0, cooldown_s: cdLen, workout_s: reps.length * cycleTime - recDur, reps, recoveries: Array(Math.max(0, reps.length - 1)).fill(recDur), summary, corrected: true };
+}
+
 // ============================================================
 
 export default function RunningPage() {
@@ -240,10 +442,13 @@ export default function RunningPage() {
 
   // GPX / Strava upload
   const [gpxPreview, setGpxPreview] = useState(null);
+  const [gpxAnalysis, setGpxAnalysis] = useState(null);
   const [stravaRows, setStravaRows] = useState(null);
   const [showGpx, setShowGpx] = useState(false);
   const [showStrava, setShowStrava] = useState(false);
   const [stravaPaste, setStravaPaste] = useState("");
+  const [showCorrection, setShowCorrection] = useState(false);
+  const [correctionText, setCorrectionText] = useState("");
 
   // add schedule form
   const [showAddSchedule, setShowAddSchedule] = useState(false);
@@ -410,8 +615,13 @@ export default function RunningPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      try { setGpxPreview(parseGpx(reader.result)); }
-      catch (err) { alert(err.message); }
+      try {
+        const text = reader.result;
+        setGpxPreview(parseGpx(text));
+        setGpxAnalysis(analyzeWorkout(text));
+        setShowCorrection(false);
+        setCorrectionText("");
+      } catch (err) { alert(err.message); }
     };
     reader.readAsText(file);
   }
@@ -419,10 +629,17 @@ export default function RunningPage() {
   async function saveGpx() {
     if (!gpxPreview) return;
     const { splits, moving_time_seconds, ...row } = gpxPreview;
-    await supabase.from("run_logs").insert({ ...row, source: "gpx" });
+    const notes = gpxAnalysis?.summary || null;
+    let workoutData = null;
+    if (gpxAnalysis && gpxAnalysis.type !== "easy") {
+      const { paceData, segments, ...storable } = gpxAnalysis;
+      workoutData = storable;
+    }
+    await supabase.from("run_logs").insert({ ...row, source: "gpx", notes, workout_data: workoutData });
     const match = schedule.find((r) => r.date === row.date && !r.completed);
     if (match) await supabase.from("running_schedule").update({ completed: true }).eq("id", match.id);
-    setGpxPreview(null); setShowGpx(false); load();
+    setGpxPreview(null); setGpxAnalysis(null); setShowGpx(false); setShowCorrection(false); setCorrectionText("");
+    load();
   }
 
   function handleStravaFile(e) {
@@ -841,8 +1058,8 @@ export default function RunningPage() {
             <div className="alert alert-info">Need at least 2 logged runs for analytics.</div>
           ) : (
             <>
-              <div style={{ display: "flex", gap: "6px", marginBottom: "16px" }}>
-                {["mileage", "pace", "load"].map((t) => (
+              <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
+                {["mileage", "pace", "load", "workouts"].map((t) => (
                   <button key={t} className={`btn${analyticsTab === t ? " btn-primary" : ""}`}
                     onClick={() => setAnalyticsTab(t)} style={{ textTransform: "capitalize" }}>
                     {t === "load" ? "Training Load" : t}
@@ -891,6 +1108,77 @@ export default function RunningPage() {
                   </p>
                 </div>
               )}
+
+              {/* Workout History & Trends */}
+              {analyticsTab === "workouts" && (() => {
+                const workouts = runLogs
+                  .filter((r) => r.workout_data)
+                  .map((r) => ({ ...(typeof r.workout_data === "string" ? JSON.parse(r.workout_data) : r.workout_data), date: r.date, distance: r.distance_miles }))
+                  .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+                if (!workouts.length) return (
+                  <div className="alert alert-info">No workouts analyzed yet. Upload a GPX file in the Run Log tab to get started.</div>
+                );
+                const intervals = workouts.filter((w) => w.type === "intervals").reverse();
+                return (
+                  <div>
+                    <h3>Workout History</h3>
+                    {workouts.map((w, i) => (
+                      <div key={i} style={{ padding: "6px 0", borderBottom: "1px solid #333" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span>
+                            <strong>{fmtShortDate(w.date)}</strong>
+                            {w.distance && ` · ${w.distance} mi`}
+                          </span>
+                          <span style={{
+                            fontSize: "0.7em", fontWeight: "bold", padding: "1px 6px", borderRadius: "3px",
+                            background: w.type === "intervals" ? "#F44336" : w.type === "tempo" ? "#FF9800" : "#4CAF50",
+                            color: "white",
+                          }}>
+                            {(w.type || "easy").toUpperCase()}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: "0.85em", color: "#888", margin: "2px 0 0" }}>{w.summary}</p>
+                      </div>
+                    ))}
+
+                    {intervals.length >= 2 && (
+                      <>
+                        <h3 style={{ marginTop: "16px" }}>Interval Pace Trend</h3>
+                        {(() => {
+                          const paces = intervals.map((w) => w.reps.reduce((a, r) => a + r.pace, 0) / w.reps.length);
+                          const minP = Math.min(...paces) - 0.5;
+                          const maxP = Math.max(...paces) + 0.5;
+                          const range = maxP - minP || 1;
+                          return (
+                            <div>
+                              <div style={{ display: "flex", alignItems: "flex-end", gap: "4px", height: "150px" }}>
+                                {intervals.map((w, i) => {
+                                  const pct = ((maxP - paces[i]) / range) * 100;
+                                  return (
+                                    <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
+                                      <div style={{ flex: 1, display: "flex", alignItems: "flex-end", width: "100%" }}>
+                                        <div style={{
+                                          width: "100%", background: "#F44336", borderRadius: "3px 3px 0 0",
+                                          height: `${Math.max(pct, 5)}%`, transition: "height 0.3s",
+                                        }} title={`${fmtShortDate(w.date)}: ${fmtPaceMin(paces[i])}`} />
+                                      </div>
+                                      <div style={{ fontSize: "0.6em", color: "#888", marginTop: "4px" }}>{w.date.slice(5)}</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <p style={{ fontSize: "0.8em", color: "#888", marginTop: "4px" }}>
+                                Taller = faster. Avg rep pace: {fmtPaceMin(paces[0])} → {fmtPaceMin(paces[paces.length - 1])}
+                                {paces[paces.length - 1] < paces[0] ? " (getting faster)" : paces[paces.length - 1] > paces[0] ? " (slowing)" : ""}
+                              </p>
+                            </div>
+                          );
+                        })()}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           )}
         </div>
@@ -1023,6 +1311,79 @@ export default function RunningPage() {
                       </div>
                     </div>
                   )}
+
+                  {gpxAnalysis && (
+                    <div style={{ marginTop: "12px", padding: "12px", border: "1px solid var(--border)", borderRadius: "6px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{
+                          fontSize: "0.75em", fontWeight: "bold", padding: "2px 8px", borderRadius: "3px",
+                          background: gpxAnalysis.type === "intervals" ? "#F44336" : gpxAnalysis.type === "tempo" ? "#FF9800" : "#4CAF50",
+                          color: "white",
+                        }}>
+                          {gpxAnalysis.type === "intervals" ? "INTERVALS" : gpxAnalysis.type === "tempo" ? "TEMPO" : "EASY"}
+                        </span>
+                        {gpxAnalysis.type !== "easy" && (
+                          <button className="btn" style={{ fontSize: "0.8em" }}
+                            onClick={() => setShowCorrection(!showCorrection)}>
+                            {showCorrection ? "Cancel" : "Doesn’t look right?"}
+                          </button>
+                        )}
+                      </div>
+
+                      <p style={{ margin: "8px 0 0", fontSize: "0.9em" }}>{gpxAnalysis.summary}</p>
+
+                      {(() => {
+                        const planned = schedule.find((s) => s.date === gpxPreview.date);
+                        if (!planned) return null;
+                        return (
+                          <div style={{ marginTop: "8px", fontSize: "0.85em", color: "#888" }}>
+                            Planned: <strong style={{ color: TYPE_COLORS[planned._type] }}>{planned.workout.split("\n")[0]}</strong>
+                          </div>
+                        );
+                      })()}
+
+                      {gpxAnalysis.reps.length > 1 && (() => {
+                        const hasHR = gpxAnalysis.reps.some((r) => r.hr > 0);
+                        return (
+                          <div style={{ marginTop: "8px", overflowX: "auto" }}>
+                            <table style={{ fontSize: "0.8em", width: "100%" }}>
+                              <thead>
+                                <tr><th>Rep</th><th>Time</th><th>Pace</th>{hasHR && <th>HR</th>}</tr>
+                              </thead>
+                              <tbody>
+                                {gpxAnalysis.reps.map((r, i) => (
+                                  <tr key={i}>
+                                    <td>{i + 1}</td>
+                                    <td>{(r.duration / 60).toFixed(1)} min</td>
+                                    <td>{fmtPaceMin(r.pace)}</td>
+                                    {hasHR && <td>{r.hr > 0 ? `${Math.round(r.hr)} bpm` : "--"}</td>}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
+
+                      {showCorrection && (
+                        <div style={{ marginTop: "12px", padding: "8px", background: "var(--card-bg)", borderRadius: "4px" }}>
+                          <p style={{ fontSize: "0.85em", marginBottom: "6px" }}>
+                            Describe the workout (e.g. &quot;10 min wu, 2 min hard 1 easy for 20 min, 10 min cd&quot;):
+                          </p>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <input type="text" value={correctionText} onChange={(e) => setCorrectionText(e.target.value)}
+                              placeholder="e.g. 4x4 min hard 2 min easy" style={{ flex: 1 }} />
+                            <button className="btn btn-primary" onClick={() => {
+                              const result = refitWorkout(gpxAnalysis.paceData, correctionText);
+                              if (result) { setGpxAnalysis({ ...gpxAnalysis, ...result }); setShowCorrection(false); }
+                              else alert("Couldn’t parse that. Try: “2 min hard 1 easy for 20 min”");
+                            }}>Re-analyze</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <button className="btn btn-primary" onClick={saveGpx} style={{ marginTop: "12px" }}>Save to Log</button>
                 </div>
               )}

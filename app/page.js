@@ -6,7 +6,7 @@ import { ACTIVITY_TYPES, PRIORITY_COLORS } from "@/lib/constants";
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TIME_SLOTS = ["Morning", "Midday", "Afternoon", "Evening"];
 const TIME_DISPLAY = { Morning: "8 AM", Midday: "11 AM", Afternoon: "2 PM", Evening: "5:30 PM" };
-const TIME_HOURS = { Morning: [8, 0], Midday: [11, 0], Afternoon: [14, 0], Evening: [17, 30], "7:30 AM": [7, 30], "8:30 AM": [8, 30], "11:00 PM": [23, 0], "11:59 PM": [23, 59] };
+const TIME_HOURS = { "7:30 AM": [7, 30], "8:00 AM": [8, 0], "8:30 AM": [8, 30], "11:00 AM": [11, 0], "2:00 PM": [14, 0], "4:30 PM": [16, 30], "5:30 PM": [17, 30], "11:00 PM": [23, 0], "11:59 PM": [23, 59] };
 const DURATION_MAP = { lifting: 45, cycling: 60, frisbee_golf: 120, rap_writing: 90, running: 45, other: 60 };
 
 const SCHOOL_SCHEDULE = [
