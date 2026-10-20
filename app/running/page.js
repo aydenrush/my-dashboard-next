@@ -163,7 +163,9 @@ function parseGpx(xmlText) {
   // elevation from meters to feet
   const elevGainFt = Math.round(elevGain * 3.28084);
   const pace = totalDist > 0 && movingTime > 0 ? Math.round(movingTime / totalDist) : 0;
-  const date = firstTime ? firstTime.toISOString().slice(0, 10) : isoToday();
+  const date = firstTime
+    ? `${firstTime.getFullYear()}-${String(firstTime.getMonth() + 1).padStart(2, "0")}-${String(firstTime.getDate()).padStart(2, "0")}`
+    : isoToday();
 
   return {
     date,
@@ -1338,6 +1340,58 @@ export default function RunningPage() {
                         return (
                           <div style={{ marginTop: "8px", fontSize: "0.85em", color: "#888" }}>
                             Planned: <strong style={{ color: TYPE_COLORS[planned._type] }}>{planned.workout.split("\n")[0]}</strong>
+                          </div>
+                        );
+                      })()}
+
+                      {gpxAnalysis.paceData && (() => {
+                        const data = gpxAnalysis.paceData;
+                        const segs = gpxAnalysis.segments || [];
+                        const maxT = data[data.length - 1].t;
+                        const paces = data.map((p) => p.pace).filter((p) => p > 4 && p < 14);
+                        const minP = Math.min(...paces) - 0.5;
+                        const maxP = Math.max(...paces) + 0.5;
+                        const range = maxP - minP || 1;
+                        const step = Math.max(1, Math.floor(data.length / 200));
+                        const sampled = data.filter((_, i) => i % step === 0);
+                        return (
+                          <div style={{ marginTop: "12px" }}>
+                            <strong style={{ fontSize: "0.8em" }}>Pace Profile</strong>
+                            <div style={{ position: "relative", height: "120px", marginTop: "4px", background: "rgba(255,255,255,0.03)", borderRadius: "4px", overflow: "hidden" }}>
+                              {segs.map((s, i) => (
+                                <div key={i} style={{
+                                  position: "absolute", bottom: 0, top: 0,
+                                  left: `${(s.s / maxT) * 100}%`,
+                                  width: `${((s.e - s.s) / maxT) * 100}%`,
+                                  background: s.z === "fast" ? "rgba(244,67,54,0.12)" : "transparent",
+                                }} />
+                              ))}
+                              {sampled.map((p, i) => {
+                                const x = (p.t / maxT) * 100;
+                                const clampedPace = Math.min(Math.max(p.pace, minP), maxP);
+                                const y = ((clampedPace - minP) / range) * 100;
+                                const seg = segs.find((s) => p.t >= s.s && p.t <= s.e);
+                                const color = seg?.z === "fast" ? "#F44336" : "#4CAF50";
+                                return (
+                                  <div key={i} style={{
+                                    position: "absolute",
+                                    left: `${x}%`, bottom: `${100 - y}%`,
+                                    width: "2px", height: "2px", borderRadius: "50%",
+                                    background: color,
+                                  }} />
+                                );
+                              })}
+                              <div style={{ position: "absolute", left: 0, top: "2px", fontSize: "0.65em", color: "#888" }}>
+                                {fmtPaceMin(minP)}
+                              </div>
+                              <div style={{ position: "absolute", left: 0, bottom: "2px", fontSize: "0.65em", color: "#888" }}>
+                                {fmtPaceMin(maxP)}
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7em", color: "#888", marginTop: "2px" }}>
+                              <span>0:00</span>
+                              <span>{Math.floor(maxT / 60)} min</span>
+                            </div>
                           </div>
                         );
                       })()}
