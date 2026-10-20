@@ -291,8 +291,8 @@ function analyzeWorkout(gpxText) {
   }
   const thr = c1 + (c2 - c1) * 0.3;
 
-  // if clusters are within 1 min/mi, it's a steady run — no real fast/easy split
-  if (c2 - c1 < 1.0) return { type: "easy", summary: "Easy run", reps: [], segments: [], paceData: pd, fastPace: c1, easyPace: c2, threshold: thr };
+  // if clusters are within 0.4 min/mi, it's a steady run — no real fast/easy split
+  if (c2 - c1 < 0.4) return { type: "easy", summary: "Easy run", reps: [], segments: [], paceData: pd, pts, mt, fastPace: c1, easyPace: c2, threshold: thr };
 
   let segs = [];
   let cz = null, segS = 0;
@@ -339,12 +339,12 @@ function analyzeWorkout(gpxText) {
   const fast = fin.filter((s) => s.z === "fast");
   const tt = pd[pd.length - 1].t;
 
-  if (!fast.length) return { type: "easy", summary: "Easy run", reps: [], segments: fin, paceData: pd, fastPace: c1, easyPace: c2, threshold: thr };
+  if (!fast.length) return { type: "easy", summary: "Easy run", reps: [], segments: fin, paceData: pd, pts, mt, fastPace: c1, easyPace: c2, threshold: thr };
 
   if (fast.length === 1 && fast[0].e - fast[0].s > 600) {
     const sp = pd.filter((p) => p.t >= fast[0].s && p.t <= fast[0].e);
     const ap = sp.reduce((a, p) => a + p.pace, 0) / sp.length;
-    return { type: "tempo", summary: `Tempo: ${((fast[0].e - fast[0].s) / 60).toFixed(1)} min @ ${fmtPaceMin(ap)}`, reps: [{ duration: fast[0].e - fast[0].s, pace: ap, hr: 0 }], segments: fin, paceData: pd, fastPace: c1, easyPace: c2, threshold: thr };
+    return { type: "tempo", summary: `Tempo: ${((fast[0].e - fast[0].s) / 60).toFixed(1)} min @ ${fmtPaceMin(ap)}`, reps: [{ duration: fast[0].e - fast[0].s, pace: ap, hr: 0 }], segments: fin, paceData: pd, pts, mt, fastPace: c1, easyPace: c2, threshold: thr };
   }
 
   const wu = fast[0].s, cd = tt - fast[fast.length - 1].e;
@@ -389,59 +389,75 @@ function analyzeWorkout(gpxText) {
   if (avgRec > 0) summary += ` / ${(avgRec / 60).toFixed(1)} min easy`;
   if (cd > 120) summary += ` → ${(cd / 60).toFixed(1)} min CD`;
 
-  return { type: "intervals", warmup_s: wu, cooldown_s: cd, workout_s: wkDur, reps, recoveries: recs, segments: fin, paceData: pd, fastPace: c1, easyPace: c2, threshold: thr, summary };
+  return { type: "intervals", warmup_s: wu, cooldown_s: cd, workout_s: wkDur, reps, recoveries: recs, segments: fin, paceData: pd, pts, mt, fastPace: c1, easyPace: c2, threshold: thr, summary };
 }
 
-function parseWorkoutDesc(text) {
-  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
-  let warmup = null, cooldown = null, repDur = null, recDur = null, totalDur = null, numReps = null;
-  const wuM = t.match(/(\d+)\s*min\s*(?:wu|warmup|warm[\s-]?up)/);
-  if (wuM) warmup = parseInt(wuM[1]) * 60;
-  const cdM = t.match(/(\d+)\s*min\s*(?:cd|cooldown|cool[\s-]?down)/);
-  if (cdM) cooldown = parseInt(cdM[1]) * 60;
-  const repM = t.match(/(\d+)\s*min\s*(?:hard|on|fast)\s*,?\s*(\d+)\s*(?:min\s*)?(?:easy|off|rest|recovery)/);
-  if (repM) { repDur = parseInt(repM[1]) * 60; recDur = parseInt(repM[2]) * 60; }
-  const nxM = t.match(/(\d+)\s*x\s*(\d+)\s*min/);
-  if (nxM) { numReps = parseInt(nxM[1]); if (!repDur) repDur = parseInt(nxM[2]) * 60; }
-  const forM = t.match(/for\s+(\d+)\s*min/);
-  if (forM) totalDur = parseInt(forM[1]) * 60;
-  return { warmup, cooldown, repDur, recDur, totalDur, numReps };
-}
+function refitWorkout(analysis, { warmup, reps: repDefs, cooldown }) {
+  if (!repDefs?.length) return null;
+  const { paceData: pd, pts, mt, threshold } = analysis;
+  if (!pts || !mt) return null;
+  const warmupS = (warmup || 0) * 60;
+  const cooldownS = (cooldown || 0) * 60;
+  const thr = threshold || 9;
 
-function refitWorkout(paceData, desc) {
-  const p = parseWorkoutDesc(desc);
-  if (!p.repDur) return null;
-  const totalTime = paceData[paceData.length - 1].t;
-  const wuEnd = p.warmup || 0;
-  const cdLen = p.cooldown || 0;
-  const cdStart = cdLen ? totalTime - cdLen : totalTime;
-  const recDur = p.recDur || 60;
-  const cycleTime = p.repDur + recDur;
-  const workoutTime = p.totalDur || (cdStart - wuEnd);
-  const nReps = p.numReps || Math.round(workoutTime / cycleTime);
+  const hav = (a, b) => {
+    const R = 6371000, toRad = (x) => (x * Math.PI) / 180;
+    const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+    const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+  };
 
   const reps = [];
-  let t = wuEnd;
-  for (let i = 0; i < nReps && t + p.repDur <= cdStart + 30; i++) {
-    const segPts = paceData.filter((pt) => pt.t >= t && pt.t <= t + p.repDur);
-    if (segPts.length) {
-      const avgPace = segPts.reduce((a, pt) => a + pt.pace, 0) / segPts.length;
-      const hrPts = segPts.filter((pt) => pt.hr);
-      const avgHR = hrPts.length ? hrPts.reduce((a, pt) => a + pt.hr, 0) / hrPts.length : 0;
-      reps.push({ duration: p.repDur, pace: avgPace, hr: avgHR });
+  let t = warmupS;
+  for (let i = 0; i < repDefs.length; i++) {
+    const hardS = repDefs[i].hard * 60;
+    // seek forward past slow recovery to find where actual hard effort begins
+    const seekPts = pd.filter((p) => p.t >= t && p.t < t + 600);
+    const fastPt = seekPts.find((p) => p.pace < thr);
+    if (fastPt) t = Math.max(t, fastPt.t - 10);
+    // compute raw GPS distance over the rep window for accurate pace
+    let iStart = -1, iEnd = -1;
+    for (let k = 0; k < pts.length; k++) {
+      if (mt[k] >= t && iStart < 0) iStart = k;
+      if (mt[k] <= t + hardS) iEnd = k;
     }
-    t += p.repDur + recDur;
+    if (iStart >= 0 && iEnd > iStart) {
+      let dist = 0, hrSum = 0, hrN = 0;
+      for (let k = iStart; k < iEnd; k++) {
+        if (mt[k + 1] > mt[k]) dist += hav(pts[k], pts[k + 1]);
+        if (pts[k].hr) { hrSum += pts[k].hr; hrN++; }
+      }
+      const elapsed = mt[iEnd] - mt[iStart];
+      if (dist > 0 && elapsed > 0) {
+        reps.push({ duration: hardS, pace: (elapsed / 60) / (dist / 1609.34), hr: hrN ? hrSum / hrN : 0 });
+      }
+    }
+    // advance past hard rep, then seek to next fast section for next rep
+    t += hardS;
+    if (i < repDefs.length - 1) {
+      const nextFast = pd.find((p) => p.t > t + 30 && p.pace < thr);
+      if (nextFast) t = nextFast.t - 10;
+      else t += (repDefs[i].easy || 0) * 60;
+    }
   }
   if (!reps.length) return null;
 
+  const workoutS = t - warmupS;
   const avgPace = reps.reduce((a, r) => a + r.pace, 0) / reps.length;
-  let summary = "";
-  if (p.warmup) summary += `${(p.warmup / 60).toFixed(0)} min WU → `;
-  summary += `${reps.length} x ${(p.repDur / 60).toFixed(1)} min @ ${fmtPaceMin(avgPace)}`;
-  summary += ` / ${(recDur / 60).toFixed(0)} min easy`;
-  if (cdLen) summary += ` → ${(cdLen / 60).toFixed(0)} min CD`;
+  const allSame = reps.length > 1 && reps.every((r) => r.duration === reps[0].duration);
 
-  return { type: "intervals", warmup_s: p.warmup || 0, cooldown_s: cdLen, workout_s: reps.length * cycleTime - recDur, reps, recoveries: Array(Math.max(0, reps.length - 1)).fill(recDur), summary, corrected: true };
+  let summary = "";
+  if (warmupS) summary += `${warmup} min WU → `;
+  if (allSame) {
+    summary += `${reps.length} x ${repDefs[0].hard} min @ ${fmtPaceMin(avgPace)}`;
+    if (repDefs[0].easy) summary += ` / ${repDefs[0].easy} min easy`;
+  } else {
+    summary += reps.map((r, i) => `${repDefs[i].hard}min @ ${fmtPaceMin(r.pace)}`).join(" → ");
+  }
+  if (cooldownS) summary += ` → ${cooldown} min CD`;
+
+  const recoveries = repDefs.slice(0, -1).map((r) => (r.easy || 0) * 60);
+  return { type: "intervals", warmup_s: warmupS, cooldown_s: cooldownS, workout_s: workoutS, reps, recoveries, summary, corrected: true };
 }
 
 // ============================================================
@@ -474,7 +490,9 @@ export default function RunningPage() {
   const [showStrava, setShowStrava] = useState(false);
   const [stravaPaste, setStravaPaste] = useState("");
   const [showCorrection, setShowCorrection] = useState(false);
-  const [correctionText, setCorrectionText] = useState("");
+  const [corWu, setCorWu] = useState("");
+  const [corCd, setCorCd] = useState("");
+  const [corReps, setCorReps] = useState([{ hard: "", easy: "" }]);
 
   // add schedule form
   const [showAddSchedule, setShowAddSchedule] = useState(false);
@@ -646,7 +664,6 @@ export default function RunningPage() {
         setGpxPreview(parseGpx(text));
         setGpxAnalysis(analyzeWorkout(text));
         setShowCorrection(false);
-        setCorrectionText("");
       } catch (err) { alert(err.message); }
     };
     reader.readAsText(file);
@@ -657,14 +674,14 @@ export default function RunningPage() {
     const { splits, moving_time_seconds, ...row } = gpxPreview;
     const notes = gpxAnalysis?.summary || null;
     let workoutData = null;
-    if (gpxAnalysis && gpxAnalysis.type !== "easy") {
-      const { paceData, segments, ...storable } = gpxAnalysis;
+    if (gpxAnalysis) {
+      const { segments, pts, mt, ...storable } = gpxAnalysis;
       workoutData = storable;
     }
     await supabase.from("run_logs").insert({ ...row, source: "gpx", notes, workout_data: workoutData });
     const match = schedule.find((r) => r.date === row.date && !r.completed);
     if (match) await supabase.from("running_schedule").update({ completed: true }).eq("id", match.id);
-    setGpxPreview(null); setGpxAnalysis(null); setShowGpx(false); setShowCorrection(false); setCorrectionText("");
+    setGpxPreview(null); setGpxAnalysis(null); setShowGpx(false); setShowCorrection(false);
     load();
   }
 
@@ -1348,12 +1365,10 @@ export default function RunningPage() {
                         }}>
                           {gpxAnalysis.type === "intervals" ? "INTERVALS" : gpxAnalysis.type === "tempo" ? "TEMPO" : "EASY"}
                         </span>
-                        {gpxAnalysis.type !== "easy" && (
-                          <button className="btn" style={{ fontSize: "0.8em" }}
-                            onClick={() => setShowCorrection(!showCorrection)}>
-                            {showCorrection ? "Cancel" : "Doesn’t look right?"}
-                          </button>
-                        )}
+                        <button className="btn" style={{ fontSize: "0.8em" }}
+                          onClick={() => setShowCorrection(!showCorrection)}>
+                          {showCorrection ? "Cancel" : "Doesn’t look right?"}
+                        </button>
                       </div>
 
                       <p style={{ margin: "8px 0 0", fontSize: "0.9em" }}>{gpxAnalysis.summary}</p>
@@ -1444,17 +1459,41 @@ export default function RunningPage() {
                       })()}
 
                       {showCorrection && (
-                        <div style={{ marginTop: "12px", padding: "8px", background: "var(--card-bg)", borderRadius: "4px" }}>
-                          <p style={{ fontSize: "0.85em", marginBottom: "6px" }}>
-                            Describe the workout (e.g. &quot;10 min wu, 2 min hard 1 easy for 20 min, 10 min cd&quot;):
-                          </p>
-                          <div style={{ display: "flex", gap: "6px" }}>
-                            <input type="text" value={correctionText} onChange={(e) => setCorrectionText(e.target.value)}
-                              placeholder="e.g. 4x4 min hard 2 min easy" style={{ flex: 1 }} />
+                        <div style={{ marginTop: "12px", padding: "8px", background: "var(--card-bg)", borderRadius: "4px", fontSize: "0.85em" }}>
+                          <div style={{ display: "flex", gap: "12px", marginBottom: "8px" }}>
+                            <div>
+                              <label className="metric-label">Warmup (min)</label>
+                              <input type="number" min="0" value={corWu} onChange={(e) => setCorWu(e.target.value)} placeholder="10" style={{ width: "70px" }} />
+                            </div>
+                            <div>
+                              <label className="metric-label">Cooldown (min)</label>
+                              <input type="number" min="0" value={corCd} onChange={(e) => setCorCd(e.target.value)} placeholder="10" style={{ width: "70px" }} />
+                            </div>
+                          </div>
+                          <label className="metric-label">Reps</label>
+                          {corReps.map((rep, i) => (
+                            <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}>
+                              <span style={{ width: "18px", color: "#888", fontSize: "0.85em" }}>{i + 1}</span>
+                              <input type="number" min="0.5" step="0.5" value={rep.hard} placeholder="hard" style={{ width: "60px" }}
+                                onChange={(e) => { const r = [...corReps]; r[i] = { ...r[i], hard: e.target.value }; setCorReps(r); }} />
+                              <span style={{ color: "#888" }}>min hard</span>
+                              <input type="number" min="0" step="0.5" value={rep.easy} placeholder="easy" style={{ width: "60px" }}
+                                onChange={(e) => { const r = [...corReps]; r[i] = { ...r[i], easy: e.target.value }; setCorReps(r); }} />
+                              <span style={{ color: "#888" }}>min easy</span>
+                              {corReps.length > 1 && (
+                                <button className="btn" style={{ padding: "2px 6px" }}
+                                  onClick={() => setCorReps(corReps.filter((_, j) => j !== i))}>×</button>
+                              )}
+                            </div>
+                          ))}
+                          <button className="btn" style={{ marginTop: "6px", fontSize: "0.85em" }}
+                            onClick={() => setCorReps([...corReps, { ...corReps[corReps.length - 1] }])}>+ Rep</button>
+                          <div style={{ marginTop: "8px" }}>
                             <button className="btn btn-primary" onClick={() => {
-                              const result = refitWorkout(gpxAnalysis.paceData, correctionText);
+                              const reps = corReps.filter((r) => parseFloat(r.hard) > 0).map((r) => ({ hard: parseFloat(r.hard), easy: parseFloat(r.easy) || 0 }));
+                              if (!reps.length) return;
+                              const result = refitWorkout(gpxAnalysis, { warmup: parseFloat(corWu) || 0, reps, cooldown: parseFloat(corCd) || 0 });
                               if (result) { setGpxAnalysis({ ...gpxAnalysis, ...result }); setShowCorrection(false); }
-                              else alert("Couldn’t parse that. Try: “2 min hard 1 easy for 20 min”");
                             }}>Re-analyze</button>
                           </div>
                         </div>
