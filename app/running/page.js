@@ -291,6 +291,9 @@ function analyzeWorkout(gpxText) {
   }
   const thr = c1 + (c2 - c1) * 0.3;
 
+  // if clusters are within 1 min/mi, it's a steady run — no real fast/easy split
+  if (c2 - c1 < 1.0) return { type: "easy", summary: "Easy run", reps: [], segments: [], paceData: pd, fastPace: c1, easyPace: c2, threshold: thr };
+
   let segs = [];
   let cz = null, segS = 0;
   for (const p of pd) {
