@@ -355,6 +355,27 @@ function analyzeWorkout(gpxText) {
   });
   const recs = [];
   for (let i = 0; i < fast.length - 1; i++) recs.push(fast[i + 1].s - fast[i].e);
+
+  // auto-snap: if reps are roughly uniform, snap to nearest 30s and recalculate
+  if (reps.length >= 3) {
+    const durs = reps.map((r) => r.duration);
+    const mean = durs.reduce((a, b) => a + b) / durs.length;
+    const cv = Math.sqrt(durs.reduce((a, d) => a + (d - mean) ** 2, 0) / durs.length) / mean;
+    if (cv < 0.2) {
+      const snapped = Math.round(mean / 30) * 30;
+      for (let i = 0; i < reps.length; i++) {
+        const start = fast[i].s;
+        const sp = pd.filter((p) => p.t >= start && p.t <= start + snapped);
+        if (sp.length) {
+          reps[i].duration = snapped;
+          reps[i].pace = sp.reduce((a, p) => a + p.pace, 0) / sp.length;
+          const hp = sp.filter((p) => p.hr);
+          reps[i].hr = hp.length ? hp.reduce((a, p) => a + p.hr, 0) / hp.length : 0;
+        }
+      }
+    }
+  }
+
   const avgDur = reps.reduce((a, r) => a + r.duration, 0) / reps.length;
   const avgPace = reps.reduce((a, r) => a + r.pace, 0) / reps.length;
   const avgRec = recs.length ? recs.reduce((a, b) => a + b) / recs.length : 0;
