@@ -225,6 +225,132 @@ function parseStravaCsv(text) {
   return rows;
 }
 
+// --- TCX parser (uses Garmin laps + speed data) ---
+
+function parseTcx(text) {
+  const lapBlocks = text.split("<Lap ").slice(1);
+  if (!lapBlocks.length) throw new Error("No laps found in TCX file");
+  let totalDist = 0, totalTime = 0, elevGain = 0;
+  const splits = [];
+  for (const blk of lapBlocks) {
+    const dur = parseFloat(blk.match(/<TotalTimeSeconds>([\d.]+)/)?.[1] || 0);
+    const dist = parseFloat(blk.match(/<DistanceMeters>([\d.]+)/)?.[1] || 0);
+    totalTime += dur;
+    totalDist += dist;
+  }
+  // per-mile splits from trackpoints' cumulative distance
+  const trkBlocks = text.split("<Trackpoint>").slice(1);
+  let prevDist = 0, prevTime = null, splitStart = 0, splitDist = 0, splitTime = 0, prevEle = null;
+  for (const blk of trkBlocks) {
+    const cumDist = parseFloat(blk.match(/<DistanceMeters>([\d.]+)/)?.[1] || 0);
+    const timeM = blk.match(/<Time>([^<]+)/)?.[1];
+    const eleM = blk.match(/<AltitudeMeters>([\d.]+)/)?.[1];
+    const t = timeM ? new Date(timeM) : null;
+    const segDist = (cumDist - prevDist) / 1609.34;
+    if (eleM && prevEle != null) { const d = parseFloat(eleM) - prevEle; if (d > 0) elevGain += d; }
+    if (eleM) prevEle = parseFloat(eleM);
+    if (t && prevTime) splitTime += (t - prevTime) / 1000;
+    splitDist += segDist;
+    if (splitDist >= 1.0) {
+      splits.push({ mile: splits.length + 1, pace_seconds: splitTime > 0 ? Math.round(splitTime / splitDist) : 0 });
+      splitDist = 0; splitTime = 0;
+    }
+    prevDist = cumDist; prevTime = t;
+  }
+  if (splitDist > 0.1) splits.push({ mile: splits.length + 1, pace_seconds: splitTime > 0 ? Math.round(splitTime / splitDist) : 0 });
+
+  const firstTime = text.match(/<Time>([^<]+)/)?.[1];
+  const ft = firstTime ? new Date(firstTime) : null;
+  const date = ft ? `${ft.getFullYear()}-${String(ft.getMonth() + 1).padStart(2, "0")}-${String(ft.getDate()).padStart(2, "0")}` : isoToday();
+  const distMi = totalDist / 1609.34;
+  return {
+    date, distance_miles: +distMi.toFixed(2), duration_seconds: Math.round(totalTime),
+    moving_time_seconds: Math.round(totalTime), pace_seconds: distMi > 0 ? Math.round(totalTime / distMi) : 0,
+    elevation_gain_ft: Math.round(elevGain * 3.28084), splits,
+  };
+}
+
+function analyzeTcx(text) {
+  const lapBlocks = text.split("<Lap ").slice(1);
+  const laps = lapBlocks.map((blk) => {
+    const dur = parseFloat(blk.match(/<TotalTimeSeconds>([\d.]+)/)?.[1] || 0);
+    const dist = parseFloat(blk.match(/<DistanceMeters>([\d.]+)/)?.[1] || 0);
+    const avgHR = parseInt(blk.match(/<AverageHeartRateBpm>\s*<Value>(\d+)/)?.[1] || 0);
+    return { dur, dist, avgHR, pace: dur > 0 && dist > 0 ? (dur / 60) / (dist / 1609.34) : 99 };
+  });
+  if (!laps.length) return null;
+
+  // build paceData from trackpoint Garmin speed
+  const trkBlocks = text.split("<Trackpoint>").slice(1);
+  const pd = [];
+  let cumTime = 0, prevTrkTime = null;
+  for (const blk of trkBlocks) {
+    const timeM = blk.match(/<Time>([^<]+)/)?.[1];
+    const spdM = blk.match(/<ns3:Speed>([\d.]+)/)?.[1];
+    const hrM = blk.match(/<Value>(\d+)/)?.[1];
+    const t = timeM ? new Date(timeM) : null;
+    if (t && prevTrkTime) cumTime += (t - prevTrkTime) / 1000;
+    prevTrkTime = t;
+    if (spdM) {
+      const spd = parseFloat(spdM);
+      if (spd > 0.5) pd.push({ t: cumTime, pace: (1 / spd) * (1609.34 / 60), hr: hrM ? parseInt(hrM) : null });
+    }
+  }
+
+  // classify laps: rest (>12 min/mi), hard, easy
+  const restThresh = 12;
+  const activeLaps = laps.filter((l) => l.pace < restThresh);
+  if (!activeLaps.length) return { type: "easy", summary: "Easy run", reps: [], paceData: pd };
+
+  const paces = activeLaps.map((l) => l.pace);
+  const avgPace = paces.reduce((a, b) => a + b) / paces.length;
+  const paceRange = Math.max(...paces) - Math.min(...paces);
+
+  // find hard laps: flanked by rest laps or significantly faster than average
+  const hardThresh = avgPace - paceRange * 0.3;
+  const lapTypes = laps.map((l) => l.pace >= restThresh ? "rest" : l.pace < hardThresh ? "hard" : "easy");
+
+  const hardIdxs = lapTypes.map((t, i) => t === "hard" ? i : -1).filter((i) => i >= 0);
+  if (!hardIdxs.length) return { type: "easy", summary: "Easy run", reps: [], paceData: pd };
+
+  const reps = hardIdxs.map((i) => ({
+    duration: laps[i].dur, pace: laps[i].pace, hr: laps[i].avgHR, dist: laps[i].dist / 1609.34,
+  }));
+
+  // warmup = everything before first hard lap, cooldown = everything after last hard lap
+  const wuLaps = laps.slice(0, hardIdxs[0]);
+  const cdLaps = laps.slice(hardIdxs[hardIdxs.length - 1] + 1);
+  const wuS = wuLaps.reduce((a, l) => a + l.dur, 0);
+  const cdS = cdLaps.reduce((a, l) => a + l.dur, 0);
+  const recoveries = [];
+  for (let i = 0; i < hardIdxs.length - 1; i++) {
+    const between = laps.slice(hardIdxs[i] + 1, hardIdxs[i + 1]);
+    recoveries.push(between.reduce((a, l) => a + l.dur, 0));
+  }
+
+  // tempo: single hard lap > 600s
+  if (reps.length === 1 && reps[0].duration > 600) {
+    return { type: "tempo", summary: `Tempo: ${(reps[0].duration / 60).toFixed(1)} min @ ${fmtPaceMin(reps[0].pace)}`, reps, paceData: pd, fastPace: reps[0].pace, easyPace: avgPace, threshold: hardThresh };
+  }
+
+  const avgRepPace = reps.reduce((a, r) => a + r.pace, 0) / reps.length;
+  const avgRec = recoveries.length ? recoveries.reduce((a, b) => a + b) / recoveries.length : 0;
+  const avgRepDur = reps.reduce((a, r) => a + r.duration, 0) / reps.length;
+  const allSame = reps.length > 1 && reps.every((r) => Math.abs(r.duration - reps[0].duration) < 15);
+
+  let summary = "";
+  if (wuS > 60) summary += `${(wuS / 60).toFixed(0)} min WU → `;
+  if (allSame) {
+    summary += `${reps.length} x ${(avgRepDur / 60).toFixed(1)} min @ ${fmtPaceMin(avgRepPace)}`;
+  } else {
+    summary += reps.map((r) => `${(r.duration / 60).toFixed(1)}min @ ${fmtPaceMin(r.pace)}`).join(" → ");
+  }
+  if (avgRec > 0) summary += ` / ${(avgRec / 60).toFixed(1)} min rest`;
+  if (cdS > 60) summary += ` → ${(cdS / 60).toFixed(0)} min CD`;
+
+  return { type: "intervals", warmup_s: wuS, cooldown_s: cdS, workout_s: reps.reduce((a, r) => a + r.duration, 0), reps, recoveries, paceData: pd, fastPace: Math.min(...reps.map((r) => r.pace)), easyPace: avgPace, threshold: hardThresh, summary };
+}
+
 // --- Workout analyzer (ports scratchpad/analyze-gpx.mjs to client-side) ---
 
 function analyzeWorkout(gpxText) {
@@ -674,8 +800,9 @@ export default function RunningPage() {
     reader.onload = () => {
       try {
         const text = reader.result;
-        setGpxPreview(parseGpx(text));
-        setGpxAnalysis(analyzeWorkout(text));
+        const isTcx = file.name.toLowerCase().endsWith(".tcx");
+        setGpxPreview(isTcx ? parseTcx(text) : parseGpx(text));
+        setGpxAnalysis(isTcx ? analyzeTcx(text) : analyzeWorkout(text));
         setShowCorrection(false);
       } catch (err) { alert(err.message); }
     };
@@ -1336,7 +1463,7 @@ export default function RunningPage() {
 
           <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
             <button className="btn" onClick={() => { setShowGpx(!showGpx); setShowStrava(false); }}>
-              {showGpx ? "Cancel" : "Upload GPX"}
+              {showGpx ? "Cancel" : "Upload GPX/TCX"}
             </button>
             <button className="btn" onClick={() => { setShowStrava(!showStrava); setShowGpx(false); }}>
               {showStrava ? "Cancel" : "Import Strava CSV"}
@@ -1345,8 +1472,8 @@ export default function RunningPage() {
 
           {showGpx && (
             <div className="card" style={{ marginTop: "12px" }}>
-              <h3 style={{ marginBottom: "8px" }}>Upload GPX File</h3>
-              <input type="file" accept=".gpx" onChange={handleGpxFile} />
+              <h3 style={{ marginBottom: "8px" }}>Upload GPX/TCX File</h3>
+              <input type="file" accept=".gpx,.tcx" onChange={handleGpxFile} />
               {gpxPreview && (
                 <div style={{ marginTop: "12px" }}>
                   <div className="metrics-row">
