@@ -611,8 +611,9 @@ export default function RunningPage() {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [weather, setWeather] = useState(null);
-  const [tab, setTab] = useState("schedule");
   const [analyticsTab, setAnalyticsTab] = useState("mileage");
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [showRest, setShowRest] = useState(true);
   const [showPast, setShowPast] = useState(false);
   const [showAllRuns, setShowAllRuns] = useState(false);
@@ -942,13 +943,9 @@ export default function RunningPage() {
           className="btn" style={{ fontSize: "0.85rem" }}>Strava</a>
       </div>
 
-      {/* Best run hour */}
       {bestHourMsg && <div className="alert alert-success">{bestHourMsg}</div>}
 
-      {/* No schedule message */}
-      {!hasSchedule && <div className="alert alert-info">No schedule loaded yet. Add workouts below.</div>}
-
-      {/* Today's Workout */}
+      {/* ===== TODAY’S WORKOUT ===== */}
       {hasSchedule && todayRow && (
         <div style={{
           borderLeft: `5px solid ${TYPE_COLORS[todayRow._type]}`,
@@ -979,187 +976,501 @@ export default function RunningPage() {
           })}
         </div>
       )}
-      {hasSchedule && !todayRow && (
-        <div className="alert alert-info">No workout scheduled for today.</div>
-      )}
 
-      {hasSchedule && <div className="divider" />}
-
-      {/* This Week */}
-      {hasSchedule && (
-        <>
-          <h2>This Week</h2>
-          {weekSchedule.length === 0 ? (
-            <div className="alert alert-info">No workouts scheduled this week.</div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
-              {DAY_NAMES.map((name, i) => {
-                const day = addDays(weekStart, i);
-                const row = weekSchedule.find((r) => r.date === day);
-                const isToday = day === today;
-                return (
-                  <div key={i} style={{ textAlign: "center", padding: "6px 2px" }}>
-                    <div style={{ fontSize: "0.8em", color: "#888", fontWeight: isToday ? "bold" : "normal" }}>
-                      {name} {fmtMD(day)}
+      {/* ===== THIS WEEK ===== */}
+      {hasSchedule && weekSchedule.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px", marginBottom: "16px" }}>
+          {DAY_NAMES.map((name, i) => {
+            const day = addDays(weekStart, i);
+            const row = weekSchedule.find((r) => r.date === day);
+            const dayLog = runLogs.find((r) => r.date === day);
+            const isToday = day === today;
+            return (
+              <div key={i} style={{ textAlign: "center", padding: "6px 2px" }}>
+                <div style={{ fontSize: "0.8em", color: "#888", fontWeight: isToday ? "bold" : "normal" }}>
+                  {name} {fmtMD(day)}
+                </div>
+                {row ? (
+                  <>
+                    <div style={{
+                      color: TYPE_COLORS[row._type], fontSize: "0.85em",
+                      fontWeight: isToday ? "bold" : "normal",
+                      textDecoration: row.completed ? "line-through" : "none",
+                    }}>
+                      {row.workout.split("\n")[0]}
                     </div>
-                    {row ? (
-                      <>
-                        <div style={{
-                          color: TYPE_COLORS[row._type], fontSize: "0.85em",
-                          fontWeight: isToday ? "bold" : "normal",
-                          textDecoration: row.completed ? "line-through" : "none",
-                        }}>
-                          {row.workout.split("\n")[0]}
-                        </div>
-                        {row.completed && <div style={{ fontSize: "0.75em", color: "#888" }}>Done</div>}
-                      </>
-                    ) : (
-                      <div style={{ fontSize: "0.85em", color: "#888" }}>--</div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
+                    {dayLog && <div style={{ fontSize: "0.7em", color: "#888" }}>{(+dayLog.distance_miles).toFixed(1)} mi</div>}
+                    {!dayLog && row.completed && <div style={{ fontSize: "0.75em", color: "#888" }}>Done</div>}
+                  </>
+                ) : (
+                  <div style={{ fontSize: "0.85em", color: "#888" }}>--</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
 
-      {/* Snapshot Metrics */}
-      {hasLogs && runLogs.length >= 2 && (
-        <>
-          <div className="divider" />
-          <h2>Snapshot</h2>
-          <div className="metrics-row">
-            <div className="metric">
-              <div className="metric-label">This Week</div>
-              <div className="metric-value">{thisWkMi.toFixed(1)} mi</div>
-              <div style={{ fontSize: "0.8em", color: "#888" }}>
-                {(thisWkMi - lastWkMi) >= 0 ? "+" : ""}{(thisWkMi - lastWkMi).toFixed(1)} vs last
-              </div>
+      {/* ===== QUICK ACTIONS ===== */}
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
+        <button className={`btn${showLogForm ? " btn-primary" : ""}`}
+          onClick={() => { setShowLogForm(!showLogForm); setShowGpx(false); setShowStrava(false); }}>
+          {showLogForm ? "Cancel" : "Log a Run"}
+        </button>
+        <button className={`btn${showGpx ? " btn-primary" : ""}`}
+          onClick={() => { setShowGpx(!showGpx); setShowLogForm(false); setShowStrava(false); }}>
+          {showGpx ? "Cancel" : "Upload GPX/TCX"}
+        </button>
+        <button className={`btn${showStrava ? " btn-primary" : ""}`}
+          onClick={() => { setShowStrava(!showStrava); setShowLogForm(false); setShowGpx(false); }}>
+          {showStrava ? "Cancel" : "Import Strava"}
+        </button>
+      </div>
+
+      {/* --- Manual Log Form --- */}
+      {showLogForm && (
+        <form onSubmit={logRun} className="card" style={{ marginBottom: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div>
+              <label className="metric-label">Date</label>
+              <input type="date" value={mrDate} onChange={(e) => setMrDate(e.target.value)} />
             </div>
-            <div className="metric">
-              <div className="metric-label">ACWR</div>
-              <div className="metric-value">{acwr.toFixed(2)}</div>
-              <div style={{ fontSize: "0.8em", color: "#888" }}>{acwrStatus}</div>
+            <div>
+              <label className="metric-label">Distance (miles)</label>
+              <input type="number" step="0.1" min="0" value={mrDist}
+                onChange={(e) => setMrDist(e.target.value)} placeholder="0.0" />
             </div>
-            <div className="metric">
-              <div className="metric-label">Avg Pace (Last 5)</div>
-              <div className="metric-value">{last5Pace > 0 ? fmtPace(last5Pace) : "--"}</div>
-              <div style={{ fontSize: "0.8em", color: "#888" }}>
-                {overallPace > 0 && last5Pace > 0
-                  ? `${(overallPace - last5Pace) >= 0 ? "+" : ""}${Math.round(overallPace - last5Pace)}s vs overall`
-                  : ""}
-              </div>
+            <div>
+              <label className="metric-label">Minutes</label>
+              <input type="number" min="0" value={mrMins}
+                onChange={(e) => setMrMins(e.target.value)} placeholder="0" />
             </div>
-            <div className="metric">
-              <div className="metric-label">Easy Runs</div>
-              <div className="metric-value">{easyPct.toFixed(0)}%</div>
-              <div style={{ fontSize: "0.8em", color: "#888" }}>
-                {easyPct < 70 ? "aim ~80%" : "good balance"}
-              </div>
+            <div>
+              <label className="metric-label">Seconds</label>
+              <input type="number" min="0" max="59" value={mrSecs}
+                onChange={(e) => setMrSecs(e.target.value)} placeholder="0" />
             </div>
           </div>
+          <div style={{ marginTop: "8px" }}>
+            <label className="metric-label">Notes</label>
+            <input type="text" value={mrNotes} onChange={(e) => setMrNotes(e.target.value)}
+              placeholder="How did it feel?" style={{ width: "100%" }} />
+          </div>
+          {mrDist && parseFloat(mrDist) > 0 && (parseInt(mrMins) || parseInt(mrSecs)) ? (
+            <p style={{ fontSize: "0.85em", color: "#888", marginTop: "4px" }}>
+              Pace: {fmtPace(((parseInt(mrMins) || 0) * 60 + (parseInt(mrSecs) || 0)) / parseFloat(mrDist))}
+            </p>
+          ) : null}
+          <button type="submit" className="btn btn-primary" style={{ marginTop: "12px" }}>Log Run</button>
+        </form>
+      )}
+
+      {/* --- GPX/TCX Upload --- */}
+      {showGpx && (
+        <div className="card" style={{ marginBottom: "16px" }}>
+          <input type="file" accept=".gpx,.tcx" onChange={handleGpxFile} />
+          {gpxPreview && (
+            <div style={{ marginTop: "12px" }}>
+              <div className="metrics-row">
+                <div className="metric"><div className="metric-label">Date</div><div className="metric-value">{gpxPreview.date}</div></div>
+                <div className="metric"><div className="metric-label">Distance</div><div className="metric-value">{gpxPreview.distance_miles} mi</div></div>
+                <div className="metric"><div className="metric-label">Pace</div><div className="metric-value">{fmtPace(gpxPreview.pace_seconds)}</div></div>
+                <div className="metric"><div className="metric-label">Elev Gain</div><div className="metric-value">{gpxPreview.elevation_gain_ft} ft</div></div>
+              </div>
+              {gpxPreview.splits.length > 0 && (
+                <div style={{ marginTop: "8px" }}>
+                  <strong style={{ fontSize: "0.85em" }}>Splits:</strong>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
+                    {gpxPreview.splits.map((s) => (
+                      <span key={s.mile} style={{ fontSize: "0.8em", padding: "2px 6px", background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "4px" }}>
+                        Mi {s.mile}: {fmtPace(s.pace_seconds)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {gpxAnalysis && (
+                <div style={{ marginTop: "12px", padding: "12px", border: "1px solid var(--border)", borderRadius: "6px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{
+                      fontSize: "0.75em", fontWeight: "bold", padding: "2px 8px", borderRadius: "3px",
+                      background: gpxAnalysis.type === "intervals" ? "#F44336" : gpxAnalysis.type === "tempo" ? "#FF9800" : "#4CAF50",
+                      color: "white",
+                    }}>
+                      {gpxAnalysis.type === "intervals" ? "INTERVALS" : gpxAnalysis.type === "tempo" ? "TEMPO" : "EASY"}
+                    </span>
+                    <button className="btn" style={{ fontSize: "0.8em" }}
+                      onClick={() => setShowCorrection(!showCorrection)}>
+                      {showCorrection ? "Cancel" : "Doesn’t look right?"}
+                    </button>
+                  </div>
+
+                  <p style={{ margin: "8px 0 0", fontSize: "0.9em" }}>{gpxAnalysis.summary}</p>
+                  {gpxAnalysis.type === "easy" && gpxAnalysis.easyPace && gpxAnalysis.fastPace && (
+                    <p style={{ margin: "4px 0 0", fontSize: "0.8em", color: "#888" }}>
+                      No intervals detected — pace stayed within {((gpxAnalysis.easyPace - gpxAnalysis.fastPace) * 60).toFixed(0)}s/mi range. Use &quot;Doesn&apos;t look right?&quot; to define the workout.
+                    </p>
+                  )}
+
+                  {(() => {
+                    const planned = schedule.find((s) => s.date === gpxPreview.date);
+                    if (!planned) return null;
+                    return (
+                      <div style={{ marginTop: "8px", fontSize: "0.85em", color: "#888" }}>
+                        Planned: <strong style={{ color: TYPE_COLORS[planned._type] }}>{planned.workout.split("\n")[0]}</strong>
+                      </div>
+                    );
+                  })()}
+
+                  {gpxAnalysis.paceData && gpxAnalysis.paceData.length > 0 && (() => {
+                    const data = gpxAnalysis.paceData;
+                    const segs = gpxAnalysis.segments || [];
+                    const maxT = data[data.length - 1].t;
+                    const paces = data.map((p) => p.pace).filter((p) => p > 4 && p < 14);
+                    if (!paces.length) return null;
+                    const minP = Math.min(...paces) - 0.5;
+                    const maxP = Math.max(...paces) + 0.5;
+                    const range = maxP - minP || 1;
+                    const step = Math.max(1, Math.floor(data.length / 200));
+                    const sampled = data.filter((_, i) => i % step === 0);
+                    return (
+                      <div style={{ marginTop: "12px" }}>
+                        <strong style={{ fontSize: "0.8em" }}>Pace Profile</strong>
+                        <div style={{ position: "relative", height: "120px", marginTop: "4px", background: "rgba(255,255,255,0.03)", borderRadius: "4px", overflow: "hidden" }}>
+                          {segs.map((s, i) => (
+                            <div key={i} style={{
+                              position: "absolute", bottom: 0, top: 0,
+                              left: `${(s.s / maxT) * 100}%`,
+                              width: `${((s.e - s.s) / maxT) * 100}%`,
+                              background: s.z === "fast" ? "rgba(244,67,54,0.12)" : "transparent",
+                            }} />
+                          ))}
+                          {sampled.map((p, i) => {
+                            const x = (p.t / maxT) * 100;
+                            const clampedPace = Math.min(Math.max(p.pace, minP), maxP);
+                            const y = ((clampedPace - minP) / range) * 100;
+                            const seg = segs.find((s) => p.t >= s.s && p.t <= s.e);
+                            const color = seg?.z === "fast" ? "#F44336" : "#4CAF50";
+                            return (
+                              <div key={i} style={{
+                                position: "absolute",
+                                left: `${x}%`, bottom: `${100 - y}%`,
+                                width: "2px", height: "2px", borderRadius: "50%",
+                                background: color,
+                              }} />
+                            );
+                          })}
+                          <div style={{ position: "absolute", left: 0, top: "2px", fontSize: "0.65em", color: "#888" }}>
+                            {fmtPaceMin(minP)}
+                          </div>
+                          <div style={{ position: "absolute", left: 0, bottom: "2px", fontSize: "0.65em", color: "#888" }}>
+                            {fmtPaceMin(maxP)}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7em", color: "#888", marginTop: "2px" }}>
+                          <span>0:00</span>
+                          <span>{Math.floor(maxT / 60)} min</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {gpxAnalysis.reps && gpxAnalysis.reps.length > 1 && (() => {
+                    const hasHR = gpxAnalysis.reps.some((r) => r.hr > 0);
+                    return (
+                      <div style={{ marginTop: "8px", overflowX: "auto" }}>
+                        <table style={{ fontSize: "0.8em", width: "100%" }}>
+                          <thead>
+                            <tr><th>Rep</th><th>Time</th><th>Pace</th>{hasHR && <th>HR</th>}</tr>
+                          </thead>
+                          <tbody>
+                            {gpxAnalysis.reps.map((r, i) => (
+                              <tr key={i}>
+                                <td>{i + 1}</td>
+                                <td>{(r.duration / 60).toFixed(1)} min</td>
+                                <td>{fmtPaceMin(r.pace)}</td>
+                                {hasHR && <td>{r.hr > 0 ? `${Math.round(r.hr)} bpm` : "--"}</td>}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+
+                  {showCorrection && (
+                    <div style={{ marginTop: "12px", padding: "8px", background: "var(--card-bg)", borderRadius: "4px", fontSize: "0.85em" }}>
+                      <div style={{ display: "flex", gap: "12px", marginBottom: "8px" }}>
+                        <div>
+                          <label className="metric-label">Warmup (min)</label>
+                          <input type="number" min="0" value={corWu} onChange={(e) => setCorWu(e.target.value)} placeholder="10" style={{ width: "70px" }} />
+                        </div>
+                        <div>
+                          <label className="metric-label">Cooldown (min)</label>
+                          <input type="number" min="0" value={corCd} onChange={(e) => setCorCd(e.target.value)} placeholder="10" style={{ width: "70px" }} />
+                        </div>
+                      </div>
+                      <label className="metric-label">Reps</label>
+                      {corReps.map((rep, i) => (
+                        <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}>
+                          <span style={{ width: "18px", color: "#888", fontSize: "0.85em" }}>{i + 1}</span>
+                          <input type="number" min="0.5" step="0.5" value={rep.hard} placeholder="hard" style={{ width: "60px" }}
+                            onChange={(e) => { const r = [...corReps]; r[i] = { ...r[i], hard: e.target.value }; setCorReps(r); }} />
+                          <span style={{ color: "#888" }}>min hard</span>
+                          <input type="number" min="0" step="0.5" value={rep.easy} placeholder="easy" style={{ width: "60px" }}
+                            onChange={(e) => { const r = [...corReps]; r[i] = { ...r[i], easy: e.target.value }; setCorReps(r); }} />
+                          <span style={{ color: "#888" }}>min easy</span>
+                          {corReps.length > 1 && (
+                            <button className="btn" style={{ padding: "2px 6px" }}
+                              onClick={() => setCorReps(corReps.filter((_, j) => j !== i))}>×</button>
+                          )}
+                        </div>
+                      ))}
+                      <button className="btn" style={{ marginTop: "6px", fontSize: "0.85em" }}
+                        onClick={() => setCorReps([...corReps, { ...corReps[corReps.length - 1] }])}>+ Rep</button>
+                      <div style={{ marginTop: "8px", display: "flex", gap: "8px" }}>
+                        <button className="btn btn-primary" onClick={() => {
+                          const reps = corReps.filter((r) => parseFloat(r.hard) > 0).map((r) => ({ hard: parseFloat(r.hard), easy: parseFloat(r.easy) || 0 }));
+                          if (!reps.length) return;
+                          const result = refitWorkout(gpxAnalysis, { warmup: parseFloat(corWu) || 0, reps, cooldown: parseFloat(corCd) || 0 });
+                          if (result) { setGpxAnalysis({ ...gpxAnalysis, ...result }); setShowCorrection(false); }
+                        }}>Re-analyze</button>
+                        <button className="btn" onClick={() => {
+                          setGpxAnalysis({ ...gpxAnalysis, type: "easy", summary: "Easy run", reps: [], segments: [], corrected: true });
+                          setShowCorrection(false);
+                        }}>Just an easy run</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button className="btn btn-primary" onClick={saveGpx} style={{ marginTop: "12px" }}>Save to Log</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* --- Strava Import --- */}
+      {showStrava && (
+        <div className="card" style={{ marginBottom: "16px" }}>
+          <p style={{ fontSize: "0.8em", color: "var(--muted)", marginBottom: "8px" }}>
+            Upload activities.csv from Strava data export, or paste contents below.
+          </p>
+          <input type="file" accept=".csv" onChange={handleStravaFile} />
+          <div style={{ marginTop: "8px" }}>
+            <textarea rows={4} value={stravaPaste} onChange={(e) => setStravaPaste(e.target.value)}
+              placeholder="Or paste CSV content here..." style={{ width: "100%", fontFamily: "monospace", fontSize: "0.8em" }} />
+            <button className="btn" onClick={handleStravaPaste} style={{ marginTop: "4px" }}>Parse Pasted CSV</button>
+          </div>
+          {stravaRows && (
+            <div style={{ marginTop: "12px" }}>
+              <p style={{ fontSize: "0.85em" }}>{stravaRows.length} run{stravaRows.length !== 1 ? "s" : ""} found</p>
+              {stravaRows.length > 0 && (
+                <div style={{ overflowX: "auto", marginTop: "8px" }}>
+                  <table style={{ fontSize: "0.8em" }}>
+                    <thead><tr><th>Date</th><th>Distance</th><th>Pace</th><th>Elev</th></tr></thead>
+                    <tbody>
+                      {stravaRows.slice(0, 10).map((r, i) => (
+                        <tr key={i}>
+                          <td>{r.date}</td>
+                          <td>{r.distance_miles} mi</td>
+                          <td>{fmtPace(r.pace_seconds)}</td>
+                          <td>{r.elevation_gain_ft} ft</td>
+                        </tr>
+                      ))}
+                      {stravaRows.length > 10 && <tr><td colSpan={4} style={{ color: "var(--muted)" }}>...{stravaRows.length - 10} more</td></tr>}
+                    </tbody>
+                  </table>
+                  <button className="btn btn-primary" onClick={saveStravaRows} style={{ marginTop: "8px" }}>
+                    Import {stravaRows.length} Run{stravaRows.length !== 1 ? "s" : ""}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== STATS ===== */}
+      {hasLogs && runLogs.length >= 2 && (
+        <div className="metrics-row" style={{ marginBottom: "16px" }}>
+          <div className="metric">
+            <div className="metric-label">This Week</div>
+            <div className="metric-value">{thisWkMi.toFixed(1)} mi</div>
+            <div style={{ fontSize: "0.8em", color: "#888" }}>
+              {(thisWkMi - lastWkMi) >= 0 ? "+" : ""}{(thisWkMi - lastWkMi).toFixed(1)} vs last
+            </div>
+          </div>
+          <div className="metric">
+            <div className="metric-label">ACWR</div>
+            <div className="metric-value">{acwr.toFixed(2)}</div>
+            <div style={{ fontSize: "0.8em", color: "#888" }}>{acwrStatus}</div>
+          </div>
+          <div className="metric">
+            <div className="metric-label">Avg Pace (Last 5)</div>
+            <div className="metric-value">{last5Pace > 0 ? fmtPace(last5Pace) : "--"}</div>
+            <div style={{ fontSize: "0.8em", color: "#888" }}>
+              {overallPace > 0 && last5Pace > 0
+                ? `${(overallPace - last5Pace) >= 0 ? "+" : ""}${Math.round(overallPace - last5Pace)}s vs overall`
+                : ""}
+            </div>
+          </div>
+          <div className="metric">
+            <div className="metric-label">Easy Runs</div>
+            <div className="metric-value">{easyPct.toFixed(0)}%</div>
+            <div style={{ fontSize: "0.8em", color: "#888" }}>
+              {easyPct < 70 ? "aim ~80%" : "good balance"}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== RECENT RUNS ===== */}
+      {hasLogs && (
+        <>
+          <h2>Recent Runs</h2>
+          {sortedRunLogs.slice(0, showAllRuns ? undefined : 5).map((run) => (
+            <div key={run.id} style={{ padding: "6px 0", borderBottom: "1px solid #333" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>
+                  <strong>{fmtShortDate(run.date)}</strong>
+                  {" · "}{(+run.distance_miles).toFixed(2)} mi
+                  {" · "}{fmtDuration(run.duration_seconds)}
+                  {" · "}{fmtPace(run.pace_seconds)}
+                  {run.elevation_gain_ft > 0 && ` · ↑${Math.round(run.elevation_gain_ft)} ft`}
+                  {run.route_name && ` · ${run.route_name}`}
+                </span>
+                <button className="btn" onClick={() => deleteRunLog(run.id)}
+                  style={{ fontSize: "0.75em", padding: "2px 8px" }}>×</button>
+              </div>
+              {run.notes && <p style={{ fontSize: "0.85em", color: "#888", margin: "2px 0 0" }}>{run.notes}</p>}
+            </div>
+          ))}
+          {sortedRunLogs.length > 5 && (
+            <button className="btn" style={{ marginTop: "8px" }}
+              onClick={() => setShowAllRuns(!showAllRuns)}>
+              {showAllRuns ? "Show Less" : `All Runs (${sortedRunLogs.length})`}
+            </button>
+          )}
         </>
       )}
 
       <div className="divider" />
 
-      {/* Tabs: Schedule / Progress / Analytics */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-        {["schedule", "progress", "analytics", "log"].map((t) => (
-          <button key={t} className={`btn${tab === t ? " btn-primary" : ""}`}
-            onClick={() => setTab(t)} style={{ textTransform: "capitalize" }}>
-            {t === "log" ? "Run Log" : t}
-          </button>
-        ))}
+      {/* ===== SCHEDULE (collapsible) ===== */}
+      <div style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+        onClick={() => setShowSchedule(!showSchedule)}>
+        <h2 style={{ margin: 0 }}>Schedule</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {hasSchedule && (
+            <span style={{ fontSize: "0.8em", color: "#888" }}>
+              {completedWorkouts}/{totalWorkouts} done ({progressPct}%)
+            </span>
+          )}
+          <span style={{ color: "#888" }}>{showSchedule ? "▾" : "▸"}</span>
+        </div>
       </div>
+      {hasSchedule && (
+        <div style={{ background: "#333", borderRadius: "4px", height: "6px", marginTop: "8px" }}>
+          <div style={{
+            background: "#4CAF50", height: "100%", borderRadius: "4px",
+            width: `${progressPct}%`, transition: "width 0.3s",
+          }} />
+        </div>
+      )}
 
-      {/* ===== SCHEDULE TAB ===== */}
-      {tab === "schedule" && hasSchedule && (
-        <div>
-          <label style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px", fontSize: "0.9em" }}>
-            <input type="checkbox" checked={showRest} onChange={(e) => setShowRest(e.target.checked)} />
-            Show rest days
-          </label>
+      {showSchedule && (
+        <div style={{ marginTop: "12px" }}>
+          {!hasSchedule && <div className="alert alert-info">No schedule loaded yet.</div>}
 
-          <table style={{ width: "100%" }}>
-            <thead>
-              <tr><th style={{ width: "120px" }}>Date</th><th>Workout</th><th style={{ width: "100px" }}>Action</th></tr>
-            </thead>
-            <tbody>
-              {upcomingSchedule.map((row) => (
-                <tr key={row.id}>
-                  <td style={{ fontWeight: row.date === today ? "bold" : "normal" }}>
-                    {fmtShortDate(row.date)}
-                  </td>
-                  <td>
-                    {editingId === row.id ? (
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <input type="text" value={editWorkout}
-                          onChange={(e) => setEditWorkout(e.target.value)}
-                          style={{ flex: 1 }} />
-                        <button className="btn btn-primary" onClick={() => saveEdit(row.id)}>Save</button>
-                        <button className="btn" onClick={() => setEditingId(null)}>Cancel</button>
-                      </div>
-                    ) : (
-                      <div onClick={() => { setEditingId(row.id); setEditWorkout(row.workout); }}
-                        style={{ cursor: "pointer" }}>
-                        <span style={{ color: TYPE_COLORS[row._type], fontWeight: "bold", fontSize: "0.8em", marginRight: "6px" }}>
-                          {TYPE_LABELS[row._type].toUpperCase()}
-                        </span>
-                        <span style={{ textDecoration: row.completed ? "line-through" : "none" }}>
-                          {row.workout.split("\n")[0]}
-                        </span>
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    {!row.completed && row._type !== "rest" ? (
-                      <button className="btn" onClick={() => markComplete(row.id)}
-                        style={{ fontSize: "0.85em" }}>Done</button>
-                    ) : row.completed ? (
-                      <span style={{ fontSize: "0.85em", color: "#888" }}>Done</span>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {hasSchedule && (
+            <>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px", fontSize: "0.9em" }}>
+                <input type="checkbox" checked={showRest} onChange={(e) => setShowRest(e.target.checked)} />
+                Show rest days
+              </label>
 
-          {pastSchedule.length > 0 && (
-            <div style={{ marginTop: "12px" }}>
-              <button className="btn" onClick={() => setShowPast(!showPast)}>
-                {showPast ? "Hide" : "Show"} Past Workouts ({pastSchedule.length})
-              </button>
-              {showPast && (
-                <table style={{ width: "100%", marginTop: "8px" }}>
-                  <tbody>
-                    {pastSchedule.map((row) => (
-                      <tr key={row.id}>
-                        <td style={{ width: "120px" }}>{fmtShortDate(row.date)}</td>
-                        <td>
-                          <span style={{ color: TYPE_COLORS[row._type], fontWeight: "bold", fontSize: "0.8em", marginRight: "6px" }}>
-                            {TYPE_LABELS[row._type].toUpperCase()}
-                          </span>
-                          <span style={{ textDecoration: row.completed ? "line-through" : "none" }}>
-                            {row.workout.split("\n")[0]}
-                          </span>
-                        </td>
-                        <td style={{ width: "100px" }}>
-                          {row.completed
-                            ? <span style={{ fontSize: "0.85em", color: "#888" }}>Done</span>
-                            : <button className="btn" onClick={() => markComplete(row.id)} style={{ fontSize: "0.85em" }}>Done</button>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <table style={{ width: "100%" }}>
+                <thead>
+                  <tr><th style={{ width: "120px" }}>Date</th><th>Workout</th><th style={{ width: "100px" }}>Action</th></tr>
+                </thead>
+                <tbody>
+                  {upcomingSchedule.map((row) => (
+                    <tr key={row.id}>
+                      <td style={{ fontWeight: row.date === today ? "bold" : "normal" }}>
+                        {fmtShortDate(row.date)}
+                      </td>
+                      <td>
+                        {editingId === row.id ? (
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <input type="text" value={editWorkout}
+                              onChange={(e) => setEditWorkout(e.target.value)}
+                              style={{ flex: 1 }} />
+                            <button className="btn btn-primary" onClick={() => saveEdit(row.id)}>Save</button>
+                            <button className="btn" onClick={() => setEditingId(null)}>Cancel</button>
+                          </div>
+                        ) : (
+                          <div onClick={() => { setEditingId(row.id); setEditWorkout(row.workout); }}
+                            style={{ cursor: "pointer" }}>
+                            <span style={{ color: TYPE_COLORS[row._type], fontWeight: "bold", fontSize: "0.8em", marginRight: "6px" }}>
+                              {TYPE_LABELS[row._type].toUpperCase()}
+                            </span>
+                            <span style={{ textDecoration: row.completed ? "line-through" : "none" }}>
+                              {row.workout.split("\n")[0]}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        {!row.completed && row._type !== "rest" ? (
+                          <button className="btn" onClick={() => markComplete(row.id)}
+                            style={{ fontSize: "0.85em" }}>Done</button>
+                        ) : row.completed ? (
+                          <span style={{ fontSize: "0.85em", color: "#888" }}>Done</span>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {pastSchedule.length > 0 && (
+                <div style={{ marginTop: "12px" }}>
+                  <button className="btn" onClick={() => setShowPast(!showPast)}>
+                    {showPast ? "Hide" : "Show"} Past Workouts ({pastSchedule.length})
+                  </button>
+                  {showPast && (
+                    <table style={{ width: "100%", marginTop: "8px" }}>
+                      <tbody>
+                        {pastSchedule.map((row) => (
+                          <tr key={row.id}>
+                            <td style={{ width: "120px" }}>{fmtShortDate(row.date)}</td>
+                            <td>
+                              <span style={{ color: TYPE_COLORS[row._type], fontWeight: "bold", fontSize: "0.8em", marginRight: "6px" }}>
+                                {TYPE_LABELS[row._type].toUpperCase()}
+                              </span>
+                              <span style={{ textDecoration: row.completed ? "line-through" : "none" }}>
+                                {row.workout.split("\n")[0]}
+                              </span>
+                            </td>
+                            <td style={{ width: "100px" }}>
+                              {row.completed
+                                ? <span style={{ fontSize: "0.85em", color: "#888" }}>Done</span>
+                                : <button className="btn" onClick={() => markComplete(row.id)} style={{ fontSize: "0.85em" }}>Done</button>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               )}
-            </div>
+            </>
           )}
 
-          <div className="divider" />
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ marginTop: "12px" }}>
             <button className="btn" onClick={() => setShowAddSchedule(!showAddSchedule)}>
               {showAddSchedule ? "Cancel" : "Add Schedule"}
             </button>
@@ -1185,62 +1496,17 @@ export default function RunningPage() {
         </div>
       )}
 
-      {/* ===== PROGRESS TAB ===== */}
-      {tab === "progress" && hasSchedule && (
-        <div>
-          <div className="metrics-row">
-            <div className="metric">
-              <div className="metric-label">Total Workouts</div>
-              <div className="metric-value">{totalWorkouts}</div>
-            </div>
-            <div className="metric">
-              <div className="metric-label">Completed</div>
-              <div className="metric-value">{completedWorkouts}</div>
-            </div>
-            <div className="metric">
-              <div className="metric-label">Remaining</div>
-              <div className="metric-value">{totalWorkouts - completedWorkouts}</div>
-            </div>
-            <div className="metric">
-              <div className="metric-label">Progress</div>
-              <div className="metric-value">{progressPct}%</div>
-            </div>
-          </div>
-          <div style={{
-            background: "#333", borderRadius: "4px", height: "8px", marginTop: "12px",
-          }}>
-            <div style={{
-              background: "#4CAF50", height: "100%", borderRadius: "4px",
-              width: `${progressPct}%`, transition: "width 0.3s",
-            }} />
-          </div>
+      <div className="divider" />
 
-          <h3 style={{ marginTop: "24px" }}>By Workout Type</h3>
-          <table style={{ width: "100%" }}>
-            <thead>
-              <tr><th>Type</th><th>Total</th><th>Done</th><th>Remaining</th></tr>
-            </thead>
-            <tbody>
-              {Object.keys(TYPE_LABELS).filter((t) => t !== "rest").map((type) => {
-                const ofType = schedule.filter((r) => r._type === type);
-                const done = ofType.filter((r) => r.completed).length;
-                return (
-                  <tr key={type}>
-                    <td style={{ color: TYPE_COLORS[type] }}>{TYPE_LABELS[type]}</td>
-                    <td>{ofType.length}</td>
-                    <td>{done}</td>
-                    <td>{ofType.length - done}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* ===== ANALYTICS (collapsible) ===== */}
+      <div style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+        onClick={() => setShowAnalytics(!showAnalytics)}>
+        <h2 style={{ margin: 0 }}>Analytics</h2>
+        <span style={{ color: "#888" }}>{showAnalytics ? "▾" : "▸"}</span>
+      </div>
 
-      {/* ===== ANALYTICS TAB ===== */}
-      {tab === "analytics" && (
-        <div>
+      {showAnalytics && (
+        <div style={{ marginTop: "12px" }}>
           {!hasLogs || runLogs.length < 2 ? (
             <div className="alert alert-info">Need at least 2 logged runs for analytics.</div>
           ) : (
@@ -1254,10 +1520,8 @@ export default function RunningPage() {
                 ))}
               </div>
 
-              {/* Mileage bar chart */}
               {analyticsTab === "mileage" && <BarChart data={weeklyMileage()} label="Weekly Miles" />}
 
-              {/* Pace trend */}
               {analyticsTab === "pace" && (
                 <div>
                   {paceTrend().length < 2 ? (
@@ -1269,8 +1533,8 @@ export default function RunningPage() {
                         const wp = sortedLogs.filter((r) => r.pace_seconds > 0);
                         if (wp.length < 10) return null;
                         const first5 = wp.slice(0, 5).reduce((s, r) => s + r.pace_seconds, 0) / 5;
-                        const last5 = wp.slice(-5).reduce((s, r) => s + r.pace_seconds, 0) / 5;
-                        const diff = first5 - last5;
+                        const last5p = wp.slice(-5).reduce((s, r) => s + r.pace_seconds, 0) / 5;
+                        const diff = first5 - last5p;
                         return (
                           <p style={{ fontSize: "0.85em", color: "#888", marginTop: "8px" }}>
                             {diff > 0 ? `Pace improved by ${Math.round(diff)}s/mi` : diff < 0 ? `Pace slowed by ${Math.round(Math.abs(diff))}s/mi` : "Pace unchanged"} (first 5 vs last 5 runs)
@@ -1282,7 +1546,6 @@ export default function RunningPage() {
                 </div>
               )}
 
-              {/* Training Load ACWR */}
               {analyticsTab === "load" && (
                 <div>
                   <ACWRChart data={acwrTrend()} />
@@ -1296,14 +1559,13 @@ export default function RunningPage() {
                 </div>
               )}
 
-              {/* Workout History & Trends */}
               {analyticsTab === "workouts" && (() => {
                 const workouts = runLogs
                   .filter((r) => r.workout_data)
                   .map((r) => ({ ...(typeof r.workout_data === "string" ? JSON.parse(r.workout_data) : r.workout_data), date: r.date, distance: r.distance_miles }))
                   .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
                 if (!workouts.length) return (
-                  <div className="alert alert-info">No workouts analyzed yet. Upload a GPX file in the Run Log tab to get started.</div>
+                  <div className="alert alert-info">No workouts analyzed yet. Upload a GPX/TCX file to get started.</div>
                 );
                 const intervals = workouts.filter((w) => w.type === "intervals").reverse();
                 return (
@@ -1367,338 +1629,6 @@ export default function RunningPage() {
                 );
               })()}
             </>
-          )}
-        </div>
-      )}
-
-      {/* ===== RUN LOG TAB ===== */}
-      {tab === "log" && (
-        <div>
-          {hasLogs && (
-            <>
-              <div className="metrics-row">
-                <div className="metric">
-                  <div className="metric-label">This Week</div>
-                  <div className="metric-value">{rlWeekMi.toFixed(1)} mi</div>
-                </div>
-                <div className="metric">
-                  <div className="metric-label">Total Logged</div>
-                  <div className="metric-value">{rlTotalMi.toFixed(1)} mi</div>
-                </div>
-                <div className="metric">
-                  <div className="metric-label">Best Pace</div>
-                  <div className="metric-value">{fmtPace(rlBestPace)}</div>
-                </div>
-                <div className="metric">
-                  <div className="metric-label">Runs Logged</div>
-                  <div className="metric-value">{runLogs.length}</div>
-                </div>
-              </div>
-
-              {sortedRunLogs.slice(0, showAllRuns ? undefined : 5).map((run) => (
-                <div key={run.id} style={{ padding: "6px 0", borderBottom: "1px solid #333" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span>
-                      <strong>{fmtShortDate(run.date)}</strong>
-                      {" · "}{(+run.distance_miles).toFixed(2)} mi
-                      {" · "}{fmtDuration(run.duration_seconds)}
-                      {" · "}{fmtPace(run.pace_seconds)}
-                      {run.elevation_gain_ft > 0 && ` · ↑${Math.round(run.elevation_gain_ft)} ft`}
-                      {run.route_name && ` · ${run.route_name}`}
-                    </span>
-                    <button className="btn" onClick={() => deleteRunLog(run.id)}
-                      style={{ fontSize: "0.75em", padding: "2px 8px" }}>×</button>
-                  </div>
-                  {run.notes && <p style={{ fontSize: "0.85em", color: "#888", margin: "2px 0 0" }}>{run.notes}</p>}
-                </div>
-              ))}
-
-              {sortedRunLogs.length > 5 && (
-                <button className="btn" style={{ marginTop: "8px" }}
-                  onClick={() => setShowAllRuns(!showAllRuns)}>
-                  {showAllRuns ? "Show Less" : `All Runs (${sortedRunLogs.length})`}
-                </button>
-              )}
-            </>
-          )}
-
-          <div style={{ marginTop: "16px" }}>
-            <button className="btn btn-primary" onClick={() => setShowLogForm(!showLogForm)}>
-              {showLogForm ? "Cancel" : "Log a Run"}
-            </button>
-          </div>
-
-          {showLogForm && (
-            <form onSubmit={logRun} className="card" style={{ marginTop: "12px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                <div>
-                  <label className="metric-label">Date</label>
-                  <input type="date" value={mrDate} onChange={(e) => setMrDate(e.target.value)} />
-                </div>
-                <div>
-                  <label className="metric-label">Distance (miles)</label>
-                  <input type="number" step="0.1" min="0" value={mrDist}
-                    onChange={(e) => setMrDist(e.target.value)} placeholder="0.0" />
-                </div>
-                <div>
-                  <label className="metric-label">Minutes</label>
-                  <input type="number" min="0" value={mrMins}
-                    onChange={(e) => setMrMins(e.target.value)} placeholder="0" />
-                </div>
-                <div>
-                  <label className="metric-label">Seconds</label>
-                  <input type="number" min="0" max="59" value={mrSecs}
-                    onChange={(e) => setMrSecs(e.target.value)} placeholder="0" />
-                </div>
-              </div>
-              <div style={{ marginTop: "8px" }}>
-                <label className="metric-label">Notes</label>
-                <input type="text" value={mrNotes} onChange={(e) => setMrNotes(e.target.value)}
-                  placeholder="How did it feel?" style={{ width: "100%" }} />
-              </div>
-              {mrDist && parseFloat(mrDist) > 0 && (parseInt(mrMins) || parseInt(mrSecs)) ? (
-                <p style={{ fontSize: "0.85em", color: "#888", marginTop: "4px" }}>
-                  Pace: {fmtPace(((parseInt(mrMins) || 0) * 60 + (parseInt(mrSecs) || 0)) / parseFloat(mrDist))}
-                </p>
-              ) : null}
-              <button type="submit" className="btn btn-primary" style={{ marginTop: "12px" }}>Log Run</button>
-            </form>
-          )}
-
-          <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-            <button className="btn" onClick={() => { setShowGpx(!showGpx); setShowStrava(false); }}>
-              {showGpx ? "Cancel" : "Upload GPX/TCX"}
-            </button>
-            <button className="btn" onClick={() => { setShowStrava(!showStrava); setShowGpx(false); }}>
-              {showStrava ? "Cancel" : "Import Strava CSV"}
-            </button>
-          </div>
-
-          {showGpx && (
-            <div className="card" style={{ marginTop: "12px" }}>
-              <h3 style={{ marginBottom: "8px" }}>Upload GPX/TCX File</h3>
-              <input type="file" accept=".gpx,.tcx" onChange={handleGpxFile} />
-              {gpxPreview && (
-                <div style={{ marginTop: "12px" }}>
-                  <div className="metrics-row">
-                    <div className="metric"><div className="metric-label">Date</div><div className="metric-value">{gpxPreview.date}</div></div>
-                    <div className="metric"><div className="metric-label">Distance</div><div className="metric-value">{gpxPreview.distance_miles} mi</div></div>
-                    <div className="metric"><div className="metric-label">Pace</div><div className="metric-value">{fmtPace(gpxPreview.pace_seconds)}</div></div>
-                    <div className="metric"><div className="metric-label">Elev Gain</div><div className="metric-value">{gpxPreview.elevation_gain_ft} ft</div></div>
-                  </div>
-                  {gpxPreview.splits.length > 0 && (
-                    <div style={{ marginTop: "8px" }}>
-                      <strong style={{ fontSize: "0.85em" }}>Splits:</strong>
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
-                        {gpxPreview.splits.map((s) => (
-                          <span key={s.mile} style={{ fontSize: "0.8em", padding: "2px 6px", background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "4px" }}>
-                            Mi {s.mile}: {fmtPace(s.pace_seconds)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {gpxAnalysis && (
-                    <div style={{ marginTop: "12px", padding: "12px", border: "1px solid var(--border)", borderRadius: "6px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{
-                          fontSize: "0.75em", fontWeight: "bold", padding: "2px 8px", borderRadius: "3px",
-                          background: gpxAnalysis.type === "intervals" ? "#F44336" : gpxAnalysis.type === "tempo" ? "#FF9800" : "#4CAF50",
-                          color: "white",
-                        }}>
-                          {gpxAnalysis.type === "intervals" ? "INTERVALS" : gpxAnalysis.type === "tempo" ? "TEMPO" : "EASY"}
-                        </span>
-                        <button className="btn" style={{ fontSize: "0.8em" }}
-                          onClick={() => setShowCorrection(!showCorrection)}>
-                          {showCorrection ? "Cancel" : "Doesn’t look right?"}
-                        </button>
-                      </div>
-
-                      <p style={{ margin: "8px 0 0", fontSize: "0.9em" }}>{gpxAnalysis.summary}</p>
-                      {gpxAnalysis.type === "easy" && (
-                        <p style={{ margin: "4px 0 0", fontSize: "0.8em", color: "#888" }}>
-                          No intervals detected — pace stayed within {((gpxAnalysis.easyPace - gpxAnalysis.fastPace) * 60).toFixed(0)}s/mi range. Use &quot;Doesn&apos;t look right?&quot; to define the workout.
-                        </p>
-                      )}
-
-                      {(() => {
-                        const planned = schedule.find((s) => s.date === gpxPreview.date);
-                        if (!planned) return null;
-                        return (
-                          <div style={{ marginTop: "8px", fontSize: "0.85em", color: "#888" }}>
-                            Planned: <strong style={{ color: TYPE_COLORS[planned._type] }}>{planned.workout.split("\n")[0]}</strong>
-                          </div>
-                        );
-                      })()}
-
-                      {gpxAnalysis.paceData && (() => {
-                        const data = gpxAnalysis.paceData;
-                        const segs = gpxAnalysis.segments || [];
-                        const maxT = data[data.length - 1].t;
-                        const paces = data.map((p) => p.pace).filter((p) => p > 4 && p < 14);
-                        const minP = Math.min(...paces) - 0.5;
-                        const maxP = Math.max(...paces) + 0.5;
-                        const range = maxP - minP || 1;
-                        const step = Math.max(1, Math.floor(data.length / 200));
-                        const sampled = data.filter((_, i) => i % step === 0);
-                        return (
-                          <div style={{ marginTop: "12px" }}>
-                            <strong style={{ fontSize: "0.8em" }}>Pace Profile</strong>
-                            <div style={{ position: "relative", height: "120px", marginTop: "4px", background: "rgba(255,255,255,0.03)", borderRadius: "4px", overflow: "hidden" }}>
-                              {segs.map((s, i) => (
-                                <div key={i} style={{
-                                  position: "absolute", bottom: 0, top: 0,
-                                  left: `${(s.s / maxT) * 100}%`,
-                                  width: `${((s.e - s.s) / maxT) * 100}%`,
-                                  background: s.z === "fast" ? "rgba(244,67,54,0.12)" : "transparent",
-                                }} />
-                              ))}
-                              {sampled.map((p, i) => {
-                                const x = (p.t / maxT) * 100;
-                                const clampedPace = Math.min(Math.max(p.pace, minP), maxP);
-                                const y = ((clampedPace - minP) / range) * 100;
-                                const seg = segs.find((s) => p.t >= s.s && p.t <= s.e);
-                                const color = seg?.z === "fast" ? "#F44336" : "#4CAF50";
-                                return (
-                                  <div key={i} style={{
-                                    position: "absolute",
-                                    left: `${x}%`, bottom: `${100 - y}%`,
-                                    width: "2px", height: "2px", borderRadius: "50%",
-                                    background: color,
-                                  }} />
-                                );
-                              })}
-                              <div style={{ position: "absolute", left: 0, top: "2px", fontSize: "0.65em", color: "#888" }}>
-                                {fmtPaceMin(minP)}
-                              </div>
-                              <div style={{ position: "absolute", left: 0, bottom: "2px", fontSize: "0.65em", color: "#888" }}>
-                                {fmtPaceMin(maxP)}
-                              </div>
-                            </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7em", color: "#888", marginTop: "2px" }}>
-                              <span>0:00</span>
-                              <span>{Math.floor(maxT / 60)} min</span>
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {gpxAnalysis.reps.length > 1 && (() => {
-                        const hasHR = gpxAnalysis.reps.some((r) => r.hr > 0);
-                        return (
-                          <div style={{ marginTop: "8px", overflowX: "auto" }}>
-                            <table style={{ fontSize: "0.8em", width: "100%" }}>
-                              <thead>
-                                <tr><th>Rep</th><th>Time</th><th>Pace</th>{hasHR && <th>HR</th>}</tr>
-                              </thead>
-                              <tbody>
-                                {gpxAnalysis.reps.map((r, i) => (
-                                  <tr key={i}>
-                                    <td>{i + 1}</td>
-                                    <td>{(r.duration / 60).toFixed(1)} min</td>
-                                    <td>{fmtPaceMin(r.pace)}</td>
-                                    {hasHR && <td>{r.hr > 0 ? `${Math.round(r.hr)} bpm` : "--"}</td>}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        );
-                      })()}
-
-                      {showCorrection && (
-                        <div style={{ marginTop: "12px", padding: "8px", background: "var(--card-bg)", borderRadius: "4px", fontSize: "0.85em" }}>
-                          <div style={{ display: "flex", gap: "12px", marginBottom: "8px" }}>
-                            <div>
-                              <label className="metric-label">Warmup (min)</label>
-                              <input type="number" min="0" value={corWu} onChange={(e) => setCorWu(e.target.value)} placeholder="10" style={{ width: "70px" }} />
-                            </div>
-                            <div>
-                              <label className="metric-label">Cooldown (min)</label>
-                              <input type="number" min="0" value={corCd} onChange={(e) => setCorCd(e.target.value)} placeholder="10" style={{ width: "70px" }} />
-                            </div>
-                          </div>
-                          <label className="metric-label">Reps</label>
-                          {corReps.map((rep, i) => (
-                            <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}>
-                              <span style={{ width: "18px", color: "#888", fontSize: "0.85em" }}>{i + 1}</span>
-                              <input type="number" min="0.5" step="0.5" value={rep.hard} placeholder="hard" style={{ width: "60px" }}
-                                onChange={(e) => { const r = [...corReps]; r[i] = { ...r[i], hard: e.target.value }; setCorReps(r); }} />
-                              <span style={{ color: "#888" }}>min hard</span>
-                              <input type="number" min="0" step="0.5" value={rep.easy} placeholder="easy" style={{ width: "60px" }}
-                                onChange={(e) => { const r = [...corReps]; r[i] = { ...r[i], easy: e.target.value }; setCorReps(r); }} />
-                              <span style={{ color: "#888" }}>min easy</span>
-                              {corReps.length > 1 && (
-                                <button className="btn" style={{ padding: "2px 6px" }}
-                                  onClick={() => setCorReps(corReps.filter((_, j) => j !== i))}>×</button>
-                              )}
-                            </div>
-                          ))}
-                          <button className="btn" style={{ marginTop: "6px", fontSize: "0.85em" }}
-                            onClick={() => setCorReps([...corReps, { ...corReps[corReps.length - 1] }])}>+ Rep</button>
-                          <div style={{ marginTop: "8px", display: "flex", gap: "8px" }}>
-                            <button className="btn btn-primary" onClick={() => {
-                              const reps = corReps.filter((r) => parseFloat(r.hard) > 0).map((r) => ({ hard: parseFloat(r.hard), easy: parseFloat(r.easy) || 0 }));
-                              if (!reps.length) return;
-                              const result = refitWorkout(gpxAnalysis, { warmup: parseFloat(corWu) || 0, reps, cooldown: parseFloat(corCd) || 0 });
-                              if (result) { setGpxAnalysis({ ...gpxAnalysis, ...result }); setShowCorrection(false); }
-                            }}>Re-analyze</button>
-                            <button className="btn" onClick={() => {
-                              setGpxAnalysis({ ...gpxAnalysis, type: "easy", summary: "Easy run", reps: [], segments: [], corrected: true });
-                              setShowCorrection(false);
-                            }}>Just an easy run</button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <button className="btn btn-primary" onClick={saveGpx} style={{ marginTop: "12px" }}>Save to Log</button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {showStrava && (
-            <div className="card" style={{ marginTop: "12px" }}>
-              <h3 style={{ marginBottom: "8px" }}>Import Strava CSV</h3>
-              <p style={{ fontSize: "0.8em", color: "var(--muted)", marginBottom: "8px" }}>
-                Upload your activities.csv from Strava data export, or paste the contents below.
-              </p>
-              <input type="file" accept=".csv" onChange={handleStravaFile} />
-              <div style={{ marginTop: "8px" }}>
-                <textarea rows={4} value={stravaPaste} onChange={(e) => setStravaPaste(e.target.value)}
-                  placeholder="Or paste CSV content here..." style={{ width: "100%", fontFamily: "monospace", fontSize: "0.8em" }} />
-                <button className="btn" onClick={handleStravaPaste} style={{ marginTop: "4px" }}>Parse Pasted CSV</button>
-              </div>
-              {stravaRows && (
-                <div style={{ marginTop: "12px" }}>
-                  <p style={{ fontSize: "0.85em" }}>{stravaRows.length} run{stravaRows.length !== 1 ? "s" : ""} found</p>
-                  {stravaRows.length > 0 && (
-                    <div style={{ overflowX: "auto", marginTop: "8px" }}>
-                      <table style={{ fontSize: "0.8em" }}>
-                        <thead><tr><th>Date</th><th>Distance</th><th>Pace</th><th>Elev</th></tr></thead>
-                        <tbody>
-                          {stravaRows.slice(0, 10).map((r, i) => (
-                            <tr key={i}>
-                              <td>{r.date}</td>
-                              <td>{r.distance_miles} mi</td>
-                              <td>{fmtPace(r.pace_seconds)}</td>
-                              <td>{r.elevation_gain_ft} ft</td>
-                            </tr>
-                          ))}
-                          {stravaRows.length > 10 && <tr><td colSpan={4} style={{ color: "var(--muted)" }}>...{stravaRows.length - 10} more</td></tr>}
-                        </tbody>
-                      </table>
-                      <button className="btn btn-primary" onClick={saveStravaRows} style={{ marginTop: "8px" }}>
-                        Import {stravaRows.length} Run{stravaRows.length !== 1 ? "s" : ""}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           )}
         </div>
       )}
