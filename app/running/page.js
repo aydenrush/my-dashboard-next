@@ -980,8 +980,12 @@ export default function RunningPage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1 className="page-title">Training</h1>
-        <a href="https://www.strava.com/dashboard" target="_blank" rel="noopener noreferrer"
-          className="btn" style={{ fontSize: "0.85rem" }}>Strava</a>
+        <div style={{ display: "flex", gap: "6px" }}>
+          <a href="https://connect.garmin.com/app/profile/93c62c27-a769-4778-834c-3f2a210ec2a0" target="_blank" rel="noopener noreferrer"
+            className="btn" style={{ fontSize: "0.85rem" }}>Garmin</a>
+          <a href="https://www.strava.com/dashboard" target="_blank" rel="noopener noreferrer"
+            className="btn" style={{ fontSize: "0.85rem" }}>Strava</a>
+        </div>
       </div>
 
       {bestHourMsg && <div className="alert alert-success">{bestHourMsg}</div>}
