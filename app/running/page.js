@@ -1204,6 +1204,18 @@ export default function RunningPage() {
                               background: s.z === "fast" ? "rgba(244,67,54,0.12)" : "transparent",
                             }} />
                           ))}
+                          {gpxAnalysis.laps && (() => {
+                            let cumT = 0;
+                            return gpxAnalysis.laps.slice(0, -1).map((l, i) => {
+                              cumT += l.dur;
+                              return <div key={`lap${i}`} style={{
+                                position: "absolute", top: 0, bottom: 0,
+                                left: `${(cumT / maxT) * 100}%`,
+                                width: "1px", background: "rgba(255,255,255,0.2)",
+                                borderLeft: "1px dashed rgba(255,255,255,0.3)",
+                              }} />;
+                            });
+                          })()}
                           {sampled.map((p, i) => {
                             const x = (p.t / maxT) * 100;
                             const clampedPace = Math.min(Math.max(p.pace, minP), maxP);
@@ -1256,6 +1268,40 @@ export default function RunningPage() {
                       </div>
                     );
                   })()}
+
+                  {gpxAnalysis.laps && gpxAnalysis.laps.length > 0 && (
+                    <details style={{ marginTop: "8px" }}>
+                      <summary style={{ fontSize: "0.8em", cursor: "pointer", color: "#888" }}>Garmin Laps ({gpxAnalysis.laps.length})</summary>
+                      <div style={{ overflowX: "auto", marginTop: "4px" }}>
+                        <table style={{ fontSize: "0.75em", width: "100%" }}>
+                          <thead>
+                            <tr><th>Lap</th><th>Start</th><th>Time</th><th>Dist</th><th>Pace</th><th>Avg HR</th></tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                              let cumT = 0;
+                              return gpxAnalysis.laps.map((l, i) => {
+                                const startT = cumT;
+                                cumT += l.dur;
+                                const isHard = gpxAnalysis.reps?.some(r => Math.abs(r.pace - l.pace) < 0.05 && Math.abs(r.duration - l.dur) < 2);
+                                const fmtT = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+                                return (
+                                  <tr key={i} style={isHard ? { fontWeight: 600, color: "var(--accent, #e53935)" } : undefined}>
+                                    <td>{i + 1}</td>
+                                    <td>{fmtT(startT)}</td>
+                                    <td>{l.dur >= 60 ? fmtT(l.dur) : `0:${String(Math.round(l.dur)).padStart(2, "0")}`}</td>
+                                    <td>{(l.dist / 1609.34).toFixed(2)} mi</td>
+                                    <td>{fmtPaceMin(l.pace)}</td>
+                                    <td>{l.avgHR || "--"}</td>
+                                  </tr>
+                                );
+                              });
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  )}
 
                   {showCorrection && (
                     <div style={{ marginTop: "12px", padding: "8px", background: "var(--card-bg)", borderRadius: "4px", fontSize: "0.85em" }}>
