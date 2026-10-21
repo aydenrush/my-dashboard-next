@@ -1142,7 +1142,20 @@ export default function RunningPage() {
                       {gpxAnalysis.type === "intervals" ? "INTERVALS" : gpxAnalysis.type === "tempo" ? "TEMPO" : "EASY"}
                     </span>
                     <button className="btn" style={{ fontSize: "0.8em" }}
-                      onClick={() => setShowCorrection(!showCorrection)}>
+                      onClick={() => {
+                        if (!showCorrection && gpxAnalysis) {
+                          const a = gpxAnalysis;
+                          setCorWu(a.warmup_s ? String(Math.round(a.warmup_s / 60)) : "");
+                          setCorCd(a.cooldown_s ? String(Math.round(a.cooldown_s / 60)) : "");
+                          if (a.reps?.length) {
+                            const avgRec = a.recoveries?.length ? a.recoveries.reduce((s, r) => s + r, 0) / a.recoveries.length : 0;
+                            setCorReps(a.reps.map(r => ({ hard: String(Math.round(r.duration / 60 * 10) / 10), easy: avgRec ? String(Math.round(avgRec / 60 * 10) / 10) : "" })));
+                          } else {
+                            setCorReps([{ hard: "", easy: "" }]);
+                          }
+                        }
+                        setShowCorrection(!showCorrection);
+                      }}>
                       {showCorrection ? "Cancel" : "Doesn’t look right?"}
                     </button>
                   </div>
