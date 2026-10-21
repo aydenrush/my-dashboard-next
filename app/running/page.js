@@ -299,7 +299,7 @@ function analyzeTcx(text) {
   // classify laps: rest (>12 min/mi), hard, easy
   const restThresh = 12;
   const activeLaps = laps.filter((l) => l.pace < restThresh);
-  if (!activeLaps.length) return { type: "easy", summary: "Easy run", reps: [], paceData: pd };
+  if (!activeLaps.length) return { type: "easy", summary: "Easy run", reps: [], paceData: pd, laps };
 
   const paces = activeLaps.map((l) => l.pace);
   const avgPace = paces.reduce((a, b) => a + b) / paces.length;
@@ -310,7 +310,7 @@ function analyzeTcx(text) {
   const lapTypes = laps.map((l) => l.pace >= restThresh ? "rest" : l.pace < hardThresh ? "hard" : "easy");
 
   const hardIdxs = lapTypes.map((t, i) => t === "hard" ? i : -1).filter((i) => i >= 0);
-  if (!hardIdxs.length) return { type: "easy", summary: "Easy run", reps: [], paceData: pd };
+  if (!hardIdxs.length) return { type: "easy", summary: "Easy run", reps: [], paceData: pd, laps };
 
   const reps = hardIdxs.map((i) => ({
     duration: laps[i].dur, pace: laps[i].pace, hr: laps[i].avgHR, dist: laps[i].dist / 1609.34,
@@ -334,7 +334,7 @@ function analyzeTcx(text) {
 
   // tempo: single hard lap > 600s
   if (reps.length === 1 && reps[0].duration > 600) {
-    return { type: "tempo", summary: `Tempo: ${(reps[0].duration / 60).toFixed(1)} min @ ${fmtPaceMin(reps[0].pace)}`, reps, paceData: pd, fastPace: reps[0].pace, easyPace: avgPace, threshold: hardThresh };
+    return { type: "tempo", summary: `Tempo: ${(reps[0].duration / 60).toFixed(1)} min @ ${fmtPaceMin(reps[0].pace)}`, reps, paceData: pd, laps, fastPace: reps[0].pace, easyPace: avgPace, threshold: hardThresh };
   }
 
   const avgRepPace = reps.reduce((a, r) => a + r.pace, 0) / reps.length;
@@ -352,7 +352,7 @@ function analyzeTcx(text) {
   if (avgRec > 0) summary += ` / ${(avgRec / 60).toFixed(1)} min rest`;
   if (cdS > 60) summary += ` → ${(cdS / 60).toFixed(0)} min CD`;
 
-  return { type: "intervals", warmup_s: wuS, cooldown_s: cdS, workout_s: reps.reduce((a, r) => a + r.duration, 0), reps, recoveries, paceData: pd, fastPace: Math.min(...reps.map((r) => r.pace)), easyPace: avgPace, threshold: hardThresh, summary };
+  return { type: "intervals", warmup_s: wuS, cooldown_s: cdS, workout_s: reps.reduce((a, r) => a + r.duration, 0), reps, recoveries, paceData: pd, laps, fastPace: Math.min(...reps.map((r) => r.pace)), easyPace: avgPace, threshold: hardThresh, summary };
 }
 
 // --- Workout analyzer (ports scratchpad/analyze-gpx.mjs to client-side) ---
@@ -525,6 +525,47 @@ function analyzeWorkout(gpxText) {
 function refitWorkout(analysis, { warmup, reps: repDefs, cooldown }) {
   if (!repDefs?.length) return null;
   const { paceData: pd, pts, mt, threshold } = analysis;
+  // TCX fallback: use lap data instead of GPS points
+  if ((!pts || !mt) && analysis.laps?.length) {
+    const laps = analysis.laps;
+    const warmupS = (warmup || 0) * 60;
+    const cooldownS = (cooldown || 0) * 60;
+    const cumT = [0];
+    for (let i = 0; i < laps.length; i++) cumT.push(cumT[i] + laps[i].dur);
+    let li = 0;
+    while (li < laps.length && cumT[li + 1] <= warmupS + 5) li++;
+    const reps = [], recoveries = [];
+    for (let i = 0; i < repDefs.length; i++) {
+      const targetS = repDefs[i].hard * 60;
+      let dur = 0, dist = 0, hrSum = 0, hrN = 0;
+      while (li < laps.length && dur < targetS - 5) {
+        dur += laps[li].dur; dist += laps[li].dist;
+        if (laps[li].avgHR) { hrSum += laps[li].avgHR; hrN++; }
+        li++;
+      }
+      if (dur > 0 && dist > 0) reps.push({ duration: dur, pace: (dur / 60) / (dist / 1609.34), hr: hrN ? hrSum / hrN : 0 });
+      if (i < repDefs.length - 1) {
+        const easyS = (repDefs[i].easy || 0) * 60;
+        let recDur = 0;
+        while (li < laps.length && recDur < easyS - 5) { recDur += laps[li].dur; li++; }
+        if (recDur > 0) recoveries.push(recDur);
+      }
+    }
+    if (!reps.length) return null;
+    const avgPace = reps.reduce((a, r) => a + r.pace, 0) / reps.length;
+    const allSame = reps.length > 1 && repDefs.every(r => r.hard === repDefs[0].hard);
+    let summary = "";
+    if (warmupS) summary += `${(warmupS / 60).toFixed(0)} min WU → `;
+    if (allSame) {
+      summary += `${reps.length} x ${repDefs[0].hard} min @ ${fmtPaceMin(avgPace)}`;
+      const avgRec = recoveries.length ? recoveries.reduce((a, b) => a + b, 0) / recoveries.length : 0;
+      if (avgRec > 0) summary += ` / ${(avgRec / 60).toFixed(1)} min rest`;
+    } else {
+      summary += reps.map((r, i) => `${repDefs[i].hard}min @ ${fmtPaceMin(r.pace)}`).join(" → ");
+    }
+    if (cooldownS) summary += ` → ${(cooldownS / 60).toFixed(0)} min CD`;
+    return { type: "intervals", reps, recoveries, warmup_s: warmupS, cooldown_s: cooldownS, summary, corrected: true };
+  }
   if (!pts || !mt) return null;
   const cooldownS = (cooldown || 0) * 60;
 
@@ -820,7 +861,7 @@ export default function RunningPage() {
     const notes = gpxAnalysis?.summary || null;
     let workoutData = null;
     if (gpxAnalysis) {
-      const { segments, pts, mt, ...storable } = gpxAnalysis;
+      const { segments, pts, mt, laps, ...storable } = gpxAnalysis;
       workoutData = storable;
     }
     await supabase.from("run_logs").insert({ ...row, source: "gpx", notes, workout_data: workoutData });
