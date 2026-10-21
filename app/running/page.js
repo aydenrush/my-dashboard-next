@@ -49,9 +49,8 @@ function fmtDuration(secs) {
 
 function fmtPaceMin(p) {
   if (!p || !isFinite(p)) return "--";
-  const m = Math.floor(p);
-  const s = Math.round((p % 1) * 60);
-  return `${m}:${String(s).padStart(2, "0")}/mi`;
+  const ts = Math.round(p * 60);
+  return `${Math.floor(ts / 60)}:${String(ts % 60).padStart(2, "0")}/mi`;
 }
 
 function toDate(d) {
@@ -317,16 +316,21 @@ function analyzeTcx(text) {
     duration: laps[i].dur, pace: laps[i].pace, hr: laps[i].avgHR, dist: laps[i].dist / 1609.34,
   }));
 
-  // warmup = everything before first hard lap, cooldown = everything after last hard lap
+  // warmup = everything before first hard lap
   const wuLaps = laps.slice(0, hardIdxs[0]);
-  const cdLaps = laps.slice(hardIdxs[hardIdxs.length - 1] + 1);
   const wuS = wuLaps.reduce((a, l) => a + l.dur, 0);
-  const cdS = cdLaps.reduce((a, l) => a + l.dur, 0);
+  // cooldown = skip rest laps after last hard rep, then count the rest
+  let cdStart = hardIdxs[hardIdxs.length - 1] + 1;
+  while (cdStart < laps.length && laps[cdStart].pace >= restThresh) cdStart++;
+  const cdS = laps.slice(cdStart).reduce((a, l) => a + l.dur, 0);
+  // recoveries between all hard laps (including rest after last rep)
   const recoveries = [];
   for (let i = 0; i < hardIdxs.length - 1; i++) {
     const between = laps.slice(hardIdxs[i] + 1, hardIdxs[i + 1]);
     recoveries.push(between.reduce((a, l) => a + l.dur, 0));
   }
+  const lastRestLaps = laps.slice(hardIdxs[hardIdxs.length - 1] + 1, cdStart);
+  if (lastRestLaps.length) recoveries.push(lastRestLaps.reduce((a, l) => a + l.dur, 0));
 
   // tempo: single hard lap > 600s
   if (reps.length === 1 && reps[0].duration > 600) {
