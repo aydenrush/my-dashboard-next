@@ -81,7 +81,7 @@ function addDays(iso, n) {
 
 function fmtShortDate(iso) {
   const d = new Date(iso + "T12:00:00");
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "2-digit", day: "2-digit" });
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "2-digit", day: "2-digit", year: "numeric" });
 }
 
 function fmtMD(iso) {
