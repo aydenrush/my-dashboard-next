@@ -1635,8 +1635,8 @@ export default function RunningPage() {
                   {run.elevation_gain_ft > 0 && ` · ↑${Math.round(run.elevation_gain_ft)} ft`}
                   {run.route_name && ` · ${run.route_name}`}
                   {" · "}<select value={run.workout_type || "easy"} onChange={(e) => setRunType(run.id, e.target.value)}
-                    style={{ color: TYPE_COLORS[run.workout_type || "easy"], fontWeight: 600, fontSize: "0.8em", background: "transparent", border: "none", cursor: "pointer" }}>
-                    {RUN_TYPES.map(t => <option key={t} value={t} style={{ color: TYPE_COLORS[t] }}>{TYPE_LABELS[t]}</option>)}
+                    style={{ color: TYPE_COLORS[run.workout_type || "easy"], fontWeight: 600, fontSize: "0.8em", background: "#1a1a1a", border: "none", cursor: "pointer" }}>
+                    {RUN_TYPES.map(t => <option key={t} value={t} style={{ background: "#1a1a1a", color: TYPE_COLORS[t] }}>{TYPE_LABELS[t]}</option>)}
                   </select>
                 </span>
                 <button className="btn" onClick={() => deleteRunLog(run.id)}
