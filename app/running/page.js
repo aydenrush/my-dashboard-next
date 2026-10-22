@@ -279,7 +279,7 @@ function analyzeTcx(text) {
   });
   if (!laps.length) return null;
 
-  // build paceData from trackpoint Garmin speed
+  // build paceData from trackpoint Garmin speed (moving time, pauses filtered)
   const trkBlocks = text.split("<Trackpoint>").slice(1);
   const pd = [];
   let cumTime = 0, prevTrkTime = null;
@@ -288,7 +288,12 @@ function analyzeTcx(text) {
     const spdM = blk.match(/<ns3:Speed>([\d.]+)/)?.[1];
     const hrM = blk.match(/<Value>(\d+)/)?.[1];
     const t = timeM ? new Date(timeM) : null;
-    if (t && prevTrkTime) cumTime += (t - prevTrkTime) / 1000;
+    if (t && prevTrkTime) {
+      const dt = (t - prevTrkTime) / 1000;
+      const spd = spdM ? parseFloat(spdM) : 0;
+      const pause = (dt > 10 && spd < 0.5) || dt > 60;
+      cumTime += pause ? 0 : dt;
+    }
     prevTrkTime = t;
     if (spdM) {
       const spd = parseFloat(spdM);
