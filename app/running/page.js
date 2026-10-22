@@ -1147,7 +1147,7 @@ export default function RunningPage() {
       if (!oPace) oPace = Math.round(older.reduce((s, r) => s + r.pace_seconds, 0) / older.length);
       const pctChange = oAvg > 0 ? ((rAvg - oAvg) / oAvg) * 100 : 0;
       const direction = Math.abs(pctChange) < 0.5 ? "flat" : rAvg < oAvg ? "faster" : "slower";
-      trends.push({ type, direction, pct: +Math.abs(pctChange).toFixed(1), recent: recent.length, older: older.length, recentPace: rPace, olderPace: oPace });
+      trends.push({ type, direction, pct: +Math.abs(pctChange).toFixed(1), recent: recent.length, older: older.length, recentPace: rPace, olderPace: oPace, recentRuns: recent, olderRuns: older });
     }
     return trends;
   }
@@ -1974,19 +1974,49 @@ export default function RunningPage() {
               <h3 style={{ fontSize: "0.9em", marginBottom: "8px" }}>Workout Trends</h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "8px" }}>
                 {trends.map(t => (
-                  <div key={t.type} style={{ background: "#1a1a1a", borderRadius: "8px", padding: "10px", border: `1px solid ${t.direction === "faster" ? "#4CAF50" : t.direction === "slower" ? "#F44336" : "#555"}33` }}>
-                    <div style={{ fontSize: "0.8em", color: TYPE_COLORS[t.type], fontWeight: 600, textTransform: "capitalize", marginBottom: "4px" }}>{TYPE_LABELS[t.type]}</div>
-                    <div style={{ fontSize: "1.3em", fontWeight: 700 }}>
-                      {t.direction === "faster" ? "↑" : t.direction === "slower" ? "↓" : "→"}{" "}
-                      <span style={{ color: t.direction === "faster" ? "#4CAF50" : t.direction === "slower" ? "#F44336" : "#888" }}>
-                        {t.direction === "flat" ? "Steady" : `${Math.abs(t.pct).toFixed(1)}%`}
-                      </span>
+                  <details key={t.type} style={{ background: "#1a1a1a", borderRadius: "8px", padding: "10px", border: `1px solid ${t.direction === "faster" ? "#4CAF50" : t.direction === "slower" ? "#F44336" : "#555"}33` }}>
+                    <summary style={{ cursor: "pointer", listStyle: "none" }}>
+                      <div style={{ fontSize: "0.8em", color: TYPE_COLORS[t.type], fontWeight: 600, textTransform: "capitalize", marginBottom: "4px" }}>{TYPE_LABELS[t.type]}</div>
+                      <div style={{ fontSize: "1.3em", fontWeight: 700 }}>
+                        {t.direction === "faster" ? "↑" : t.direction === "slower" ? "↓" : "→"}{" "}
+                        <span style={{ color: t.direction === "faster" ? "#4CAF50" : t.direction === "slower" ? "#F44336" : "#888" }}>
+                          {t.direction === "flat" ? "Steady" : `${t.pct}%`}
+                        </span>
+                      </div>
+                      {t.recentPace && <div style={{ fontSize: "0.75em", color: "#888", marginTop: "2px" }}>
+                        {fmtPace(t.olderPace)} → {fmtPace(t.recentPace)}
+                      </div>}
+                      <div style={{ fontSize: "0.65em", color: "#666", marginTop: "2px" }}>tap to expand</div>
+                    </summary>
+                    <div style={{ marginTop: "8px", borderTop: "1px solid #333", paddingTop: "6px", fontSize: "0.75em" }}>
+                      <div style={{ color: "#888", marginBottom: "4px" }}>Recent</div>
+                      {t.recentRuns.map((r, i) => (
+                        <div key={i} style={{ marginBottom: "4px" }}>
+                          <div style={{ color: "#ccc" }}>{fmtShortDate(r.date)} — {(+r.distance_miles).toFixed(2)} mi @ {fmtPace(r.pace_seconds)}</div>
+                          {r.workout_data?.reps?.length > 0 && (
+                            <div style={{ paddingLeft: "10px", color: "#888" }}>
+                              {r.workout_data.reps.map((rep, j) => (
+                                <span key={j}>{j > 0 && " / "}{(rep.duration / 60).toFixed(1)}m @ {fmtPace(Math.round(rep.pace * 60))}{rep.hr > 0 && ` (${Math.round(rep.hr)}bpm)`}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      <div style={{ color: "#888", marginBottom: "4px", marginTop: "6px" }}>Previous</div>
+                      {t.olderRuns.map((r, i) => (
+                        <div key={i} style={{ marginBottom: "4px" }}>
+                          <div style={{ color: "#ccc" }}>{fmtShortDate(r.date)} — {(+r.distance_miles).toFixed(2)} mi @ {fmtPace(r.pace_seconds)}</div>
+                          {r.workout_data?.reps?.length > 0 && (
+                            <div style={{ paddingLeft: "10px", color: "#888" }}>
+                              {r.workout_data.reps.map((rep, j) => (
+                                <span key={j}>{j > 0 && " / "}{(rep.duration / 60).toFixed(1)}m @ {fmtPace(Math.round(rep.pace * 60))}{rep.hr > 0 && ` (${Math.round(rep.hr)}bpm)`}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    {t.recentPace && <div style={{ fontSize: "0.75em", color: "#888", marginTop: "2px" }}>
-                      {fmtPace(t.olderPace)} → {fmtPace(t.recentPace)}
-                    </div>}
-                    <div style={{ fontSize: "0.65em", color: "#666", marginTop: "2px" }}>last {t.recent} vs prev {t.older}</div>
-                  </div>
+                  </details>
                 ))}
               </div>
             </div>;
