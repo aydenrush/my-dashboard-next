@@ -12,7 +12,7 @@ const TYPE_COLORS = {
 };
 const TYPE_LABELS = {
   rest: "Rest", easy: "Easy", tempo: "Tempo",
-  hills: "Hills", speed: "Speed", long: "Long Run",
+  hills: "Hills", speed: "Speed", long: "Long",
 };
 
 function workoutType(text) {
