@@ -230,13 +230,15 @@ function parseStravaCsv(text) {
 function parseTcx(text) {
   const lapBlocks = text.split("<Lap ").slice(1);
   if (!lapBlocks.length) throw new Error("No laps found in TCX file");
-  let totalDist = 0, totalTime = 0, elevGain = 0;
+  let totalDist = 0, totalTime = 0, elevGain = 0, hrSum = 0, hrCount = 0;
   const splits = [];
   for (const blk of lapBlocks) {
     const dur = parseFloat(blk.match(/<TotalTimeSeconds>([\d.]+)/)?.[1] || 0);
     const dist = parseFloat(blk.match(/<DistanceMeters>([\d.]+)/)?.[1] || 0);
+    const avgHR = parseInt(blk.match(/<AverageHeartRateBpm>\s*<Value>(\d+)/)?.[1] || 0);
     totalTime += dur;
     totalDist += dist;
+    if (avgHR > 0) { hrSum += avgHR * dur; hrCount += dur; }
   }
   // per-mile splits from trackpoints' cumulative distance
   const trkBlocks = text.split("<Trackpoint>").slice(1);
@@ -266,7 +268,7 @@ function parseTcx(text) {
   return {
     date, distance_miles: +distMi.toFixed(2), duration_seconds: Math.round(totalTime),
     moving_time_seconds: Math.round(totalTime), pace_seconds: distMi > 0 ? Math.round(totalTime / distMi) : 0,
-    elevation_gain_ft: Math.round(elevGain * 3.28084), splits,
+    elevation_gain_ft: Math.round(elevGain * 3.28084), avg_heart_rate: hrCount > 0 ? Math.round(hrSum / hrCount) : null, splits,
   };
 }
 
@@ -738,11 +740,13 @@ export default function RunningPage() {
   const [mrMins, setMrMins] = useState("");
   const [mrSecs, setMrSecs] = useState("");
   const [mrNotes, setMrNotes] = useState("");
+  const [mrType, setMrType] = useState("easy");
   const [showLogForm, setShowLogForm] = useState(false);
 
   // GPX / Strava upload
   const [gpxPreview, setGpxPreview] = useState(null);
   const [gpxAnalysis, setGpxAnalysis] = useState(null);
+  const [gpxType, setGpxType] = useState("easy");
   const [stravaRows, setStravaRows] = useState(null);
   const [showGpx, setShowGpx] = useState(false);
   const [showStrava, setShowStrava] = useState(false);
@@ -871,6 +875,27 @@ export default function RunningPage() {
   const easyCount = medianPace > 0 ? paceVals.filter((p) => p > medianPace * 1.05).length : 0;
   const easyPct = paceVals.length ? (easyCount / paceVals.length) * 100 : 0;
 
+  // monthly mileage
+  const thisMonth = today.slice(0, 7);
+  const lastMonth = (() => { const d = new Date(today + "T12:00:00"); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })();
+  const thisMonthMi = runLogs.filter(r => r.date?.startsWith(thisMonth)).reduce((s, r) => s + (r.distance_miles || 0), 0);
+  const lastMonthMi = runLogs.filter(r => r.date?.startsWith(lastMonth)).reduce((s, r) => s + (r.distance_miles || 0), 0);
+  const thisMonthRuns = runLogs.filter(r => r.date?.startsWith(thisMonth)).length;
+
+  // longest run (last 30 days)
+  const last30 = addDays(today, -30);
+  const longestRun = runLogs.filter(r => r.date >= last30).reduce((best, r) => (r.distance_miles || 0) > best ? (r.distance_miles || 0) : best, 0);
+
+  // streak: consecutive weeks with 3+ runs
+  const weekRunCounts = {};
+  for (const r of sortedLogs) { const wk = mondayOf(r.date); weekRunCounts[wk] = (weekRunCounts[wk] || 0) + 1; }
+  let streak = 0;
+  let wk = weekStart;
+  while (wk >= (sortedLogs[0]?.date || today)) {
+    if ((weekRunCounts[wk] || 0) >= 3) { streak++; wk = addDays(wk, -7); }
+    else break;
+  }
+
   // best run hour from weather
   let bestHourMsg = null;
   if (weather?.hourly) {
@@ -921,13 +946,14 @@ export default function RunningPage() {
       pace_seconds: pace,
       notes: mrNotes.trim() || null,
       source: "manual",
+      workout_type: mrType,
     });
     // auto-complete matching schedule entry
     const match = schedule.find((r) => r.date === mrDate && !r.completed);
     if (match) {
       await supabase.from("running_schedule").update({ completed: true }).eq("id", match.id);
     }
-    setMrDist(""); setMrMins(""); setMrSecs(""); setMrNotes("");
+    setMrDist(""); setMrMins(""); setMrSecs(""); setMrNotes(""); setMrType("easy");
     setShowLogForm(false);
     load();
   }
@@ -946,7 +972,9 @@ export default function RunningPage() {
         const text = reader.result;
         const isTcx = file.name.toLowerCase().endsWith(".tcx");
         setGpxPreview(isTcx ? parseTcx(text) : parseGpx(text));
-        setGpxAnalysis(isTcx ? analyzeTcx(text) : analyzeWorkout(text));
+        const a = isTcx ? analyzeTcx(text) : analyzeWorkout(text);
+        setGpxAnalysis(a);
+        setGpxType(a?.type === "intervals" ? "speed" : a?.type === "tempo" ? "tempo" : "easy");
         setShowCorrection(false);
       } catch (err) { alert(err.message); }
     };
@@ -962,8 +990,7 @@ export default function RunningPage() {
       const { segments, pts, mt, laps, ...storable } = gpxAnalysis;
       workoutData = storable;
     }
-    const wType = gpxAnalysis?.type === "intervals" ? "speed" : gpxAnalysis?.type === "tempo" ? "tempo" : "easy";
-    await supabase.from("run_logs").insert({ ...row, source: "gpx", notes, workout_data: workoutData, workout_type: wType });
+    await supabase.from("run_logs").insert({ ...row, source: "gpx", notes, workout_data: workoutData, workout_type: gpxType });
     const match = schedule.find((r) => r.date === row.date && !r.completed);
     if (match) await supabase.from("running_schedule").update({ completed: true }).eq("id", match.id);
     setGpxPreview(null); setGpxAnalysis(null); setShowGpx(false); setShowCorrection(false);
@@ -1038,6 +1065,45 @@ export default function RunningPage() {
       const avg7 = slice.reduce((s, v) => s + v.pace_seconds, 0) / slice.length;
       return { date: r.date, pace: r.pace_seconds, avg7: Math.round(avg7) };
     });
+  }
+
+  // --- weekly mileage by type (stacked) ---
+  function weeklyMileageByType() {
+    const byWeek = {};
+    for (const r of sortedLogs) {
+      const wk = mondayOf(r.date);
+      if (!byWeek[wk]) byWeek[wk] = { easy: 0, long: 0, tempo: 0, speed: 0, hills: 0 };
+      const t = r.workout_type || "easy";
+      byWeek[wk][t] = (byWeek[wk][t] || 0) + (r.distance_miles || 0);
+    }
+    return Object.keys(byWeek).sort().map(w => ({ week: w, ...byWeek[w] }));
+  }
+
+  // --- runs per week ---
+  function runsPerWeek() {
+    const byWeek = {};
+    for (const r of sortedLogs) { const wk = mondayOf(r.date); byWeek[wk] = (byWeek[wk] || 0) + 1; }
+    return Object.keys(byWeek).sort().map(w => ({ week: w, count: byWeek[w] }));
+  }
+
+  // --- HR trend ---
+  function hrTrend() {
+    const withHR = sortedLogs.filter(r => r.avg_heart_rate > 0);
+    if (withHR.length < 2) return [];
+    return withHR.map((r, i, arr) => {
+      const slice = arr.slice(Math.max(0, i - 6), i + 1);
+      const avg7 = Math.round(slice.reduce((s, v) => s + v.avg_heart_rate, 0) / slice.length);
+      return { date: r.date, hr: r.avg_heart_rate, avg7, pace: r.pace_seconds };
+    });
+  }
+
+  // --- cardiac efficiency (pace per HR beat) ---
+  function cardiacEfficiency() {
+    const withBoth = sortedLogs.filter(r => r.avg_heart_rate > 0 && r.pace_seconds > 0);
+    if (withBoth.length < 3) return [];
+    return withBoth.map(r => ({
+      date: r.date, efficiency: +(r.pace_seconds / r.avg_heart_rate).toFixed(2), hr: r.avg_heart_rate, pace: r.pace_seconds,
+    }));
   }
 
   if (loading) return <div><h1 className="page-title">Training</h1><p>Loading...</p></div>;
@@ -1180,10 +1246,19 @@ export default function RunningPage() {
                 onChange={(e) => setMrSecs(e.target.value)} placeholder="0" />
             </div>
           </div>
-          <div style={{ marginTop: "8px" }}>
-            <label className="metric-label">Notes</label>
-            <input type="text" value={mrNotes} onChange={(e) => setMrNotes(e.target.value)}
-              placeholder="How did it feel?" style={{ width: "100%" }} />
+          <div style={{ marginTop: "8px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div>
+              <label className="metric-label">Type</label>
+              <select value={mrType} onChange={(e) => setMrType(e.target.value)}
+                style={{ width: "100%", background: "#1a1a1a", color: TYPE_COLORS[mrType], fontWeight: 600 }}>
+                {RUN_TYPES.map(t => <option key={t} value={t} style={{ background: "#1a1a1a", color: TYPE_COLORS[t] }}>{TYPE_LABELS[t]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="metric-label">Notes</label>
+              <input type="text" value={mrNotes} onChange={(e) => setMrNotes(e.target.value)}
+                placeholder="How did it feel?" style={{ width: "100%" }} />
+            </div>
           </div>
           {mrDist && parseFloat(mrDist) > 0 && (parseInt(mrMins) || parseInt(mrSecs)) ? (
             <p style={{ fontSize: "0.85em", color: "#888", marginTop: "4px" }}>
@@ -1522,7 +1597,13 @@ export default function RunningPage() {
                 </div>
               )}
 
-              <button className="btn btn-primary" onClick={saveGpx} style={{ marginTop: "12px" }}>Save to Log</button>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "12px" }}>
+                <select value={gpxType} onChange={(e) => setGpxType(e.target.value)}
+                  style={{ background: "#1a1a1a", color: TYPE_COLORS[gpxType], fontWeight: 600, border: "none", fontSize: "0.85em" }}>
+                  {RUN_TYPES.map(t => <option key={t} value={t} style={{ background: "#1a1a1a", color: TYPE_COLORS[t] }}>{TYPE_LABELS[t]}</option>)}
+                </select>
+                <button className="btn btn-primary" onClick={saveGpx}>Save to Log</button>
+              </div>
             </div>
           )}
         </div>
@@ -1763,12 +1844,19 @@ export default function RunningPage() {
       {hasLogs && runLogs.length >= 2 && (
         <div>
           <h2>Analytics</h2>
-          <div className="metrics-row" style={{ marginBottom: "16px" }}>
+          <div className="metrics-row" style={{ marginBottom: "12px" }}>
             <div className="metric">
               <div className="metric-label">This Week</div>
               <div className="metric-value">{thisWkMi.toFixed(1)} mi</div>
               <div style={{ fontSize: "0.8em", color: "#888" }}>
                 {(thisWkMi - lastWkMi) >= 0 ? "+" : ""}{(thisWkMi - lastWkMi).toFixed(1)} vs last
+              </div>
+            </div>
+            <div className="metric">
+              <div className="metric-label">This Month</div>
+              <div className="metric-value">{thisMonthMi.toFixed(1)} mi</div>
+              <div style={{ fontSize: "0.8em", color: "#888" }}>
+                {thisMonthRuns} runs{lastMonthMi > 0 ? ` · ${lastMonthMi > thisMonthMi ? "" : "+"}${(thisMonthMi - lastMonthMi).toFixed(1)} vs last` : ""}
               </div>
             </div>
             <div className="metric">
@@ -1781,6 +1869,13 @@ export default function RunningPage() {
               <div className="metric-value">{last5Pace > 0 ? fmtPace(last5Pace) : "--"}</div>
               <div style={{ fontSize: "0.8em", color: "#888" }}>last 5 runs</div>
             </div>
+          </div>
+          <div className="metrics-row" style={{ marginBottom: "16px" }}>
+            <div className="metric">
+              <div className="metric-label">Longest Run</div>
+              <div className="metric-value">{longestRun.toFixed(1)} mi</div>
+              <div style={{ fontSize: "0.8em", color: "#888" }}>last 30 days</div>
+            </div>
             <div className="metric">
               <div className="metric-label">Easy %</div>
               <div className="metric-value">{easyPct.toFixed(0)}%</div>
@@ -1788,9 +1883,27 @@ export default function RunningPage() {
                 {easyPct < 70 ? "aim ~80%" : "good"}
               </div>
             </div>
+            <div className="metric">
+              <div className="metric-label">Streak</div>
+              <div className="metric-value">{streak} wk{streak !== 1 ? "s" : ""}</div>
+              <div style={{ fontSize: "0.8em", color: "#888" }}>3+ runs/wk</div>
+            </div>
+            {(() => {
+              const hr = hrTrend();
+              if (!hr.length) return null;
+              const latest = hr[hr.length - 1];
+              return <div className="metric">
+                <div className="metric-label">Avg HR</div>
+                <div className="metric-value">{latest.hr} bpm</div>
+                <div style={{ fontSize: "0.8em", color: "#888" }}>7-run avg: {latest.avg7}</div>
+              </div>;
+            })()}
           </div>
-          <MileageChart data={weeklyMileage()} />
+          <StackedMileageChart data={weeklyMileageByType()} />
+          <FrequencyChart data={runsPerWeek()} />
           {paceTrend().length >= 2 && <PaceChart data={paceTrend()} />}
+          {hrTrend().length >= 2 && <HRChart data={hrTrend()} />}
+          {cardiacEfficiency().length >= 3 && <EfficiencyChart data={cardiacEfficiency()} />}
         </div>
       )}
     </div>
@@ -1801,10 +1914,12 @@ export default function RunningPage() {
 // SVG Chart components
 // ============================================================
 
-function MileageChart({ data }) {
+const STACK_TYPES = ["easy", "long", "tempo", "speed", "hills"];
+
+function StackedMileageChart({ data }) {
   if (!data.length) return null;
-  const max = Math.max(...data.map((d) => d.miles), 1);
-  const W = 600, H = 160, pad = { t: 8, b: 20, l: 32, r: 4 };
+  const max = Math.max(...data.map(d => STACK_TYPES.reduce((s, t) => s + (d[t] || 0), 0)), 1);
+  const W = 600, H = 170, pad = { t: 8, b: 20, l: 32, r: 4 };
   const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
   const bw = Math.max(Math.floor(cw / data.length) - 2, 4);
   const yTicks = [0, Math.round(max / 2), Math.ceil(max)];
@@ -1820,13 +1935,56 @@ function MileageChart({ data }) {
           </g>;
         })}
         {data.map((d, i) => {
-          const x = pad.l + (i + 0.5) * (cw / data.length) - bw / 2;
-          const h = (d.miles / max) * ch;
-          const isLast = i === data.length - 1;
+          const bx = pad.l + (i + 0.5) * (cw / data.length) - bw / 2;
+          let cy = pad.t + ch;
+          const total = STACK_TYPES.reduce((s, t) => s + (d[t] || 0), 0);
           return <g key={i}>
-            <rect x={x} y={pad.t + ch - h} width={bw} height={Math.max(h, 1)}
-              rx="2" fill={isLast ? "#66BB6A" : "#4CAF50"} opacity={isLast ? 1 : 0.7}>
-              <title>{fmtMD(d.week)}: {d.miles} mi</title>
+            {STACK_TYPES.map(t => {
+              const v = d[t] || 0;
+              if (v <= 0) return null;
+              const h = (v / max) * ch;
+              const ry = cy - h;
+              cy = ry;
+              return <rect key={t} x={bx} y={ry} width={bw} height={h} fill={TYPE_COLORS[t]} opacity="0.85">
+                <title>{fmtMD(d.week)}: {v.toFixed(1)} mi {TYPE_LABELS[t]}</title>
+              </rect>;
+            })}
+            {(i === 0 || i === data.length - 1 || i % Math.max(1, Math.floor(data.length / 5)) === 0) && (
+              <text x={bx + bw / 2} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{d.week.slice(5)}</text>
+            )}
+          </g>;
+        })}
+      </svg>
+      <div style={{ display: "flex", gap: "12px", fontSize: "0.7em", color: "#888", flexWrap: "wrap" }}>
+        {STACK_TYPES.map(t => <span key={t}><span style={{ color: TYPE_COLORS[t] }}>{"■"}</span> {TYPE_LABELS[t]}</span>)}
+      </div>
+    </div>
+  );
+}
+
+function FrequencyChart({ data }) {
+  if (!data.length) return null;
+  const max = Math.max(...data.map(d => d.count), 1);
+  const W = 600, H = 120, pad = { t: 8, b: 20, l: 24, r: 4 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+  const bw = Math.max(Math.floor(cw / data.length) - 2, 4);
+  return (
+    <div style={{ marginBottom: "20px" }}>
+      <h3 style={{ fontSize: "0.9em", marginBottom: "4px" }}>Runs Per Week</h3>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+        {[0, Math.ceil(max / 2), max].map(v => {
+          const y = pad.t + ch - (v / max) * ch;
+          return <g key={v}>
+            <line x1={pad.l} x2={W - pad.r} y1={y} y2={y} stroke="#333" strokeWidth="0.5" />
+            <text x={pad.l - 4} y={y + 3} textAnchor="end" fill="#888" fontSize="9">{v}</text>
+          </g>;
+        })}
+        {data.map((d, i) => {
+          const x = pad.l + (i + 0.5) * (cw / data.length) - bw / 2;
+          const h = (d.count / max) * ch;
+          return <g key={i}>
+            <rect x={x} y={pad.t + ch - h} width={bw} height={Math.max(h, 1)} rx="2" fill="#2196F3" opacity="0.7">
+              <title>{fmtMD(d.week)}: {d.count} runs</title>
             </rect>
             {(i === 0 || i === data.length - 1 || i % Math.max(1, Math.floor(data.length / 5)) === 0) && (
               <text x={x + bw / 2} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{d.week.slice(5)}</text>
@@ -1875,6 +2033,85 @@ function PaceChart({ data }) {
         <span><span style={{ color: "#2196F3" }}>{"●"}</span> Pace</span>
         <span><span style={{ color: "#FF9800" }}>{"—"}</span> 7-run avg</span>
       </div>
+    </div>
+  );
+}
+
+function HRChart({ data }) {
+  if (!data.length) return null;
+  const minH = Math.min(...data.map(d => d.hr)) - 5;
+  const maxH = Math.max(...data.map(d => d.hr)) + 5;
+  const range = maxH - minH || 1;
+  const W = 600, H = 150, pad = { t: 8, b: 20, l: 36, r: 8 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+  const x = (i) => pad.l + (i / Math.max(data.length - 1, 1)) * cw;
+  const y = (v) => pad.t + ch - ((v - minH) / range) * ch;
+  const avgLine = data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(d.avg7).toFixed(1)}`).join(" ");
+  return (
+    <div style={{ marginBottom: "20px" }}>
+      <h3 style={{ fontSize: "0.9em", marginBottom: "4px" }}>Heart Rate Trend</h3>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+        {[minH, Math.round(minH + range / 2), maxH].map(v => {
+          const yy = y(v);
+          return <g key={v}>
+            <line x1={pad.l} x2={W - pad.r} y1={yy} y2={yy} stroke="#333" strokeWidth="0.5" />
+            <text x={pad.l - 4} y={yy + 3} textAnchor="end" fill="#888" fontSize="8">{v}</text>
+          </g>;
+        })}
+        <path d={avgLine} fill="none" stroke="#F44336" strokeWidth="2" opacity="0.7" />
+        {data.map((d, i) => (
+          <circle key={i} cx={x(i)} cy={y(d.hr)} r="3" fill="#e53935" opacity="0.7">
+            <title>{fmtMD(d.date)}: {d.hr} bpm</title>
+          </circle>
+        ))}
+        {[0, Math.floor(data.length / 2), data.length - 1].map(i => (
+          <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{data[i].date.slice(5)}</text>
+        ))}
+      </svg>
+      <div style={{ display: "flex", gap: "16px", fontSize: "0.75em", color: "#888" }}>
+        <span><span style={{ color: "#e53935" }}>{"●"}</span> Avg HR</span>
+        <span><span style={{ color: "#F44336" }}>{"—"}</span> 7-run avg</span>
+      </div>
+    </div>
+  );
+}
+
+function EfficiencyChart({ data }) {
+  if (!data.length) return null;
+  const vals = data.map(d => d.efficiency);
+  const minE = Math.min(...vals) - 0.1;
+  const maxE = Math.max(...vals) + 0.1;
+  const range = maxE - minE || 1;
+  const W = 600, H = 150, pad = { t: 8, b: 20, l: 36, r: 8 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+  const x = (i) => pad.l + (i / Math.max(data.length - 1, 1)) * cw;
+  const y = (v) => pad.t + ch - ((v - minE) / range) * ch;
+  const line = data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(d.efficiency).toFixed(1)}`).join(" ");
+  const improving = data.length >= 3 && data[data.length - 1].efficiency < data[0].efficiency;
+  return (
+    <div style={{ marginBottom: "20px" }}>
+      <h3 style={{ fontSize: "0.9em", marginBottom: "4px" }}>Cardiac Efficiency</h3>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+        {[minE, minE + range / 2, maxE].map(v => {
+          const yy = y(v);
+          return <g key={v}>
+            <line x1={pad.l} x2={W - pad.r} y1={yy} y2={yy} stroke="#333" strokeWidth="0.5" />
+            <text x={pad.l - 4} y={yy + 3} textAnchor="end" fill="#888" fontSize="8">{v.toFixed(1)}</text>
+          </g>;
+        })}
+        <path d={line} fill="none" stroke="#9C27B0" strokeWidth="2" opacity="0.8" />
+        {data.map((d, i) => (
+          <circle key={i} cx={x(i)} cy={y(d.efficiency)} r="3" fill="#9C27B0" opacity="0.7">
+            <title>{fmtMD(d.date)}: {d.efficiency} s/bpm ({fmtPace(d.pace)} @ {d.hr}bpm)</title>
+          </circle>
+        ))}
+        {[0, Math.floor(data.length / 2), data.length - 1].map(i => (
+          <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{data[i].date.slice(5)}</text>
+        ))}
+      </svg>
+      <p style={{ fontSize: "0.75em", color: "#888", margin: "4px 0 0" }}>
+        Pace ÷ HR (s/bpm) — lower = more efficient. {improving ? "Trending down — fitness improving." : ""}
+      </p>
     </div>
   );
 }
