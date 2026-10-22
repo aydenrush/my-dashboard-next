@@ -525,31 +525,52 @@ function analyzeWorkout(gpxText) {
 function refitWorkout(analysis, { warmup, reps: repDefs, cooldown }) {
   if (!repDefs?.length) return null;
   const { paceData: pd, pts, mt, threshold } = analysis;
-  // TCX fallback: use lap data instead of GPS points
-  if ((!pts || !mt) && analysis.laps?.length) {
-    const laps = analysis.laps;
+  // TCX fallback: use both lap data + paceData, prefer laps when they agree
+  if ((!pts || !mt) && (analysis.laps?.length || analysis.paceData?.length)) {
+    const { laps, paceData: pd } = analysis;
     const warmupS = (warmup || 0) * 60;
     const cooldownS = (cooldown || 0) * 60;
-    const cumT = [0];
-    for (let i = 0; i < laps.length; i++) cumT.push(cumT[i] + laps[i].dur);
-    let li = 0;
-    while (li < laps.length && cumT[li + 1] <= warmupS + 5) li++;
+    const cumT = laps ? [0] : [];
+    if (laps) for (let j = 0; j < laps.length; j++) cumT.push(cumT[j] + laps[j].dur);
+    let t = warmupS;
     const reps = [], recoveries = [];
     for (let i = 0; i < repDefs.length; i++) {
-      const targetS = repDefs[i].hard * 60;
-      let dur = 0, dist = 0, hrSum = 0, hrN = 0;
-      while (li < laps.length && dur < targetS - 5) {
-        dur += laps[li].dur; dist += laps[li].dist;
-        if (laps[li].avgHR) { hrSum += laps[li].avgHR; hrN++; }
-        li++;
+      const hardS = repDefs[i].hard * 60;
+      const easyS = (repDefs[i].easy || 0) * 60;
+      let lapPace = null, lapHR = 0, pdPace = null, pdHR = 0;
+      // lap-based: proportional overlap
+      if (laps) {
+        let dur = 0, dist = 0, hrS = 0, hrN = 0;
+        for (let j = 0; j < laps.length; j++) {
+          const ovS = Math.max(cumT[j], t), ovE = Math.min(cumT[j + 1], t + hardS);
+          if (ovE > ovS) {
+            const frac = (ovE - ovS) / laps[j].dur;
+            dur += ovE - ovS; dist += laps[j].dist * frac;
+            if (laps[j].avgHR) { hrS += laps[j].avgHR; hrN++; }
+          }
+        }
+        if (dur > 0 && dist > 0) { lapPace = (dur / 60) / (dist / 1609.34); lapHR = hrN ? hrS / hrN : 0; }
       }
-      if (dur > 0 && dist > 0) reps.push({ duration: dur, pace: (dur / 60) / (dist / 1609.34), hr: hrN ? hrSum / hrN : 0 });
-      if (i < repDefs.length - 1) {
-        const easyS = (repDefs[i].easy || 0) * 60;
-        let recDur = 0;
-        while (li < laps.length && recDur < easyS - 5) { recDur += laps[li].dur; li++; }
-        if (recDur > 0) recoveries.push(recDur);
+      // paceData-based: average speed sensor points in window
+      if (pd?.length) {
+        const repPts = pd.filter(p => p.t >= t && p.t < t + hardS);
+        if (repPts.length >= 2) {
+          pdPace = repPts.reduce((a, p) => a + p.pace, 0) / repPts.length;
+          const hrPts = repPts.filter(p => p.hr);
+          pdHR = hrPts.length ? hrPts.reduce((a, p) => a + p.hr, 0) / hrPts.length : 0;
+        }
       }
+      // pick: if both exist and agree (within 0.5 min/mi), prefer laps (better distance); otherwise paceData
+      if (lapPace != null && pdPace != null) {
+        const agree = Math.abs(lapPace - pdPace) < 0.5;
+        reps.push({ duration: hardS, pace: agree ? lapPace : pdPace, hr: agree ? lapHR : pdHR });
+      } else if (pdPace != null) {
+        reps.push({ duration: hardS, pace: pdPace, hr: pdHR });
+      } else if (lapPace != null) {
+        reps.push({ duration: hardS, pace: lapPace, hr: lapHR });
+      }
+      t += hardS;
+      if (i < repDefs.length - 1 && easyS > 0) { recoveries.push(easyS); t += easyS; }
     }
     if (!reps.length) return null;
     const avgPace = reps.reduce((a, r) => a + r.pace, 0) / reps.length;
@@ -675,9 +696,7 @@ export default function RunningPage() {
   const [showStrava, setShowStrava] = useState(false);
   const [stravaPaste, setStravaPaste] = useState("");
   const [showCorrection, setShowCorrection] = useState(false);
-  const [corWu, setCorWu] = useState("");
-  const [corCd, setCorCd] = useState("");
-  const [corReps, setCorReps] = useState([{ hard: "", easy: "" }]);
+  const [corReps, setCorReps] = useState([{ start: "", end: "" }]);
 
   // add schedule form
   const [showAddSchedule, setShowAddSchedule] = useState(false);
@@ -1149,13 +1168,17 @@ export default function RunningPage() {
                       onClick={() => {
                         if (!showCorrection && gpxAnalysis) {
                           const a = gpxAnalysis;
-                          setCorWu(a.warmup_s ? String(Math.round(a.warmup_s / 60)) : "");
-                          setCorCd(a.cooldown_s ? String(Math.round(a.cooldown_s / 60)) : "");
+                          const fmtS = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
                           if (a.reps?.length) {
-                            const avgRec = a.recoveries?.length ? a.recoveries.reduce((s, r) => s + r, 0) / a.recoveries.length : 0;
-                            setCorReps(a.reps.map(r => ({ hard: String(Math.round(r.duration / 60 * 10) / 10), easy: avgRec ? String(Math.round(avgRec / 60 * 10) / 10) : "" })));
+                            let t = a.warmup_s || 0;
+                            setCorReps(a.reps.map((r, i) => {
+                              const start = t;
+                              const end = t + r.duration;
+                              t = end + (a.recoveries?.[i] || 0);
+                              return { start: fmtS(start), end: fmtS(end) };
+                            }));
                           } else {
-                            setCorReps([{ hard: "", easy: "" }]);
+                            setCorReps([{ start: "", end: "" }]);
                           }
                         }
                         setShowCorrection(!showCorrection);
@@ -1216,6 +1239,19 @@ export default function RunningPage() {
                               }} />;
                             });
                           })()}
+                          {showCorrection && corReps.map((rep, i) => {
+                            const ps = (s) => { const p = s.split(":").map(Number); return (p[0]||0)*60+(p[1]||0); };
+                            const s = ps(rep.start || "0"), e = ps(rep.end || "0");
+                            if (!s && !e) return null;
+                            return <div key={`zone${i}`} style={{
+                              position: "absolute", top: 0, bottom: 0,
+                              left: `${(s / maxT) * 100}%`,
+                              width: `${((e - s) / maxT) * 100}%`,
+                              background: "rgba(244,67,54,0.2)",
+                              borderLeft: "2px solid rgba(244,67,54,0.6)",
+                              borderRight: "2px solid rgba(244,67,54,0.6)",
+                            }} />;
+                          })}
                           {sampled.map((p, i) => {
                             const x = (p.t / maxT) * 100;
                             const clampedPace = Math.min(Math.max(p.pace, minP), maxP);
@@ -1303,28 +1339,34 @@ export default function RunningPage() {
                     </details>
                   )}
 
-                  {showCorrection && (
+                  {showCorrection && (() => {
+                    const parseMmSs = (s) => { const p = s.split(":").map(Number); return (p[0] || 0) * 60 + (p[1] || 0); };
+                    const fmtS = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+                    const shiftAll = (delta) => setCorReps(corReps.map(r => ({
+                      start: fmtS(Math.max(0, parseMmSs(r.start) + delta)),
+                      end: fmtS(Math.max(0, parseMmSs(r.end) + delta)),
+                    })));
+                    return (
                     <div style={{ marginTop: "12px", padding: "8px", background: "var(--card-bg)", borderRadius: "4px", fontSize: "0.85em" }}>
-                      <div style={{ display: "flex", gap: "12px", marginBottom: "8px" }}>
-                        <div>
-                          <label className="metric-label">Warmup (min)</label>
-                          <input type="number" min="0" value={corWu} onChange={(e) => setCorWu(e.target.value)} placeholder="10" style={{ width: "70px" }} />
-                        </div>
-                        <div>
-                          <label className="metric-label">Cooldown (min)</label>
-                          <input type="number" min="0" value={corCd} onChange={(e) => setCorCd(e.target.value)} placeholder="10" style={{ width: "70px" }} />
-                        </div>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
+                        <label className="metric-label" style={{ margin: 0 }}>Shift all:</label>
+                        <button className="btn" style={{ padding: "2px 8px" }} onClick={() => shiftAll(-15)}>-15s</button>
+                        <button className="btn" style={{ padding: "2px 8px" }} onClick={() => shiftAll(-5)}>-5s</button>
+                        <button className="btn" style={{ padding: "2px 8px" }} onClick={() => shiftAll(5)}>+5s</button>
+                        <button className="btn" style={{ padding: "2px 8px" }} onClick={() => shiftAll(15)}>+15s</button>
                       </div>
                       <label className="metric-label">Reps</label>
                       {corReps.map((rep, i) => (
                         <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}>
                           <span style={{ width: "18px", color: "#888", fontSize: "0.85em" }}>{i + 1}</span>
-                          <input type="number" min="0.5" step="0.5" value={rep.hard} placeholder="hard" style={{ width: "60px" }}
-                            onChange={(e) => { const r = [...corReps]; r[i] = { ...r[i], hard: e.target.value }; setCorReps(r); }} />
-                          <span style={{ color: "#888" }}>min hard</span>
-                          <input type="number" min="0" step="0.5" value={rep.easy} placeholder="easy" style={{ width: "60px" }}
-                            onChange={(e) => { const r = [...corReps]; r[i] = { ...r[i], easy: e.target.value }; setCorReps(r); }} />
-                          <span style={{ color: "#888" }}>min easy</span>
+                          <input type="text" value={rep.start} placeholder="0:00" style={{ width: "55px", textAlign: "center" }}
+                            onChange={(e) => { const r = [...corReps]; r[i] = { ...r[i], start: e.target.value }; setCorReps(r); }} />
+                          <span style={{ color: "#888" }}>→</span>
+                          <input type="text" value={rep.end} placeholder="2:00" style={{ width: "55px", textAlign: "center" }}
+                            onChange={(e) => { const r = [...corReps]; r[i] = { ...r[i], end: e.target.value }; setCorReps(r); }} />
+                          <span style={{ color: "#666", fontSize: "0.8em", minWidth: "45px" }}>
+                            {rep.start && rep.end ? `${((parseMmSs(rep.end) - parseMmSs(rep.start)) / 60).toFixed(1)}m` : ""}
+                          </span>
                           {corReps.length > 1 && (
                             <button className="btn" style={{ padding: "2px 6px" }}
                               onClick={() => setCorReps(corReps.filter((_, j) => j !== i))}>×</button>
@@ -1332,13 +1374,59 @@ export default function RunningPage() {
                         </div>
                       ))}
                       <button className="btn" style={{ marginTop: "6px", fontSize: "0.85em" }}
-                        onClick={() => setCorReps([...corReps, { ...corReps[corReps.length - 1] }])}>+ Rep</button>
+                        onClick={() => {
+                          const last = corReps[corReps.length - 1];
+                          const lastEnd = parseMmSs(last.end);
+                          const dur = parseMmSs(last.end) - parseMmSs(last.start);
+                          const gap = corReps.length > 1 ? parseMmSs(corReps[corReps.length - 1].start) - parseMmSs(corReps[corReps.length - 2].end) : 60;
+                          setCorReps([...corReps, { start: fmtS(lastEnd + gap), end: fmtS(lastEnd + gap + dur) }]);
+                        }}>+ Rep</button>
                       <div style={{ marginTop: "8px", display: "flex", gap: "8px" }}>
                         <button className="btn btn-primary" onClick={() => {
-                          const reps = corReps.filter((r) => parseFloat(r.hard) > 0).map((r) => ({ hard: parseFloat(r.hard), easy: parseFloat(r.easy) || 0 }));
-                          if (!reps.length) return;
-                          const result = refitWorkout(gpxAnalysis, { warmup: parseFloat(corWu) || 0, reps, cooldown: parseFloat(corCd) || 0 });
-                          if (result) { setGpxAnalysis({ ...gpxAnalysis, ...result }); setShowCorrection(false); }
+                          const windows = corReps.filter(r => r.start && r.end).map(r => ({ s: parseMmSs(r.start), e: parseMmSs(r.end) }));
+                          if (!windows.length) return;
+                          const pd = gpxAnalysis.paceData;
+                          const laps = gpxAnalysis.laps;
+                          const cumT = laps ? [0] : [];
+                          if (laps) for (let j = 0; j < laps.length; j++) cumT.push(cumT[j] + laps[j].dur);
+                          const reps = windows.map(w => {
+                            const hardS = w.e - w.s;
+                            let lapPace = null, lapHR = 0, pdPace = null, pdHR = 0;
+                            if (laps) {
+                              let dur = 0, dist = 0, hrS = 0, hrN = 0;
+                              for (let j = 0; j < laps.length; j++) {
+                                const ovS = Math.max(cumT[j], w.s), ovE = Math.min(cumT[j+1], w.e);
+                                if (ovE > ovS) { const frac = (ovE-ovS)/laps[j].dur; dur += ovE-ovS; dist += laps[j].dist*frac; if (laps[j].avgHR) { hrS += laps[j].avgHR; hrN++; } }
+                              }
+                              if (dur > 0 && dist > 0) { lapPace = (dur/60)/(dist/1609.34); lapHR = hrN ? hrS/hrN : 0; }
+                            }
+                            if (pd?.length) {
+                              const pts = pd.filter(p => p.t >= w.s && p.t < w.e);
+                              if (pts.length >= 2) { pdPace = pts.reduce((a,p)=>a+p.pace,0)/pts.length; const hp = pts.filter(p=>p.hr); pdHR = hp.length ? hp.reduce((a,p)=>a+p.hr,0)/hp.length : 0; }
+                            }
+                            const agree = lapPace != null && pdPace != null && Math.abs(lapPace-pdPace) < 0.5;
+                            const pace = agree ? lapPace : (pdPace ?? lapPace);
+                            const hr = agree ? lapHR : (pdHR || lapHR);
+                            return { duration: hardS, pace: pace || 0, hr: hr || 0 };
+                          });
+                          const recoveries = windows.slice(0,-1).map((w,i) => windows[i+1].s - w.e);
+                          const warmupS = windows[0].s;
+                          const avgPace = reps.reduce((a,r)=>a+r.pace,0)/reps.length;
+                          const allSame = reps.length > 1 && reps.every(r => Math.abs(r.duration - reps[0].duration) < 5);
+                          let summary = "";
+                          if (warmupS > 0) summary += `${Math.round(warmupS/60)} min WU → `;
+                          if (allSame) {
+                            summary += `${reps.length} x ${(reps[0].duration/60).toFixed(1)} min @ ${fmtPaceMin(avgPace)}`;
+                            const avgRec = recoveries.length ? recoveries.reduce((a,b)=>a+b,0)/recoveries.length : 0;
+                            if (avgRec > 0) summary += ` / ${(avgRec/60).toFixed(1)} min rest`;
+                          } else {
+                            summary += reps.map(r => `${(r.duration/60).toFixed(1)}min @ ${fmtPaceMin(r.pace)}`).join(" → ");
+                          }
+                          const totalEnd = gpxAnalysis.paceData?.[gpxAnalysis.paceData.length-1]?.t || 0;
+                          const cdS = totalEnd - windows[windows.length-1].e;
+                          if (cdS > 60) summary += ` → ${Math.round(cdS/60)} min CD`;
+                          setGpxAnalysis({ ...gpxAnalysis, type: "intervals", reps, recoveries, warmup_s: warmupS, cooldown_s: cdS, summary, corrected: true });
+                          setShowCorrection(false);
                         }}>Re-analyze</button>
                         <button className="btn" onClick={() => {
                           setGpxAnalysis({ ...gpxAnalysis, type: "easy", summary: "Easy run", reps: [], segments: [], corrected: true });
@@ -1346,7 +1434,8 @@ export default function RunningPage() {
                         }}>Just an easy run</button>
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
               )}
 
