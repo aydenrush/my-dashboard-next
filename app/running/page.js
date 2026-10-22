@@ -1125,7 +1125,7 @@ export default function RunningPage() {
       const older = runs.slice(-6, -3).length >= 2 ? runs.slice(-6, -3) : runs.slice(0, Math.min(3, runs.length - 3));
       if (!older.length) continue;
       let rAvg, oAvg, rPace, oPace;
-      if (type === "speed") {
+      if (type === "speed" || type === "tempo") {
         const rScores = recent.map(r => repScore(r.workout_data?.reps)).filter(Boolean);
         const oScores = older.map(r => repScore(r.workout_data?.reps)).filter(Boolean);
         if (rScores.length && oScores.length) {
