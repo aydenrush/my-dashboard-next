@@ -1918,15 +1918,33 @@ export default function RunningPage() {
 
 const STACK_TYPES = ["easy", "long", "tempo", "speed", "hills"];
 
+function useChartTip() {
+  const [tip, setTip] = useState(null);
+  const show = (e, text) => {
+    const svg = e.currentTarget.closest("svg");
+    const r = svg.getBoundingClientRect();
+    const cx = e.clientX - r.left, cy = e.clientY - r.top;
+    setTip({ x: (cx / r.width) * 100, y: (cy / r.height) * 100, text });
+  };
+  const hide = () => setTip(null);
+  const el = tip && (
+    <div style={{ position: "absolute", left: `${tip.x}%`, top: `${tip.y}%`, transform: "translate(-50%, -120%)", background: "#222", border: "1px solid #555", borderRadius: "6px", padding: "4px 8px", fontSize: "0.75em", color: "#eee", whiteSpace: "nowrap", pointerEvents: "none", zIndex: 10 }}>
+      {tip.text}
+    </div>
+  );
+  return { show, hide, el };
+}
+
 function StackedMileageChart({ data }) {
   if (!data.length) return null;
+  const { show, hide, el } = useChartTip();
   const max = Math.max(...data.map(d => STACK_TYPES.reduce((s, t) => s + (d[t] || 0), 0)), 1);
   const W = 600, H = 170, pad = { t: 8, b: 20, l: 32, r: 4 };
   const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
   const bw = Math.max(Math.floor(cw / data.length) - 2, 4);
   const yTicks = [0, Math.round(max / 2), Math.ceil(max)];
   return (
-    <div style={{ marginBottom: "20px" }}>
+    <div style={{ marginBottom: "20px", position: "relative" }}>
       <h3 style={{ fontSize: "0.9em", marginBottom: "4px" }}>Weekly Miles</h3>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
         {yTicks.map((v) => {
@@ -1940,6 +1958,7 @@ function StackedMileageChart({ data }) {
           const bx = pad.l + (i + 0.5) * (cw / data.length) - bw / 2;
           let cy = pad.t + ch;
           const total = STACK_TYPES.reduce((s, t) => s + (d[t] || 0), 0);
+          const tipText = `${fmtMD(d.week)}: ${total.toFixed(1)} mi\n${STACK_TYPES.filter(t => d[t] > 0).map(t => `${TYPE_LABELS[t]}: ${d[t].toFixed(1)}`).join(", ")}`;
           return <g key={i}>
             {STACK_TYPES.map(t => {
               const v = d[t] || 0;
@@ -1947,9 +1966,8 @@ function StackedMileageChart({ data }) {
               const h = (v / max) * ch;
               const ry = cy - h;
               cy = ry;
-              return <rect key={t} x={bx} y={ry} width={bw} height={h} fill={TYPE_COLORS[t]} opacity="0.85">
-                <title>{fmtMD(d.week)}: {v.toFixed(1)} mi {TYPE_LABELS[t]}</title>
-              </rect>;
+              return <rect key={t} x={bx} y={ry} width={bw} height={h} fill={TYPE_COLORS[t]} opacity="0.85" style={{ cursor: "crosshair" }}
+                onMouseMove={e => show(e, tipText)} onMouseLeave={hide} />;
             })}
             {(i === 0 || i === data.length - 1 || i % Math.max(1, Math.floor(data.length / 5)) === 0) && (
               <text x={bx + bw / 2} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{d.week.slice(5)}</text>
@@ -1957,6 +1975,7 @@ function StackedMileageChart({ data }) {
           </g>;
         })}
       </svg>
+      {el}
       <div style={{ display: "flex", gap: "12px", fontSize: "0.7em", color: "#888", flexWrap: "wrap" }}>
         {STACK_TYPES.map(t => <span key={t}><span style={{ color: TYPE_COLORS[t] }}>{"■"}</span> {TYPE_LABELS[t]}</span>)}
       </div>
@@ -1966,12 +1985,13 @@ function StackedMileageChart({ data }) {
 
 function FrequencyChart({ data }) {
   if (!data.length) return null;
+  const { show, hide, el } = useChartTip();
   const max = Math.max(...data.map(d => d.count), 1);
   const W = 600, H = 120, pad = { t: 8, b: 20, l: 24, r: 4 };
   const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
   const bw = Math.max(Math.floor(cw / data.length) - 2, 4);
   return (
-    <div style={{ marginBottom: "20px" }}>
+    <div style={{ marginBottom: "20px", position: "relative" }}>
       <h3 style={{ fontSize: "0.9em", marginBottom: "4px" }}>Runs Per Week</h3>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
         {[0, Math.ceil(max / 2), max].map(v => {
@@ -1985,21 +2005,22 @@ function FrequencyChart({ data }) {
           const x = pad.l + (i + 0.5) * (cw / data.length) - bw / 2;
           const h = (d.count / max) * ch;
           return <g key={i}>
-            <rect x={x} y={pad.t + ch - h} width={bw} height={Math.max(h, 1)} rx="2" fill="#2196F3" opacity="0.7">
-              <title>{fmtMD(d.week)}: {d.count} runs</title>
-            </rect>
+            <rect x={x} y={pad.t + ch - h} width={bw} height={Math.max(h, 1)} rx="2" fill="#2196F3" opacity="0.7" style={{ cursor: "crosshair" }}
+              onMouseMove={e => show(e, `${fmtMD(d.week)}: ${d.count} runs`)} onMouseLeave={hide} />
             {(i === 0 || i === data.length - 1 || i % Math.max(1, Math.floor(data.length / 5)) === 0) && (
               <text x={x + bw / 2} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{d.week.slice(5)}</text>
             )}
           </g>;
         })}
       </svg>
+      {el}
     </div>
   );
 }
 
 function PaceChart({ data }) {
   if (!data.length) return null;
+  const { show, hide, el } = useChartTip();
   const allVals = data.flatMap((d) => [d.pace, d.avg7]);
   const minP = Math.min(...allVals) - 10;
   const maxP = Math.max(...allVals) + 10;
@@ -2011,7 +2032,7 @@ function PaceChart({ data }) {
   const avgLine = data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(d.avg7).toFixed(1)}`).join(" ");
   const yTicks = [minP, minP + range / 2, maxP].map(Math.round);
   return (
-    <div style={{ marginBottom: "20px" }}>
+    <div style={{ marginBottom: "20px", position: "relative" }}>
       <h3 style={{ fontSize: "0.9em", marginBottom: "4px" }}>Pace Trend</h3>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
         {yTicks.map((v) => {
@@ -2023,14 +2044,17 @@ function PaceChart({ data }) {
         })}
         <path d={avgLine} fill="none" stroke="#FF9800" strokeWidth="2" opacity="0.8" />
         {data.map((d, i) => (
-          <circle key={i} cx={x(i)} cy={y(d.pace)} r="3" fill="#2196F3" opacity="0.7">
-            <title>{fmtMD(d.date)}: {fmtPace(d.pace)}</title>
-          </circle>
+          <circle key={i} cx={x(i)} cy={y(d.pace)} r="5" fill="#2196F3" opacity="0" style={{ cursor: "crosshair" }}
+            onMouseMove={e => show(e, `${fmtMD(d.date)}: ${fmtPace(d.pace)} (avg: ${fmtPace(d.avg7)})`)} onMouseLeave={hide} />
+        ))}
+        {data.map((d, i) => (
+          <circle key={`v${i}`} cx={x(i)} cy={y(d.pace)} r="3" fill="#2196F3" opacity="0.7" pointerEvents="none" />
         ))}
         {[0, Math.floor(data.length / 2), data.length - 1].map((i) => (
           <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{data[i].date.slice(5)}</text>
         ))}
       </svg>
+      {el}
       <div style={{ display: "flex", gap: "16px", fontSize: "0.75em", color: "#888" }}>
         <span><span style={{ color: "#2196F3" }}>{"●"}</span> Pace</span>
         <span><span style={{ color: "#FF9800" }}>{"—"}</span> 7-run avg</span>
@@ -2041,6 +2065,7 @@ function PaceChart({ data }) {
 
 function HRChart({ data }) {
   if (!data.length) return null;
+  const { show, hide, el } = useChartTip();
   const minH = Math.min(...data.map(d => d.hr)) - 5;
   const maxH = Math.max(...data.map(d => d.hr)) + 5;
   const range = maxH - minH || 1;
@@ -2050,7 +2075,7 @@ function HRChart({ data }) {
   const y = (v) => pad.t + ch - ((v - minH) / range) * ch;
   const avgLine = data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(d.avg7).toFixed(1)}`).join(" ");
   return (
-    <div style={{ marginBottom: "20px" }}>
+    <div style={{ marginBottom: "20px", position: "relative" }}>
       <h3 style={{ fontSize: "0.9em", marginBottom: "4px" }}>Heart Rate Trend</h3>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
         {[minH, Math.round(minH + range / 2), maxH].map(v => {
@@ -2062,14 +2087,17 @@ function HRChart({ data }) {
         })}
         <path d={avgLine} fill="none" stroke="#F44336" strokeWidth="2" opacity="0.7" />
         {data.map((d, i) => (
-          <circle key={i} cx={x(i)} cy={y(d.hr)} r="3" fill="#e53935" opacity="0.7">
-            <title>{fmtMD(d.date)}: {d.hr} bpm</title>
-          </circle>
+          <circle key={i} cx={x(i)} cy={y(d.hr)} r="5" fill="#e53935" opacity="0" style={{ cursor: "crosshair" }}
+            onMouseMove={e => show(e, `${fmtMD(d.date)}: ${d.hr} bpm (avg: ${d.avg7} bpm)`)} onMouseLeave={hide} />
+        ))}
+        {data.map((d, i) => (
+          <circle key={`v${i}`} cx={x(i)} cy={y(d.hr)} r="3" fill="#e53935" opacity="0.7" pointerEvents="none" />
         ))}
         {[0, Math.floor(data.length / 2), data.length - 1].map(i => (
           <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{data[i].date.slice(5)}</text>
         ))}
       </svg>
+      {el}
       <div style={{ display: "flex", gap: "16px", fontSize: "0.75em", color: "#888" }}>
         <span><span style={{ color: "#e53935" }}>{"●"}</span> Avg HR</span>
         <span><span style={{ color: "#F44336" }}>{"—"}</span> 7-run avg</span>
@@ -2080,6 +2108,7 @@ function HRChart({ data }) {
 
 function EfficiencyChart({ data }) {
   if (!data.length) return null;
+  const { show, hide, el } = useChartTip();
   const vals = data.map(d => d.efficiency);
   const minE = Math.min(...vals) - 0.1;
   const maxE = Math.max(...vals) + 0.1;
@@ -2091,7 +2120,7 @@ function EfficiencyChart({ data }) {
   const line = data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(d.efficiency).toFixed(1)}`).join(" ");
   const improving = data.length >= 3 && data[data.length - 1].efficiency < data[0].efficiency;
   return (
-    <div style={{ marginBottom: "20px" }}>
+    <div style={{ marginBottom: "20px", position: "relative" }}>
       <h3 style={{ fontSize: "0.9em", marginBottom: "4px" }}>Cardiac Efficiency</h3>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
         {[minE, minE + range / 2, maxE].map(v => {
@@ -2103,14 +2132,17 @@ function EfficiencyChart({ data }) {
         })}
         <path d={line} fill="none" stroke="#9C27B0" strokeWidth="2" opacity="0.8" />
         {data.map((d, i) => (
-          <circle key={i} cx={x(i)} cy={y(d.efficiency)} r="3" fill="#9C27B0" opacity="0.7">
-            <title>{fmtMD(d.date)}: {d.efficiency} s/bpm ({fmtPace(d.pace)} @ {d.hr}bpm)</title>
-          </circle>
+          <circle key={i} cx={x(i)} cy={y(d.efficiency)} r="5" fill="#9C27B0" opacity="0" style={{ cursor: "crosshair" }}
+            onMouseMove={e => show(e, `${fmtMD(d.date)}: ${d.efficiency} s/bpm — ${fmtPace(d.pace)} @ ${d.hr}bpm`)} onMouseLeave={hide} />
+        ))}
+        {data.map((d, i) => (
+          <circle key={`v${i}`} cx={x(i)} cy={y(d.efficiency)} r="3" fill="#9C27B0" opacity="0.7" pointerEvents="none" />
         ))}
         {[0, Math.floor(data.length / 2), data.length - 1].map(i => (
           <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{data[i].date.slice(5)}</text>
         ))}
       </svg>
+      {el}
       <p style={{ fontSize: "0.75em", color: "#888", margin: "4px 0 0" }}>
         Pace ÷ HR (s/bpm) — lower = more efficient. {improving ? "Trending down — fitness improving." : ""}
       </p>
