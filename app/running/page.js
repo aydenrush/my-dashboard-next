@@ -28,8 +28,9 @@ function workoutType(text) {
 
 function fmtPace(secs) {
   if (!secs || secs <= 0) return "--";
+  secs = Math.round(secs);
   const m = Math.floor(secs / 60);
-  const s = Math.round(secs % 60);
+  const s = secs % 60;
   return `${m}:${String(s).padStart(2, "0")}/mi`;
 }
 
@@ -327,7 +328,7 @@ function analyzeTcx(text) {
   // cooldown = skip rest laps after last hard rep, then count the rest
   let cdStart = hardIdxs[hardIdxs.length - 1] + 1;
   while (cdStart < laps.length && laps[cdStart].pace >= restThresh) cdStart++;
-  const cdS = laps.slice(cdStart).reduce((a, l) => a + l.dur, 0);
+  let cdS = laps.slice(cdStart).reduce((a, l) => a + l.dur, 0);
   // recoveries between all hard laps (including rest after last rep)
   const recoveries = [];
   for (let i = 0; i < hardIdxs.length - 1; i++) {
@@ -336,6 +337,54 @@ function analyzeTcx(text) {
   }
   const lastRestLaps = laps.slice(hardIdxs[hardIdxs.length - 1] + 1, cdStart);
   if (lastRestLaps.length) recoveries.push(lastRestLaps.reduce((a, l) => a + l.dur, 0));
+
+  // scan paceData for missed reps after last lap-based hard rep (e.g. missed lap press)
+  if (pd.length > 20) {
+    const cumLapT = [0];
+    for (let j = 0; j < laps.length; j++) cumLapT.push(cumLapT[j] + laps[j].dur);
+    const lastHardEnd = cumLapT[hardIdxs[hardIdxs.length - 1] + 1];
+    const totalTime = cumLapT[cumLapT.length - 1];
+    const rp = pd.map(p => p.pace).filter(p => p > 4 && p < 12);
+    if (rp.length > 20) {
+      let pc1 = Math.min(...rp), pc2 = Math.max(...rp);
+      for (let it = 0; it < 20; it++) {
+        const g1 = rp.filter(p => Math.abs(p - pc1) <= Math.abs(p - pc2));
+        const g2 = rp.filter(p => Math.abs(p - pc1) > Math.abs(p - pc2));
+        if (!g1.length || !g2.length) break;
+        pc1 = g1.reduce((a, b) => a + b) / g1.length;
+        pc2 = g2.reduce((a, b) => a + b) / g2.length;
+      }
+      if (pc2 - pc1 >= 0.4) {
+        const pdThr = pc1 + (pc2 - pc1) * 0.3;
+        const postPd = pd.filter(p => p.t > lastHardEnd);
+        const extraSegs = [];
+        let inF = false, fS = 0;
+        for (let k = 0; k <= postPd.length; k++) {
+          const p = k < postPd.length ? postPd[k] : null;
+          if (p && p.pace < pdThr && !inF) { inF = true; fS = p.t; }
+          if (inF && (!p || p.pace >= pdThr)) {
+            const fE = postPd[Math.max(0, k - 1)].t;
+            if (fE - fS >= 60) extraSegs.push({ s: fS, e: fE });
+            inF = false;
+          }
+        }
+        if (extraSegs.length) {
+          if (recoveries.length > hardIdxs.length - 1) recoveries.pop();
+          let prevEnd = lastHardEnd;
+          for (const seg of extraSegs) {
+            recoveries.push(seg.s - prevEnd);
+            const rPts = pd.filter(pp => pp.t >= seg.s && pp.t <= seg.e);
+            const aP = rPts.reduce((a, pp) => a + pp.pace, 0) / rPts.length;
+            const hPts = rPts.filter(pp => pp.hr);
+            const aH = hPts.length ? hPts.reduce((a, pp) => a + pp.hr, 0) / hPts.length : 0;
+            reps.push({ duration: seg.e - seg.s, pace: aP, hr: Math.round(aH), dist: 0 });
+            prevEnd = seg.e;
+          }
+          cdS = totalTime - extraSegs[extraSegs.length - 1].e;
+        }
+      }
+    }
+  }
 
   // tempo: single hard lap > 600s
   if (reps.length === 1 && reps[0].duration > 600) {
@@ -711,6 +760,9 @@ export default function RunningPage() {
   // edit schedule
   const [editingId, setEditingId] = useState(null);
   const [editWorkout, setEditWorkout] = useState("");
+  // edit run notes
+  const [editingRunId, setEditingRunId] = useState(null);
+  const [editRunNotes, setEditRunNotes] = useState("");
 
   const today = isoToday();
 
@@ -738,6 +790,24 @@ export default function RunningPage() {
       )).then(load);
     }
   }, [schedule.length, today]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // auto-complete schedule entries that have a matching run log
+  useEffect(() => {
+    if (!schedule.length || !runLogs.length) return;
+    const runDates = new Set(runLogs.map(r => r.date));
+    const toComplete = schedule.filter(r => runDates.has(r.date) && !r.completed);
+    if (toComplete.length) {
+      Promise.all(toComplete.map(r =>
+        supabase.from("running_schedule").update({ completed: true }).eq("id", r.id)
+      )).then(load);
+    }
+  }, [schedule.length, runLogs.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function updateRunNotes(id) {
+    await supabase.from("run_logs").update({ notes: editRunNotes.trim() || null }).eq("id", id);
+    setEditingRunId(null);
+    load();
+  }
 
   // fetch weather
   useEffect(() => {
@@ -1173,7 +1243,7 @@ export default function RunningPage() {
                       onClick={() => {
                         if (!showCorrection && gpxAnalysis) {
                           const a = gpxAnalysis;
-                          const fmtS = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+                          const fmtS = (s) => { const ts = Math.round(s); return `${Math.floor(ts / 60)}:${String(ts % 60).padStart(2, "0")}`; };
                           if (a.reps?.length) {
                             let t = a.warmup_s || 0;
                             setCorReps(a.reps.map((r, i) => {
@@ -1244,19 +1314,37 @@ export default function RunningPage() {
                               }} />;
                             });
                           })()}
-                          {showCorrection && corReps.map((rep, i) => {
-                            const ps = (s) => { const p = s.split(":").map(Number); return (p[0]||0)*60+(p[1]||0); };
-                            const s = ps(rep.start || "0"), e = ps(rep.end || "0");
-                            if (!s && !e) return null;
-                            return <div key={`zone${i}`} style={{
-                              position: "absolute", top: 0, bottom: 0,
-                              left: `${(s / maxT) * 100}%`,
-                              width: `${((e - s) / maxT) * 100}%`,
-                              background: "rgba(244,67,54,0.2)",
-                              borderLeft: "2px solid rgba(244,67,54,0.6)",
-                              borderRight: "2px solid rgba(244,67,54,0.6)",
-                            }} />;
-                          })}
+                          {(() => {
+                            if (showCorrection) {
+                              const ps = (s) => { const p = s.split(":").map(Number); return (p[0]||0)*60+(p[1]||0); };
+                              return corReps.map((rep, i) => {
+                                const s = ps(rep.start || "0"), e = ps(rep.end || "0");
+                                if (!s && !e) return null;
+                                return <div key={`zone${i}`} style={{
+                                  position: "absolute", top: 0, bottom: 0,
+                                  left: `${(s / maxT) * 100}%`, width: `${((e - s) / maxT) * 100}%`,
+                                  background: "rgba(244,67,54,0.2)",
+                                  borderLeft: "2px solid rgba(244,67,54,0.6)",
+                                  borderRight: "2px solid rgba(244,67,54,0.6)",
+                                }} />;
+                              });
+                            }
+                            if (gpxAnalysis.reps?.length && gpxAnalysis.warmup_s != null) {
+                              let t = gpxAnalysis.warmup_s;
+                              return gpxAnalysis.reps.map((r, i) => {
+                                const s = t, e = t + r.duration;
+                                t = e + (gpxAnalysis.recoveries?.[i] || 0);
+                                return <div key={`zone${i}`} style={{
+                                  position: "absolute", top: 0, bottom: 0,
+                                  left: `${(s / maxT) * 100}%`, width: `${((e - s) / maxT) * 100}%`,
+                                  background: "rgba(244,67,54,0.15)",
+                                  borderLeft: "1px solid rgba(244,67,54,0.4)",
+                                  borderRight: "1px solid rgba(244,67,54,0.4)",
+                                }} />;
+                              });
+                            }
+                            return null;
+                          })()}
                           {sampled.map((p, i) => {
                             const x = (p.t / maxT) * 100;
                             const clampedPace = Math.min(Math.max(p.pace, minP), maxP);
@@ -1325,7 +1413,7 @@ export default function RunningPage() {
                                 const startT = cumT;
                                 cumT += l.dur;
                                 const isHard = gpxAnalysis.reps?.some(r => Math.abs(r.pace - l.pace) < 0.05 && Math.abs(r.duration - l.dur) < 2);
-                                const fmtT = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+                                const fmtT = (s) => { const ts = Math.round(s); return `${Math.floor(ts / 60)}:${String(ts % 60).padStart(2, "0")}`; };
                                 return (
                                   <tr key={i} style={isHard ? { fontWeight: 600, color: "var(--accent, #e53935)" } : undefined}>
                                     <td>{i + 1}</td>
@@ -1346,7 +1434,7 @@ export default function RunningPage() {
 
                   {showCorrection && (() => {
                     const parseMmSs = (s) => { const p = s.split(":").map(Number); return (p[0] || 0) * 60 + (p[1] || 0); };
-                    const fmtS = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+                    const fmtS = (s) => { const ts = Math.round(s); return `${Math.floor(ts / 60)}:${String(ts % 60).padStart(2, "0")}`; };
                     const shiftAll = (delta) => setCorReps(corReps.map(r => ({
                       start: fmtS(Math.max(0, parseMmSs(r.start) + delta)),
                       end: fmtS(Math.max(0, parseMmSs(r.end) + delta)),
@@ -1543,7 +1631,22 @@ export default function RunningPage() {
                 <button className="btn" onClick={() => deleteRunLog(run.id)}
                   style={{ fontSize: "0.75em", padding: "2px 8px" }}>×</button>
               </div>
-              {run.notes && <p style={{ fontSize: "0.85em", color: "#888", margin: "2px 0 0" }}>{run.notes}</p>}
+              {editingRunId === run.id ? (
+                <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
+                  <input type="text" value={editRunNotes} onChange={(e) => setEditRunNotes(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") updateRunNotes(run.id); if (e.key === "Escape") setEditingRunId(null); }}
+                    autoFocus style={{ flex: 1, fontSize: "0.85em" }} />
+                  <button className="btn btn-primary" style={{ fontSize: "0.75em", padding: "2px 8px" }}
+                    onClick={() => updateRunNotes(run.id)}>Save</button>
+                  <button className="btn" style={{ fontSize: "0.75em", padding: "2px 8px" }}
+                    onClick={() => setEditingRunId(null)}>Cancel</button>
+                </div>
+              ) : (
+                <p style={{ fontSize: "0.85em", color: "#888", margin: "2px 0 0", cursor: "pointer" }}
+                  onClick={() => { setEditingRunId(run.id); setEditRunNotes(run.notes || ""); }}>
+                  {run.notes || <span style={{ fontStyle: "italic", color: "#555" }}>Add notes...</span>}
+                </p>
+              )}
             </div>
           ))}
           {sortedRunLogs.length > 5 && (
