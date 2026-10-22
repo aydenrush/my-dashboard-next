@@ -1108,6 +1108,27 @@ export default function RunningPage() {
     }));
   }
 
+  function workoutTrends() {
+    const trends = [];
+    for (const type of RUN_TYPES) {
+      const runs = sortedLogs.filter(r => r.workout_type === type && r.pace_seconds > 0);
+      if (runs.length < 4) continue;
+      const recent = runs.slice(-3);
+      const older = runs.slice(-6, -3).length >= 2 ? runs.slice(-6, -3) : runs.slice(0, Math.min(3, runs.length - 3));
+      if (!older.length) continue;
+      const rAvg = recent.reduce((s, r) => s + r.pace_seconds, 0) / recent.length;
+      const oAvg = older.reduce((s, r) => s + r.pace_seconds, 0) / older.length;
+      const delta = rAvg - oAvg;
+      const pctChange = oAvg > 0 ? ((rAvg - oAvg) / oAvg) * 100 : 0;
+      if (Math.abs(pctChange) < 0.5) { trends.push({ type, direction: "flat", delta: 0, pct: 0, recent: recent.length, older: older.length }); continue; }
+      trends.push({ type, direction: delta < 0 ? "faster" : "slower", delta: Math.round(delta), pct: +pctChange.toFixed(1), recent: recent.length, older: older.length,
+        recentPace: Math.round(recent.reduce((s, r) => s + r.pace_seconds, 0) / recent.length),
+        olderPace: Math.round(older.reduce((s, r) => s + r.pace_seconds, 0) / older.length),
+      });
+    }
+    return trends;
+  }
+
   if (loading) return <div><h1 className="page-title">Training</h1><p>Loading...</p></div>;
 
   const acwrStatus = acwr > 1.5 ? "High risk" : acwr > 1.3 ? "Caution" : acwr >= 0.8 ? "Sweet spot" : "Detraining";
@@ -1901,6 +1922,30 @@ export default function RunningPage() {
               </div>;
             })()}
           </div>
+          {(() => {
+            const trends = workoutTrends();
+            if (!trends.length) return null;
+            return <div style={{ marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "0.9em", marginBottom: "8px" }}>Workout Trends</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "8px" }}>
+                {trends.map(t => (
+                  <div key={t.type} style={{ background: "#1a1a1a", borderRadius: "8px", padding: "10px", border: `1px solid ${t.direction === "faster" ? "#4CAF50" : t.direction === "slower" ? "#F44336" : "#555"}33` }}>
+                    <div style={{ fontSize: "0.8em", color: TYPE_COLORS[t.type], fontWeight: 600, textTransform: "capitalize", marginBottom: "4px" }}>{TYPE_LABELS[t.type]}</div>
+                    <div style={{ fontSize: "1.3em", fontWeight: 700 }}>
+                      {t.direction === "faster" ? "↑" : t.direction === "slower" ? "↓" : "→"}{" "}
+                      <span style={{ color: t.direction === "faster" ? "#4CAF50" : t.direction === "slower" ? "#F44336" : "#888" }}>
+                        {t.direction === "flat" ? "Steady" : `${Math.abs(t.pct).toFixed(1)}%`}
+                      </span>
+                    </div>
+                    {t.recentPace && <div style={{ fontSize: "0.75em", color: "#888", marginTop: "2px" }}>
+                      {fmtPace(t.olderPace)} → {fmtPace(t.recentPace)}
+                    </div>}
+                    <div style={{ fontSize: "0.65em", color: "#666", marginTop: "2px" }}>last {t.recent} vs prev {t.older}</div>
+                  </div>
+                ))}
+              </div>
+            </div>;
+          })()}
           <StackedMileageChart data={weeklyMileageByType()} />
           <FrequencyChart data={runsPerWeek()} />
           {paceTrend().length >= 2 && <PaceChart data={paceTrend()} />}
