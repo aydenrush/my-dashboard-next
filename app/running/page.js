@@ -1110,21 +1110,44 @@ export default function RunningPage() {
 
   function workoutTrends() {
     const trends = [];
+    // for speed workouts, use per-rep avg pace from workout_data (normalized by rep duration via Riegel ~1.06 exponent)
+    // pace_norm = pace * (duration / 240)^0.06 — adjusts to a 4-min-rep equivalent
+    const repScore = (reps) => {
+      if (!reps?.length) return null;
+      const scores = reps.map(r => r.pace * Math.pow(Math.max(r.duration, 60) / 240, 0.06));
+      return scores.reduce((a, b) => a + b) / scores.length;
+    };
     for (const type of RUN_TYPES) {
       const runs = sortedLogs.filter(r => r.workout_type === type && r.pace_seconds > 0);
       if (runs.length < 4) continue;
       const recent = runs.slice(-3);
       const older = runs.slice(-6, -3).length >= 2 ? runs.slice(-6, -3) : runs.slice(0, Math.min(3, runs.length - 3));
       if (!older.length) continue;
-      const rAvg = recent.reduce((s, r) => s + r.pace_seconds, 0) / recent.length;
-      const oAvg = older.reduce((s, r) => s + r.pace_seconds, 0) / older.length;
-      const delta = rAvg - oAvg;
+      let rAvg, oAvg, rPace, oPace;
+      if (type === "speed") {
+        const rScores = recent.map(r => repScore(r.workout_data?.reps)).filter(Boolean);
+        const oScores = older.map(r => repScore(r.workout_data?.reps)).filter(Boolean);
+        if (rScores.length && oScores.length) {
+          rAvg = rScores.reduce((a, b) => a + b) / rScores.length;
+          oAvg = oScores.reduce((a, b) => a + b) / oScores.length;
+          // still show raw rep paces for display
+          const rawRecent = recent.flatMap(r => r.workout_data?.reps || []);
+          const rawOlder = older.flatMap(r => r.workout_data?.reps || []);
+          rPace = rawRecent.length ? Math.round(rawRecent.reduce((s, r) => s + r.pace * 60, 0) / rawRecent.length) : null;
+          oPace = rawOlder.length ? Math.round(rawOlder.reduce((s, r) => s + r.pace * 60, 0) / rawOlder.length) : null;
+        } else {
+          rAvg = recent.reduce((s, r) => s + r.pace_seconds, 0) / recent.length;
+          oAvg = older.reduce((s, r) => s + r.pace_seconds, 0) / older.length;
+        }
+      } else {
+        rAvg = recent.reduce((s, r) => s + r.pace_seconds, 0) / recent.length;
+        oAvg = older.reduce((s, r) => s + r.pace_seconds, 0) / older.length;
+      }
+      if (!rPace) rPace = Math.round(recent.reduce((s, r) => s + r.pace_seconds, 0) / recent.length);
+      if (!oPace) oPace = Math.round(older.reduce((s, r) => s + r.pace_seconds, 0) / older.length);
       const pctChange = oAvg > 0 ? ((rAvg - oAvg) / oAvg) * 100 : 0;
-      if (Math.abs(pctChange) < 0.5) { trends.push({ type, direction: "flat", delta: 0, pct: 0, recent: recent.length, older: older.length }); continue; }
-      trends.push({ type, direction: delta < 0 ? "faster" : "slower", delta: Math.round(delta), pct: +pctChange.toFixed(1), recent: recent.length, older: older.length,
-        recentPace: Math.round(recent.reduce((s, r) => s + r.pace_seconds, 0) / recent.length),
-        olderPace: Math.round(older.reduce((s, r) => s + r.pace_seconds, 0) / older.length),
-      });
+      const direction = Math.abs(pctChange) < 0.5 ? "flat" : rAvg < oAvg ? "faster" : "slower";
+      trends.push({ type, direction, pct: +Math.abs(pctChange).toFixed(1), recent: recent.length, older: older.length, recentPace: rPace, olderPace: oPace });
     }
     return trends;
   }
@@ -1695,6 +1718,28 @@ export default function RunningPage() {
                 <button className="btn" onClick={() => deleteRunLog(run.id)}
                   style={{ fontSize: "0.75em", padding: "2px 8px" }}>×</button>
               </div>
+              {run.workout_data?.reps?.length > 0 && (
+                <details style={{ marginTop: "4px" }}>
+                  <summary style={{ fontSize: "0.8em", color: "#888", cursor: "pointer" }}>
+                    {run.workout_data.reps.length} reps
+                    {run.workout_data.warmup_s > 0 && ` · WU ${Math.round(run.workout_data.warmup_s / 60)}m`}
+                    {run.workout_data.cooldown_s > 0 && ` · CD ${Math.round(run.workout_data.cooldown_s / 60)}m`}
+                  </summary>
+                  <div style={{ fontSize: "0.8em", color: "#aaa", padding: "4px 0 2px 12px" }}>
+                    {run.workout_data.reps.map((rep, i) => (
+                      <div key={i} style={{ display: "flex", gap: "12px", padding: "1px 0" }}>
+                        <span style={{ color: "#666", minWidth: "24px" }}>R{i + 1}</span>
+                        <span>{(rep.duration / 60).toFixed(1)}m</span>
+                        <span style={{ color: "#2196F3" }}>{fmtPace(Math.round(rep.pace * 60))}</span>
+                        {rep.hr > 0 && <span style={{ color: "#e53935" }}>{Math.round(rep.hr)} bpm</span>}
+                        {run.workout_data.recoveries?.[i] != null && i < run.workout_data.reps.length - 1 && (
+                          <span style={{ color: "#555" }}>/ {(run.workout_data.recoveries[i] / 60).toFixed(1)}m rest</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
               {editingRunId === run.id ? (
                 <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
                   <input type="text" value={editRunNotes} onChange={(e) => setEditRunNotes(e.target.value)}
