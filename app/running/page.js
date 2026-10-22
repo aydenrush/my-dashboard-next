@@ -992,7 +992,8 @@ export default function RunningPage() {
       const { segments, pts, mt, laps, ...storable } = gpxAnalysis;
       workoutData = storable;
     }
-    await supabase.from("run_logs").insert({ ...row, source: "gpx", notes, workout_data: workoutData, workout_type: gpxType });
+    const { error } = await supabase.from("run_logs").insert({ ...row, source: "gpx", notes, workout_data: workoutData, workout_type: gpxType });
+    if (error) { alert("Save failed: " + error.message); return; }
     const match = schedule.find((r) => r.date === row.date && !r.completed);
     if (match) await supabase.from("running_schedule").update({ completed: true }).eq("id", match.id);
     setGpxPreview(null); setGpxAnalysis(null); setShowGpx(false); setShowCorrection(false);
