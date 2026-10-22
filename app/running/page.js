@@ -809,6 +809,14 @@ export default function RunningPage() {
     load();
   }
 
+  const RUN_TYPES = ["easy", "long", "tempo", "speed", "hills"];
+  async function cycleRunType(run) {
+    const cur = run.workout_type || "easy";
+    const next = RUN_TYPES[(RUN_TYPES.indexOf(cur) + 1) % RUN_TYPES.length];
+    await supabase.from("run_logs").update({ workout_type: next }).eq("id", run.id);
+    load();
+  }
+
   // fetch weather
   useEffect(() => {
     const saved = localStorage.getItem("weather_location");
@@ -958,7 +966,8 @@ export default function RunningPage() {
       const { segments, pts, mt, laps, ...storable } = gpxAnalysis;
       workoutData = storable;
     }
-    await supabase.from("run_logs").insert({ ...row, source: "gpx", notes, workout_data: workoutData });
+    const wType = gpxAnalysis?.type === "intervals" ? "speed" : gpxAnalysis?.type === "tempo" ? "tempo" : "easy";
+    await supabase.from("run_logs").insert({ ...row, source: "gpx", notes, workout_data: workoutData, workout_type: wType });
     const match = schedule.find((r) => r.date === row.date && !r.completed);
     if (match) await supabase.from("running_schedule").update({ completed: true }).eq("id", match.id);
     setGpxPreview(null); setGpxAnalysis(null); setShowGpx(false); setShowCorrection(false);
@@ -1627,6 +1636,9 @@ export default function RunningPage() {
                   {" · "}{fmtPace(run.pace_seconds)}
                   {run.elevation_gain_ft > 0 && ` · ↑${Math.round(run.elevation_gain_ft)} ft`}
                   {run.route_name && ` · ${run.route_name}`}
+                  {" · "}<span onClick={() => cycleRunType(run)}
+                    style={{ color: TYPE_COLORS[run.workout_type || "easy"], fontWeight: 600, fontSize: "0.8em", cursor: "pointer" }}
+                    title="Click to change type">{TYPE_LABELS[run.workout_type || "easy"]}</span>
                 </span>
                 <button className="btn" onClick={() => deleteRunLog(run.id)}
                   style={{ fontSize: "0.75em", padding: "2px 8px" }}>×</button>
