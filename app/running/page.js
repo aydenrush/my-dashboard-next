@@ -1126,17 +1126,24 @@ export default function RunningPage() {
       if (!older.length) continue;
       let rAvg, oAvg, rPace, oPace;
       if (type === "speed" || type === "tempo") {
-        const rScores = recent.map(r => repScore(r.workout_data?.reps)).filter(Boolean);
-        const oScores = older.map(r => repScore(r.workout_data?.reps)).filter(Boolean);
-        if (rScores.length && oScores.length) {
-          rAvg = rScores.reduce((a, b) => a + b) / rScores.length;
-          oAvg = oScores.reduce((a, b) => a + b) / oScores.length;
-          // still show raw rep paces for display
-          const rawRecent = recent.flatMap(r => r.workout_data?.reps || []);
-          const rawOlder = older.flatMap(r => r.workout_data?.reps || []);
-          rPace = rawRecent.length ? Math.round(rawRecent.reduce((s, r) => s + r.pace * 60, 0) / rawRecent.length) : null;
-          oPace = rawOlder.length ? Math.round(rawOlder.reduce((s, r) => s + r.pace * 60, 0) / rawOlder.length) : null;
-        } else {
+        const useRiegel = type === "speed";
+        const rawRepPace = (runs) => {
+          const allReps = runs.flatMap(r => r.workout_data?.reps || []);
+          return allReps.length ? allReps.reduce((s, r) => s + r.pace * 60, 0) / allReps.length : null;
+        };
+        if (useRiegel) {
+          const rScores = recent.map(r => repScore(r.workout_data?.reps)).filter(Boolean);
+          const oScores = older.map(r => repScore(r.workout_data?.reps)).filter(Boolean);
+          if (rScores.length && oScores.length) {
+            rAvg = rScores.reduce((a, b) => a + b) / rScores.length;
+            oAvg = oScores.reduce((a, b) => a + b) / oScores.length;
+          }
+        }
+        const rRaw = rawRepPace(recent), oRaw = rawRepPace(older);
+        if (!rAvg && rRaw && oRaw) { rAvg = rRaw; oAvg = oRaw; }
+        rPace = rRaw ? Math.round(rRaw) : null;
+        oPace = oRaw ? Math.round(oRaw) : null;
+        if (!rAvg) {
           rAvg = recent.reduce((s, r) => s + r.pace_seconds, 0) / recent.length;
           oAvg = older.reduce((s, r) => s + r.pace_seconds, 0) / older.length;
         }
