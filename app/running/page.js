@@ -810,10 +810,8 @@ export default function RunningPage() {
   }
 
   const RUN_TYPES = ["easy", "long", "tempo", "speed", "hills"];
-  async function cycleRunType(run) {
-    const cur = run.workout_type || "easy";
-    const next = RUN_TYPES[(RUN_TYPES.indexOf(cur) + 1) % RUN_TYPES.length];
-    await supabase.from("run_logs").update({ workout_type: next }).eq("id", run.id);
+  async function setRunType(id, type) {
+    await supabase.from("run_logs").update({ workout_type: type }).eq("id", id);
     load();
   }
 
@@ -1636,9 +1634,10 @@ export default function RunningPage() {
                   {" · "}{fmtPace(run.pace_seconds)}
                   {run.elevation_gain_ft > 0 && ` · ↑${Math.round(run.elevation_gain_ft)} ft`}
                   {run.route_name && ` · ${run.route_name}`}
-                  {" · "}<span onClick={() => cycleRunType(run)}
-                    style={{ color: TYPE_COLORS[run.workout_type || "easy"], fontWeight: 600, fontSize: "0.8em", cursor: "pointer" }}
-                    title="Click to change type">{TYPE_LABELS[run.workout_type || "easy"]}</span>
+                  {" · "}<select value={run.workout_type || "easy"} onChange={(e) => setRunType(run.id, e.target.value)}
+                    style={{ color: TYPE_COLORS[run.workout_type || "easy"], fontWeight: 600, fontSize: "0.8em", background: "transparent", border: "none", cursor: "pointer" }}>
+                    {RUN_TYPES.map(t => <option key={t} value={t} style={{ color: TYPE_COLORS[t] }}>{TYPE_LABELS[t]}</option>)}
+                  </select>
                 </span>
                 <button className="btn" onClick={() => deleteRunLog(run.id)}
                   style={{ fontSize: "0.75em", padding: "2px 8px" }}>×</button>
