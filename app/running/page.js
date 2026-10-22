@@ -727,9 +727,7 @@ export default function RunningPage() {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [weather, setWeather] = useState(null);
-  const [analyticsTab, setAnalyticsTab] = useState("mileage");
   const [showSchedule, setShowSchedule] = useState(false);
-  const [showAnalytics, setShowAnalytics] = useState(false);
   const [showRest, setShowRest] = useState(true);
   const [showPast, setShowPast] = useState(false);
   const [showAllRuns, setShowAllRuns] = useState(false);
@@ -1039,21 +1037,6 @@ export default function RunningPage() {
       const slice = arr.slice(Math.max(0, i - 6), i + 1);
       const avg7 = slice.reduce((s, v) => s + v.pace_seconds, 0) / slice.length;
       return { date: r.date, pace: r.pace_seconds, avg7: Math.round(avg7) };
-    });
-  }
-
-  // --- training load ACWR over time ---
-  function acwrTrend() {
-    if (sortedLogs.length < 2) return [];
-    const dates = [...new Set(sortedLogs.map((r) => r.date))].sort();
-    return dates.map((d) => {
-      const acStart = addDays(d, -6);
-      const chStart = addDays(d, -27);
-      const ac = sortedLogs.filter((r) => r.date >= acStart && r.date <= d)
-        .reduce((s, r) => s + (r.distance_miles || 0), 0);
-      const ch = sortedLogs.filter((r) => r.date >= chStart && r.date <= d)
-        .reduce((s, r) => s + (r.distance_miles || 0), 0) / 4;
-      return { date: d, acwr: ch > 0 ? +(ac / ch).toFixed(2) : 0 };
     });
   }
 
@@ -1586,40 +1569,6 @@ export default function RunningPage() {
         </div>
       )}
 
-      {/* ===== STATS ===== */}
-      {hasLogs && runLogs.length >= 2 && (
-        <div className="metrics-row" style={{ marginBottom: "16px" }}>
-          <div className="metric">
-            <div className="metric-label">This Week</div>
-            <div className="metric-value">{thisWkMi.toFixed(1)} mi</div>
-            <div style={{ fontSize: "0.8em", color: "#888" }}>
-              {(thisWkMi - lastWkMi) >= 0 ? "+" : ""}{(thisWkMi - lastWkMi).toFixed(1)} vs last
-            </div>
-          </div>
-          <div className="metric">
-            <div className="metric-label">ACWR</div>
-            <div className="metric-value">{acwr.toFixed(2)}</div>
-            <div style={{ fontSize: "0.8em", color: "#888" }}>{acwrStatus}</div>
-          </div>
-          <div className="metric">
-            <div className="metric-label">Avg Pace (Last 5)</div>
-            <div className="metric-value">{last5Pace > 0 ? fmtPace(last5Pace) : "--"}</div>
-            <div style={{ fontSize: "0.8em", color: "#888" }}>
-              {overallPace > 0 && last5Pace > 0
-                ? `${(overallPace - last5Pace) >= 0 ? "+" : ""}${Math.round(overallPace - last5Pace)}s vs overall`
-                : ""}
-            </div>
-          </div>
-          <div className="metric">
-            <div className="metric-label">Easy Runs</div>
-            <div className="metric-value">{easyPct.toFixed(0)}%</div>
-            <div style={{ fontSize: "0.8em", color: "#888" }}>
-              {easyPct < 70 ? "aim ~80%" : "good balance"}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ===== RECENT RUNS ===== */}
       {hasLogs && (
         <>
@@ -1810,138 +1759,38 @@ export default function RunningPage() {
 
       <div className="divider" />
 
-      {/* ===== ANALYTICS (collapsible) ===== */}
-      <div style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
-        onClick={() => setShowAnalytics(!showAnalytics)}>
-        <h2 style={{ margin: 0 }}>Analytics</h2>
-        <span style={{ color: "#888" }}>{showAnalytics ? "▾" : "▸"}</span>
-      </div>
-
-      {showAnalytics && (
-        <div style={{ marginTop: "12px" }}>
-          {!hasLogs || runLogs.length < 2 ? (
-            <div className="alert alert-info">Need at least 2 logged runs for analytics.</div>
-          ) : (
-            <>
-              <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
-                {["mileage", "pace", "load", "workouts"].map((t) => (
-                  <button key={t} className={`btn${analyticsTab === t ? " btn-primary" : ""}`}
-                    onClick={() => setAnalyticsTab(t)} style={{ textTransform: "capitalize" }}>
-                    {t === "load" ? "Training Load" : t}
-                  </button>
-                ))}
+      {/* ===== ANALYTICS ===== */}
+      {hasLogs && runLogs.length >= 2 && (
+        <div>
+          <h2>Analytics</h2>
+          <div className="metrics-row" style={{ marginBottom: "16px" }}>
+            <div className="metric">
+              <div className="metric-label">This Week</div>
+              <div className="metric-value">{thisWkMi.toFixed(1)} mi</div>
+              <div style={{ fontSize: "0.8em", color: "#888" }}>
+                {(thisWkMi - lastWkMi) >= 0 ? "+" : ""}{(thisWkMi - lastWkMi).toFixed(1)} vs last
               </div>
-
-              {analyticsTab === "mileage" && <BarChart data={weeklyMileage()} label="Weekly Miles" />}
-
-              {analyticsTab === "pace" && (
-                <div>
-                  {paceTrend().length < 2 ? (
-                    <div className="alert alert-info">Need at least 2 runs with pace data.</div>
-                  ) : (
-                    <>
-                      <PaceChart data={paceTrend()} />
-                      {(() => {
-                        const wp = sortedLogs.filter((r) => r.pace_seconds > 0);
-                        if (wp.length < 10) return null;
-                        const first5 = wp.slice(0, 5).reduce((s, r) => s + r.pace_seconds, 0) / 5;
-                        const last5p = wp.slice(-5).reduce((s, r) => s + r.pace_seconds, 0) / 5;
-                        const diff = first5 - last5p;
-                        return (
-                          <p style={{ fontSize: "0.85em", color: "#888", marginTop: "8px" }}>
-                            {diff > 0 ? `Pace improved by ${Math.round(diff)}s/mi` : diff < 0 ? `Pace slowed by ${Math.round(Math.abs(diff))}s/mi` : "Pace unchanged"} (first 5 vs last 5 runs)
-                          </p>
-                        );
-                      })()}
-                    </>
-                  )}
-                </div>
-              )}
-
-              {analyticsTab === "load" && (
-                <div>
-                  <ACWRChart data={acwrTrend()} />
-                  <div className={`alert ${acwr > 1.5 ? "alert-warning" : acwr < 0.8 ? "alert-warning" : "alert-success"}`}
-                    style={{ marginTop: "12px" }}>
-                    ACWR: {acwr.toFixed(2)} {"—"} {acwr > 1.5 ? "injury risk zone" : acwr < 0.8 ? "detraining zone" : "sweet spot (0.8–1.3 is optimal)"}
-                  </div>
-                  <p style={{ fontSize: "0.85em", color: "#888" }}>
-                    Acute:Chronic Workload Ratio {"—"} 7-day mileage ÷ 28-day weekly avg
-                  </p>
-                </div>
-              )}
-
-              {analyticsTab === "workouts" && (() => {
-                const workouts = runLogs
-                  .filter((r) => r.workout_data)
-                  .map((r) => ({ ...(typeof r.workout_data === "string" ? JSON.parse(r.workout_data) : r.workout_data), date: r.date, distance: r.distance_miles }))
-                  .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-                if (!workouts.length) return (
-                  <div className="alert alert-info">No workouts analyzed yet. Upload a GPX/TCX file to get started.</div>
-                );
-                const intervals = workouts.filter((w) => w.type === "intervals").reverse();
-                return (
-                  <div>
-                    <h3>Workout History</h3>
-                    {workouts.map((w, i) => (
-                      <div key={i} style={{ padding: "6px 0", borderBottom: "1px solid #333" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span>
-                            <strong>{fmtShortDate(w.date)}</strong>
-                            {w.distance && ` · ${w.distance} mi`}
-                          </span>
-                          <span style={{
-                            fontSize: "0.7em", fontWeight: "bold", padding: "1px 6px", borderRadius: "3px",
-                            background: w.type === "intervals" ? "#F44336" : w.type === "tempo" ? "#FF9800" : "#4CAF50",
-                            color: "white",
-                          }}>
-                            {(w.type || "easy").toUpperCase()}
-                          </span>
-                        </div>
-                        <p style={{ fontSize: "0.85em", color: "#888", margin: "2px 0 0" }}>{w.summary}</p>
-                      </div>
-                    ))}
-
-                    {intervals.length >= 2 && (
-                      <>
-                        <h3 style={{ marginTop: "16px" }}>Interval Pace Trend</h3>
-                        {(() => {
-                          const paces = intervals.map((w) => w.reps.reduce((a, r) => a + r.pace, 0) / w.reps.length);
-                          const minP = Math.min(...paces) - 0.5;
-                          const maxP = Math.max(...paces) + 0.5;
-                          const range = maxP - minP || 1;
-                          return (
-                            <div>
-                              <div style={{ display: "flex", alignItems: "flex-end", gap: "4px", height: "150px" }}>
-                                {intervals.map((w, i) => {
-                                  const pct = ((maxP - paces[i]) / range) * 100;
-                                  return (
-                                    <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
-                                      <div style={{ flex: 1, display: "flex", alignItems: "flex-end", width: "100%" }}>
-                                        <div style={{
-                                          width: "100%", background: "#F44336", borderRadius: "3px 3px 0 0",
-                                          height: `${Math.max(pct, 5)}%`, transition: "height 0.3s",
-                                        }} title={`${fmtShortDate(w.date)}: ${fmtPaceMin(paces[i])}`} />
-                                      </div>
-                                      <div style={{ fontSize: "0.6em", color: "#888", marginTop: "4px" }}>{w.date.slice(5)}</div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <p style={{ fontSize: "0.8em", color: "#888", marginTop: "4px" }}>
-                                Taller = faster. Avg rep pace: {fmtPaceMin(paces[0])} → {fmtPaceMin(paces[paces.length - 1])}
-                                {paces[paces.length - 1] < paces[0] ? " (getting faster)" : paces[paces.length - 1] > paces[0] ? " (slowing)" : ""}
-                              </p>
-                            </div>
-                          );
-                        })()}
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
-            </>
-          )}
+            </div>
+            <div className="metric">
+              <div className="metric-label">ACWR</div>
+              <div className="metric-value" style={{ color: acwr > 1.5 ? "#F44336" : acwr < 0.8 ? "#FF9800" : "#4CAF50" }}>{acwr.toFixed(2)}</div>
+              <div style={{ fontSize: "0.8em", color: "#888" }}>{acwrStatus}</div>
+            </div>
+            <div className="metric">
+              <div className="metric-label">Avg Pace</div>
+              <div className="metric-value">{last5Pace > 0 ? fmtPace(last5Pace) : "--"}</div>
+              <div style={{ fontSize: "0.8em", color: "#888" }}>last 5 runs</div>
+            </div>
+            <div className="metric">
+              <div className="metric-label">Easy %</div>
+              <div className="metric-value">{easyPct.toFixed(0)}%</div>
+              <div style={{ fontSize: "0.8em", color: easyPct < 70 ? "#FF9800" : "#4CAF50" }}>
+                {easyPct < 70 ? "aim ~80%" : "good"}
+              </div>
+            </div>
+          </div>
+          <MileageChart data={weeklyMileage()} />
+          {paceTrend().length >= 2 && <PaceChart data={paceTrend()} />}
         </div>
       )}
     </div>
@@ -1949,38 +1798,42 @@ export default function RunningPage() {
 }
 
 // ============================================================
-// CSS Bar Chart components (no charting library)
+// SVG Chart components
 // ============================================================
 
-function BarChart({ data, label }) {
-  if (!data.length) return <div className="alert alert-info">No data yet.</div>;
+function MileageChart({ data }) {
+  if (!data.length) return null;
   const max = Math.max(...data.map((d) => d.miles), 1);
+  const W = 600, H = 160, pad = { t: 8, b: 20, l: 32, r: 4 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+  const bw = Math.max(Math.floor(cw / data.length) - 2, 4);
+  const yTicks = [0, Math.round(max / 2), Math.ceil(max)];
   return (
-    <div>
-      <h3>{label}</h3>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: "4px", height: "200px", marginTop: "12px" }}>
-        {data.map((d, i) => (
-          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%" }}>
-            <div style={{ flex: 1, display: "flex", alignItems: "flex-end", width: "100%" }}>
-              <div
-                style={{
-                  width: "100%", background: "#4CAF50", borderRadius: "3px 3px 0 0",
-                  height: `${(d.miles / max) * 100}%`, minHeight: d.miles > 0 ? "4px" : "0",
-                  transition: "height 0.3s",
-                }}
-                title={`${d.week}: ${d.miles} mi`}
-              />
-            </div>
-            <div style={{ fontSize: "0.65em", color: "#888", marginTop: "4px", textAlign: "center" }}>
-              {d.week.slice(5)}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75em", color: "#888", marginTop: "4px" }}>
-        <span>{data[0]?.week.slice(5)}</span>
-        <span>{data[data.length - 1]?.week.slice(5)}</span>
-      </div>
+    <div style={{ marginBottom: "20px" }}>
+      <h3 style={{ fontSize: "0.9em", marginBottom: "4px" }}>Weekly Miles</h3>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+        {yTicks.map((v) => {
+          const y = pad.t + ch - (v / max) * ch;
+          return <g key={v}>
+            <line x1={pad.l} x2={W - pad.r} y1={y} y2={y} stroke="#333" strokeWidth="0.5" />
+            <text x={pad.l - 4} y={y + 3} textAnchor="end" fill="#888" fontSize="9">{v}</text>
+          </g>;
+        })}
+        {data.map((d, i) => {
+          const x = pad.l + (i + 0.5) * (cw / data.length) - bw / 2;
+          const h = (d.miles / max) * ch;
+          const isLast = i === data.length - 1;
+          return <g key={i}>
+            <rect x={x} y={pad.t + ch - h} width={bw} height={Math.max(h, 1)}
+              rx="2" fill={isLast ? "#66BB6A" : "#4CAF50"} opacity={isLast ? 1 : 0.7}>
+              <title>{fmtMD(d.week)}: {d.miles} mi</title>
+            </rect>
+            {(i === 0 || i === data.length - 1 || i % Math.max(1, Math.floor(data.length / 5)) === 0) && (
+              <text x={x + bw / 2} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{d.week.slice(5)}</text>
+            )}
+          </g>;
+        })}
+      </svg>
     </div>
   );
 }
@@ -1991,78 +1844,36 @@ function PaceChart({ data }) {
   const minP = Math.min(...allVals) - 10;
   const maxP = Math.max(...allVals) + 10;
   const range = maxP - minP || 1;
+  const W = 600, H = 160, pad = { t: 8, b: 20, l: 42, r: 8 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+  const x = (i) => pad.l + (i / Math.max(data.length - 1, 1)) * cw;
+  const y = (v) => pad.t + ((v - minP) / range) * ch;
+  const avgLine = data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(d.avg7).toFixed(1)}`).join(" ");
+  const yTicks = [minP, minP + range / 2, maxP].map(Math.round);
   return (
-    <div>
-      <h3>Pace Trend</h3>
-      <div style={{ position: "relative", height: "200px", marginTop: "12px" }}>
-        {/* dots for individual paces */}
+    <div style={{ marginBottom: "20px" }}>
+      <h3 style={{ fontSize: "0.9em", marginBottom: "4px" }}>Pace Trend</h3>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+        {yTicks.map((v) => {
+          const yy = y(v);
+          return <g key={v}>
+            <line x1={pad.l} x2={W - pad.r} y1={yy} y2={yy} stroke="#333" strokeWidth="0.5" />
+            <text x={pad.l - 4} y={yy + 3} textAnchor="end" fill="#888" fontSize="8">{fmtPace(v)}</text>
+          </g>;
+        })}
+        <path d={avgLine} fill="none" stroke="#FF9800" strokeWidth="2" opacity="0.8" />
         {data.map((d, i) => (
-          <div key={i} style={{
-            position: "absolute",
-            left: `${(i / (data.length - 1)) * 100}%`,
-            bottom: `${((maxP - d.pace) / range) * 100}%`,
-            width: "6px", height: "6px", borderRadius: "50%",
-            background: "#2196F3", transform: "translate(-3px, 3px)",
-          }} title={`${d.date}: ${fmtPace(d.pace)}`} />
+          <circle key={i} cx={x(i)} cy={y(d.pace)} r="3" fill="#2196F3" opacity="0.7">
+            <title>{fmtMD(d.date)}: {fmtPace(d.pace)}</title>
+          </circle>
         ))}
-        {/* 7-run avg line approximation with dots */}
-        {data.map((d, i) => (
-          <div key={`a${i}`} style={{
-            position: "absolute",
-            left: `${(i / (data.length - 1)) * 100}%`,
-            bottom: `${((maxP - d.avg7) / range) * 100}%`,
-            width: "4px", height: "4px", borderRadius: "50%",
-            background: "#FF9800", transform: "translate(-2px, 2px)",
-          }} title={`7-run avg: ${fmtPace(d.avg7)}`} />
+        {[0, Math.floor(data.length / 2), data.length - 1].map((i) => (
+          <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{data[i].date.slice(5)}</text>
         ))}
-        {/* Y-axis labels */}
-        <div style={{ position: "absolute", left: "-40px", top: 0, fontSize: "0.7em", color: "#888" }}>
-          {fmtPace(minP)}
-        </div>
-        <div style={{ position: "absolute", left: "-40px", bottom: 0, fontSize: "0.7em", color: "#888" }}>
-          {fmtPace(maxP)}
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: "16px", fontSize: "0.8em", color: "#888", marginTop: "8px" }}>
+      </svg>
+      <div style={{ display: "flex", gap: "16px", fontSize: "0.75em", color: "#888" }}>
         <span><span style={{ color: "#2196F3" }}>{"●"}</span> Pace</span>
-        <span><span style={{ color: "#FF9800" }}>{"●"}</span> 7-Run Avg</span>
-      </div>
-    </div>
-  );
-}
-
-function ACWRChart({ data }) {
-  if (!data.length) return null;
-  const max = Math.max(...data.map((d) => d.acwr), 2);
-  return (
-    <div>
-      <h3>ACWR Over Time</h3>
-      <div style={{ position: "relative", height: "200px", marginTop: "12px" }}>
-        {/* sweet spot zone */}
-        <div style={{
-          position: "absolute", left: 0, right: 0,
-          bottom: `${(0.8 / max) * 100}%`,
-          height: `${((1.3 - 0.8) / max) * 100}%`,
-          background: "rgba(76, 175, 80, 0.1)", borderTop: "1px dashed #4CAF50",
-          borderBottom: "1px dashed #4CAF50",
-        }} />
-        {/* danger line at 1.5 */}
-        <div style={{
-          position: "absolute", left: 0, right: 0,
-          bottom: `${(1.5 / max) * 100}%`,
-          borderTop: "1px dashed #F44336",
-        }} />
-        {/* data dots */}
-        {data.map((d, i) => (
-          <div key={i} style={{
-            position: "absolute",
-            left: `${(i / Math.max(data.length - 1, 1)) * 100}%`,
-            bottom: `${(d.acwr / max) * 100}%`,
-            width: "6px", height: "6px", borderRadius: "50%",
-            background: d.acwr > 1.5 ? "#F44336" : d.acwr < 0.8 ? "#FF9800" : "#4CAF50",
-            transform: "translate(-3px, 3px)",
-          }} title={`${d.date}: ${d.acwr}`} />
-        ))}
+        <span><span style={{ color: "#FF9800" }}>{"—"}</span> 7-run avg</span>
       </div>
     </div>
   );
