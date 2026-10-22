@@ -872,8 +872,8 @@ export default function RunningPage() {
   const medianPace = paceVals.length
     ? [...paceVals].sort((a, b) => a - b)[Math.floor(paceVals.length / 2)]
     : 0;
-  const easyCount = medianPace > 0 ? paceVals.filter((p) => p > medianPace * 1.05).length : 0;
-  const easyPct = paceVals.length ? (easyCount / paceVals.length) * 100 : 0;
+  const easyCount = runLogs.filter((r) => r.workout_type === "easy" || r.workout_type === "long").length;
+  const easyPct = runLogs.length ? (easyCount / runLogs.length) * 100 : 0;
 
   // monthly mileage
   const thisMonth = today.slice(0, 7);
