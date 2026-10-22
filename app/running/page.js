@@ -872,8 +872,10 @@ export default function RunningPage() {
   const medianPace = paceVals.length
     ? [...paceVals].sort((a, b) => a - b)[Math.floor(paceVals.length / 2)]
     : 0;
-  const easyCount = runLogs.filter((r) => r.workout_type === "easy" || r.workout_type === "long").length;
-  const easyPct = runLogs.length ? (easyCount / runLogs.length) * 100 : 0;
+  const easyFrac = { easy: 1, long: 1, tempo: 0.4, speed: 0.6, hills: 0.5 };
+  const totalMi = runLogs.reduce((s, r) => s + (r.distance_miles || 0), 0);
+  const easyMi = runLogs.reduce((s, r) => s + (r.distance_miles || 0) * (easyFrac[r.workout_type] ?? 1), 0);
+  const easyPct = totalMi > 0 ? (easyMi / totalMi) * 100 : 0;
 
   // monthly mileage
   const thisMonth = today.slice(0, 7);
