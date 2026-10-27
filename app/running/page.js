@@ -313,8 +313,13 @@ function analyzeTcx(text) {
   const avgPace = paces.reduce((a, b) => a + b) / paces.length;
   const paceRange = Math.max(...paces) - Math.min(...paces);
 
-  // find hard laps: flanked by rest laps or significantly faster than average
-  const hardThresh = avgPace - paceRange * 0.3;
+  const sortedPaces = [...paces].sort((a, b) => a - b);
+  let maxGap = 0, gapIdx = 0;
+  for (let i = 1; i < sortedPaces.length; i++) {
+    const gap = sortedPaces[i] - sortedPaces[i - 1];
+    if (gap > maxGap) { maxGap = gap; gapIdx = i; }
+  }
+  const hardThresh = maxGap > 0.5 ? (sortedPaces[gapIdx - 1] + sortedPaces[gapIdx]) / 2 : avgPace - paceRange * 0.3;
   const lapTypes = laps.map((l) => l.pace >= restThresh ? "rest" : l.pace < hardThresh ? "hard" : "easy");
 
   const hardIdxs = lapTypes.map((t, i) => t === "hard" ? i : -1).filter((i) => i >= 0);
