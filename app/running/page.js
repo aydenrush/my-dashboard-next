@@ -294,7 +294,7 @@ function analyzeTcx(text) {
     if (t && prevTrkTime) {
       const dt = (t - prevTrkTime) / 1000;
       const spd = spdM ? parseFloat(spdM) : 0;
-      const pause = (dt > 10 && spd < 0.5) || dt > 60;
+      const pause = dt > 10 && spd < 0.5;
       cumTime += pause ? 0 : dt;
     }
     prevTrkTime = t;
@@ -1621,9 +1621,8 @@ export default function RunningPage() {
                               const pts = pd.filter(p => p.t >= w.s && p.t < w.e);
                               if (pts.length >= 2) { pdPace = pts.reduce((a,p)=>a+p.pace,0)/pts.length; const hp = pts.filter(p=>p.hr); pdHR = hp.length ? hp.reduce((a,p)=>a+p.hr,0)/hp.length : 0; }
                             }
-                            const agree = lapPace != null && pdPace != null && Math.abs(lapPace-pdPace) < 0.5;
-                            const pace = agree ? lapPace : (pdPace ?? lapPace);
-                            const hr = agree ? lapHR : (pdHR || lapHR);
+                            const pace = lapPace ?? pdPace;
+                            const hr = lapHR || pdHR;
                             return { duration: hardS, pace: pace || 0, hr: hr || 0 };
                           });
                           const recoveries = windows.slice(0,-1).map((w,i) => windows[i+1].s - w.e);
