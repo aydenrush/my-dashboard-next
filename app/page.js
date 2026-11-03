@@ -6,7 +6,7 @@ import { ACTIVITY_TYPES, PRIORITY_COLORS } from "@/lib/constants";
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TIME_SLOTS = ["Morning", "Midday", "Afternoon", "Evening"];
 const TIME_DISPLAY = { Morning: "8 AM", Midday: "11 AM", Afternoon: "2 PM", Evening: "5:30 PM" };
-const TIME_HOURS = { "7:30 AM": [7, 30], "8:00 AM": [8, 0], "8:30 AM": [8, 30], "11:00 AM": [11, 0], "2:00 PM": [14, 0], "4:30 PM": [16, 30], "5:30 PM": [17, 30], "11:00 PM": [23, 0], "11:59 PM": [23, 59] };
+const TIME_HOURS = { "7:30 AM": [7, 30], "8:00 AM": [8, 0], "8:30 AM": [8, 30], "11:00 AM": [11, 0], "2:00 PM": [14, 0], "4:30 PM": [16, 30], "5:30 PM": [17, 30], "7:00 PM": [19, 0], "11:00 PM": [23, 0], "11:59 PM": [23, 59] };
 const DURATION_MAP = { lifting: 45, cycling: 60, frisbee_golf: 120, rap_writing: 90, running: 45, other: 60 };
 
 const SCHOOL_SCHEDULE = [
@@ -258,7 +258,7 @@ export default function HomePage() {
   async function publishFeed() {
     setSyncMsg("Publishing...");
     const icsBytes = new TextEncoder().encode(buildIcs());
-    const opts = { contentType: "text/calendar", cacheControl: "max-age=300", upsert: true };
+    const opts = { contentType: "text/calendar", cacheControl: "no-cache", upsert: true };
     const { error } = await supabase.storage.from("ical").upload("training_plan.ics", icsBytes, opts);
     if (error) {
       setSyncMsg("Error: " + error.message);
