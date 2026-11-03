@@ -201,7 +201,7 @@ export default function WardrobePage() {
 
       <hr className="divider" />
 
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
         <button className={`btn ${showOutfit ? "btn-primary" : ""}`} onClick={() => { setShowOutfit(!showOutfit); setOutfit({}); }}>
           {showOutfit ? "Exit Outfit Builder" : "Build Outfit"}
         </button>

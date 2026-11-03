@@ -171,7 +171,7 @@ export default function CFBDynastyPage() {
                 </select>
               </div>
 
-              <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
                 {["roster", "byYear", "byRound", "byPos"].map((t) => (
                   <button key={t} className={`btn ${tab === t ? "btn-primary" : ""}`} onClick={() => setTab(t)}>
                     {t === "roster" ? "Roster" : t === "byYear" ? "By Year" : t === "byRound" ? "By Round" : "By Position"}

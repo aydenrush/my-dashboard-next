@@ -1233,7 +1233,7 @@ export default function RunningPage() {
 
       {/* ===== THIS WEEK ===== */}
       {hasSchedule && weekSchedule.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px", marginBottom: "16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px", marginBottom: "16px", overflowX: "auto", minWidth: 0 }}>
           {DAY_NAMES.map((name, i) => {
             const day = addDays(weekStart, i);
             const row = weekSchedule.find((r) => r.date === day);
@@ -1284,33 +1284,33 @@ export default function RunningPage() {
       {/* --- Manual Log Form --- */}
       {showLogForm && (
         <form onSubmit={logRun} className="card" style={{ marginBottom: "16px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
             <div>
               <label className="metric-label">Date</label>
-              <input type="date" value={mrDate} onChange={(e) => setMrDate(e.target.value)} />
+              <input type="date" value={mrDate} onChange={(e) => setMrDate(e.target.value)} style={{ width: "100%" }} />
             </div>
             <div>
               <label className="metric-label">Distance (miles)</label>
               <input type="number" step="0.1" min="0" value={mrDist}
-                onChange={(e) => setMrDist(e.target.value)} placeholder="0.0" />
+                onChange={(e) => setMrDist(e.target.value)} placeholder="0.0" style={{ width: "100%" }} />
             </div>
             <div>
               <label className="metric-label">Minutes</label>
               <input type="number" min="0" value={mrMins}
-                onChange={(e) => setMrMins(e.target.value)} placeholder="0" />
+                onChange={(e) => setMrMins(e.target.value)} placeholder="0" style={{ width: "100%" }} />
             </div>
             <div>
               <label className="metric-label">Seconds</label>
               <input type="number" min="0" max="59" value={mrSecs}
-                onChange={(e) => setMrSecs(e.target.value)} placeholder="0" />
+                onChange={(e) => setMrSecs(e.target.value)} placeholder="0" style={{ width: "100%" }} />
             </div>
           </div>
-          <div style={{ marginTop: "8px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div style={{ marginTop: "8px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
             <div>
               <label className="metric-label">Type</label>
               <select value={mrType} onChange={(e) => setMrType(e.target.value)}
-                style={{ width: "100%", background: "#1a1a1a", color: TYPE_COLORS[mrType], fontWeight: 600 }}>
-                {RUN_TYPES.map(t => <option key={t} value={t} style={{ background: "#1a1a1a", color: TYPE_COLORS[t] }}>{TYPE_LABELS[t]}</option>)}
+                style={{ width: "100%", background: "var(--card-bg)", color: TYPE_COLORS[mrType], fontWeight: 600 }}>
+                {RUN_TYPES.map(t => <option key={t} value={t} style={{ background: "var(--card-bg)", color: TYPE_COLORS[t] }}>{TYPE_LABELS[t]}</option>)}
               </select>
             </div>
             <div>
@@ -1657,8 +1657,8 @@ export default function RunningPage() {
 
               <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "12px" }}>
                 <select value={gpxType} onChange={(e) => setGpxType(e.target.value)}
-                  style={{ background: "#1a1a1a", color: TYPE_COLORS[gpxType], fontWeight: 600, border: "none", fontSize: "0.85em" }}>
-                  {RUN_TYPES.map(t => <option key={t} value={t} style={{ background: "#1a1a1a", color: TYPE_COLORS[t] }}>{TYPE_LABELS[t]}</option>)}
+                  style={{ background: "var(--card-bg)", color: TYPE_COLORS[gpxType], fontWeight: 600, border: "none", fontSize: "0.85em" }}>
+                  {RUN_TYPES.map(t => <option key={t} value={t} style={{ background: "var(--card-bg)", color: TYPE_COLORS[t] }}>{TYPE_LABELS[t]}</option>)}
                 </select>
                 <button className="btn btn-primary" onClick={saveGpx}>Save to Log</button>
               </div>
@@ -1723,8 +1723,8 @@ export default function RunningPage() {
                   {run.elevation_gain_ft > 0 && ` · ↑${Math.round(run.elevation_gain_ft)} ft`}
                   {run.route_name && ` · ${run.route_name}`}
                   {" · "}<select value={run.workout_type || "easy"} onChange={(e) => setRunType(run.id, e.target.value)}
-                    style={{ color: TYPE_COLORS[run.workout_type || "easy"], fontWeight: 600, fontSize: "0.8em", background: "#1a1a1a", border: "none", cursor: "pointer" }}>
-                    {RUN_TYPES.map(t => <option key={t} value={t} style={{ background: "#1a1a1a", color: TYPE_COLORS[t] }}>{TYPE_LABELS[t]}</option>)}
+                    style={{ color: TYPE_COLORS[run.workout_type || "easy"], fontWeight: 600, fontSize: "0.8em", background: "var(--card-bg)", border: "none", cursor: "pointer" }}>
+                    {RUN_TYPES.map(t => <option key={t} value={t} style={{ background: "var(--card-bg)", color: TYPE_COLORS[t] }}>{TYPE_LABELS[t]}</option>)}
                   </select>
                 </span>
                 <button className="btn" onClick={() => deleteRunLog(run.id)}
@@ -1986,7 +1986,7 @@ export default function RunningPage() {
               <h3 style={{ fontSize: "0.9em", marginBottom: "8px" }}>Workout Trends</h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "8px" }}>
                 {trends.map(t => (
-                  <details key={t.type} style={{ background: "#1a1a1a", borderRadius: "8px", padding: "10px", border: `1px solid ${t.direction === "faster" ? "#4CAF50" : t.direction === "slower" ? "#F44336" : "#555"}33` }}>
+                  <details key={t.type} style={{ background: "var(--card-bg)", borderRadius: "8px", padding: "10px", border: `1px solid ${t.direction === "faster" ? "#4CAF50" : t.direction === "slower" ? "#F44336" : "#555"}33` }}>
                     <summary style={{ cursor: "pointer", listStyle: "none" }}>
                       <div style={{ fontSize: "0.8em", color: TYPE_COLORS[t.type], fontWeight: 600, textTransform: "capitalize", marginBottom: "4px" }}>{TYPE_LABELS[t.type]}</div>
                       <div style={{ fontSize: "1.3em", fontWeight: 700 }}>

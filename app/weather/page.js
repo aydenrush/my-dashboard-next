@@ -61,8 +61,8 @@ export default function WeatherPage() {
     return (
       <div>
         <h1 className="page-title">Weather</h1>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "end" }}>
-          <div>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "end", flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 180px", minWidth: 0 }}>
             <label className="metric-label">City</label>
             <input
               type="text"
@@ -70,6 +70,7 @@ export default function WeatherPage() {
               onChange={(e) => setCityInput(e.target.value)}
               placeholder="e.g. West Lafayette"
               onKeyDown={(e) => e.key === "Enter" && handleSetLocation()}
+              style={{ width: "100%" }}
             />
           </div>
           <button className="btn btn-primary" onClick={handleSetLocation}>Set Location</button>
@@ -143,14 +144,15 @@ export default function WeatherPage() {
       <h1 className="page-title">Weather</h1>
 
       {/* location bar */}
-      <div style={{ display: "flex", gap: "0.5rem", alignItems: "end", marginBottom: "1.5rem" }}>
-        <div>
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "end", marginBottom: "1.5rem", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 180px", minWidth: 0 }}>
           <label className="metric-label">City</label>
           <input
             type="text"
             value={cityInput}
             onChange={(e) => setCityInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSetLocation()}
+            style={{ width: "100%" }}
           />
         </div>
         <button className="btn" onClick={handleSetLocation}>Set Location</button>

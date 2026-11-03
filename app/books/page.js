@@ -177,13 +177,13 @@ export default function BooksPage() {
                       <button className="btn" onClick={() => deleteNote(n.id)} style={{ padding: "2px 6px", fontSize: "0.75rem" }}>Del</button>
                     </div>
                   ))}
-                  <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
                     <input
                       type="text"
                       value={noteInputs[book.id] || ""}
                       onChange={(e) => setNoteInputs((p) => ({ ...p, [book.id]: e.target.value }))}
                       placeholder="Add a note..."
-                      style={{ flex: 1 }}
+                      style={{ flex: "1 1 150px", minWidth: 0 }}
                       onKeyDown={(e) => e.key === "Enter" && addNote(book.id, noteInputs[book.id] || "", cur)}
                     />
                     <button className="btn" onClick={() => addNote(book.id, noteInputs[book.id] || "", cur)}>Add</button>

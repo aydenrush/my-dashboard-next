@@ -416,7 +416,7 @@ export default function MaddenFranchisePage() {
   // --- Render helpers ---
   function DivisionInputs({ recs, setRec, keyPrefix }) {
     return (
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
         {Object.entries(NFL_DIVISIONS).map(([divName, teams]) => (
           <div key={divName}>
             <p style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "4px" }}>{divName}</p>
@@ -473,7 +473,7 @@ export default function MaddenFranchisePage() {
 
   function AwardForm({ form, setField, yearDefault }) {
     return (
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.5rem" }}>
         <div><label style={{ fontSize: "0.8rem" }}>Year</label><input type="number" value={form.year ?? yearDefault} onChange={(e) => setField("year", e.target.value)} style={{ width: "100%" }} /></div>
         <div><label style={{ fontSize: "0.8rem" }}>Franchise</label><select value={form.franchise || selectedFranchise} onChange={(e) => setField("franchise", e.target.value)} style={{ width: "100%" }}>
           {franchises.map((f) => <option key={f} value={f}>{f}</option>)}

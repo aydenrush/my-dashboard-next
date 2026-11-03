@@ -579,14 +579,14 @@ export default function LyricLabPage() {
         {/* Rhyme Finder */}
         <div style={{ flex: "3 1 300px" }}>
           <h3>Rhyme Finder</h3>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
             <input
               type="text"
               placeholder="Type a word..."
               value={rhymeInput}
               onChange={(e) => { setRhymeInput(e.target.value); setCmuData(null); }}
               onKeyDown={(e) => e.key === "Enter" && lookupCmu(rhymeInput.trim())}
-              style={{ flex: 1, padding: 8, boxSizing: "border-box" }}
+              style={{ flex: "1 1 150px", minWidth: 0, padding: 8, boxSizing: "border-box" }}
             />
             <button className="btn btn-primary" onClick={() => lookupCmu(rhymeInput.trim())} disabled={cmuLoading || !rhymeInput.trim()}>
               {cmuLoading ? "..." : "CMU Lookup"}

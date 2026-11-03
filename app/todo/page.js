@@ -47,13 +47,13 @@ export default function TodoPage() {
     <div>
       <h1 className="page-title">To Do</h1>
 
-      <form onSubmit={addTodo} style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}>
+      <form onSubmit={addTodo} style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
         <input
           type="text"
           value={task}
           onChange={(e) => setTask(e.target.value)}
           placeholder="What needs doing?"
-          style={{ flex: 1 }}
+          style={{ flex: "1 1 180px", minWidth: 0 }}
         />
         <select value={priority} onChange={(e) => setPriority(e.target.value)}>
           <option value="high">High</option>
@@ -71,12 +71,12 @@ export default function TodoPage() {
         items.map((todo) => (
           <div key={todo.id} style={{ marginBottom: "0.5rem" }}>
             {editingId === todo.id ? (
-              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
                 <input
                   type="text"
                   value={editTask}
                   onChange={(e) => setEditTask(e.target.value)}
-                  style={{ flex: 1 }}
+                  style={{ flex: "1 1 150px", minWidth: 0 }}
                 />
                 <select value={editPriority} onChange={(e) => setEditPriority(e.target.value)}>
                   <option value="high">High</option>

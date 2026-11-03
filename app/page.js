@@ -4,10 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { ACTIVITY_TYPES, PRIORITY_COLORS } from "@/lib/constants";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const TIME_SLOTS = ["Morning", "Midday", "Afternoon", "Evening"];
-const TIME_DISPLAY = { Morning: "8 AM", Midday: "11 AM", Afternoon: "2 PM", Evening: "5:30 PM" };
-const TIME_HOURS = { "7:30 AM": [7, 30], "8:00 AM": [8, 0], "8:30 AM": [8, 30], "11:00 AM": [11, 0], "2:00 PM": [14, 0], "4:30 PM": [16, 30], "5:30 PM": [17, 30], "7:00 PM": [19, 0], "11:00 PM": [23, 0], "11:59 PM": [23, 59] };
-const DURATION_MAP = { lifting: 45, cycling: 60, frisbee_golf: 120, rap_writing: 90, running: 45, other: 60 };
+const DURATION_MAP = { lifting: 45, cycling: 60, frisbee_golf: 120, running: 45, other: 60 };
 
 const SCHOOL_SCHEDULE = [
   { name: "CS 25000 Lab", days: [3], time: "9:30 - 11:20 AM", start: "2026-08-27", end: "2026-12-10", room: "SL 251" },
@@ -31,6 +28,30 @@ function addDays(d, n) { const r = localDate(d); r.setDate(r.getDate() + n); ret
 function getMonday(d) { const r = localDate(d); const day = r.getDay(); r.setDate(r.getDate() - ((day + 6) % 7)); return r; }
 function jsWeekday(d) { return (localDate(d).getDay() + 6) % 7; }
 function fmtDay(d) { return new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric" }); }
+function parseTimeSlot(slot) {
+  if (!slot) return [8, 0];
+  const presets = { Morning: [8, 0], Midday: [11, 0], Afternoon: [14, 0], Evening: [17, 30] };
+  if (presets[slot]) return presets[slot];
+  const m = slot.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (m) { let h = parseInt(m[1]), min = parseInt(m[2]); if (m[3]?.toUpperCase() === "PM" && h < 12) h += 12; if (m[3]?.toUpperCase() === "AM" && h === 12) h = 0; return [h, min]; }
+  return [8, 0];
+}
+function formatTime(slot) {
+  if (!slot) return "";
+  const [h, m] = parseTimeSlot(slot);
+  const ap = h >= 12 ? "PM" : "AM", h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return m === 0 ? `${h12} ${ap}` : `${h12}:${String(m).padStart(2, "0")} ${ap}`;
+}
+function timeValToSlot(val) {
+  if (!val) return null;
+  const [h, m] = val.split(":").map(Number);
+  const ap = h >= 12 ? "PM" : "AM", h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${String(m).padStart(2, "0")} ${ap}`;
+}
+function slotToTimeVal(slot) {
+  const [h, m] = parseTimeSlot(slot);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
 
 export default function HomePage() {
   const [weekOffset, setWeekOffset] = useState(0);
@@ -42,12 +63,6 @@ export default function HomePage() {
   const [calEvents, setCalEvents] = useState([]);
   const [icalUrl, setIcalUrl] = useState("");
 
-  // quick add
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [quickType, setQuickType] = useState("running");
-  const [quickSlot, setQuickSlot] = useState("Morning");
-  const [quickNotes, setQuickNotes] = useState("");
-
   // tool panels
   const [openTool, setOpenTool] = useState(null);
 
@@ -58,10 +73,14 @@ export default function HomePage() {
   const [addTitle, setAddTitle] = useState("");
   const [addDuration, setAddDuration] = useState("");
   const [addNotes, setAddNotes] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [editGroup, setEditGroup] = useState(null);
+  const [addRecur, setAddRecur] = useState(0);
 
-  // plan the week
-  const [planTypes, setPlanTypes] = useState(Array(7).fill("---"));
-  const [planTitles, setPlanTitles] = useState(Array(7).fill(""));
+  // recurring templates
+  const [recurTemplates, setRecurTemplates] = useState([]);
+  const [newTpl, setNewTpl] = useState({ activity_type: "lifting", title: "", time: "19:00", duration: "", notes: "", days: [], weeks: 8 });
+
 
   const today = useMemo(() => isoDate(new Date()), []);
   const thisYear = new Date().getFullYear();
@@ -88,6 +107,10 @@ export default function HomePage() {
   useEffect(() => { setAddDate(focusDate); }, [focusDate]);
 
   useEffect(() => {
+    try { const t = localStorage.getItem("recur_templates"); if (t) setRecurTemplates(JSON.parse(t)); } catch {}
+  }, []);
+
+  useEffect(() => {
     const saved = localStorage.getItem("ical_url");
     if (saved) {
       setIcalUrl(saved);
@@ -106,8 +129,8 @@ export default function HomePage() {
     c.days.includes(focusDay) && focusDate >= c.start && focusDate <= c.end
   );
   const focusActs = activities.filter((a) => a.date === focusDate).sort((a, b) => {
-    const [ah, am] = TIME_HOURS[a.time_slot] || [8, 0];
-    const [bh, bm] = TIME_HOURS[b.time_slot] || [8, 0];
+    const [ah, am] = parseTimeSlot(a.time_slot);
+    const [bh, bm] = parseTimeSlot(b.time_slot);
     return (ah * 60 + am) - (bh * 60 + bm);
   });
   const focusRuns = runSchedule.filter((r) => r.date === focusDate);
@@ -118,7 +141,7 @@ export default function HomePage() {
     ...focusClasses.map((c) => ({ type: "class", sortMin: parseTimeStr(c.time), data: c })),
     ...focusCal.map((e) => ({ type: "cal", sortMin: e.start?.length > 10 ? new Date(e.start).getHours() * 60 + new Date(e.start).getMinutes() : 0, data: e })),
     ...focusRuns.map((r) => ({ type: "run", sortMin: (r.workout || "").startsWith("Rest") ? 480 : 21 * 60, data: r })),
-    ...focusActs.map((a) => { const [h, m] = TIME_HOURS[a.time_slot] || [8, 0]; return { type: "act", sortMin: h * 60 + m, data: a }; }),
+    ...focusActs.map((a) => { const [h, m] = parseTimeSlot(a.time_slot); return { type: "act", sortMin: h * 60 + m, data: a }; }),
   ].sort((a, b) => a.sortMin - b.sortMin);
 
   const completedDates = new Set();
@@ -151,15 +174,6 @@ export default function HomePage() {
   });
   const yrTypeMax = Math.max(...Object.values(yrTypeCounts), 1);
 
-  async function quickAdd(e) {
-    e.preventDefault();
-    await supabase.from("activities").insert({
-      date: focusDate, activity_type: quickType, time_slot: quickSlot,
-      notes: quickNotes.trim() || null, completed: false,
-    });
-    setQuickNotes(""); setShowQuickAdd(false); loadAll();
-  }
-
   async function toggleActivity(id, current) {
     await supabase.from("activities").update({ completed: !current }).eq("id", id);
     loadAll();
@@ -177,16 +191,25 @@ export default function HomePage() {
 
   async function addActivity(e) {
     e.preventDefault();
-    await supabase.from("activities").insert({
-      date: addDate,
+    const row = {
       activity_type: addType,
       title: addTitle.trim() || null,
-      time_slot: addSlot || null,
+      time_slot: timeValToSlot(addSlot) || null,
       duration_min: addDuration ? parseInt(addDuration) : null,
       notes: addNotes.trim() || null,
-      completed: false,
-    });
-    setAddTitle(""); setAddDuration(""); setAddNotes(""); loadAll();
+    };
+    if (editId) {
+      await supabase.from("activities").update({ ...row, date: addDate }).eq("id", editId);
+      setEditId(null); setEditGroup(null);
+    } else {
+      const rows = [];
+      const groupId = addRecur > 0 ? `recur_${Date.now()}` : null;
+      for (let w = 0; w <= addRecur; w++) {
+        rows.push({ ...row, date: isoDate(addDays(addDate, w * 7)), completed: false, gcal_event_id: groupId });
+      }
+      await supabase.from("activities").insert(rows);
+    }
+    setAddTitle(""); setAddDuration(""); setAddNotes(""); setAddRecur(0); loadAll();
   }
 
   async function deleteActivity(id) {
@@ -194,22 +217,92 @@ export default function HomePage() {
     loadAll();
   }
 
-  async function planWeekSubmit() {
-    let added = 0;
-    for (let i = 0; i < 7; i++) {
-      if (planTypes[i] !== "---") {
-        await supabase.from("activities").insert({
-          date: weekDates[i], activity_type: planTypes[i],
-          title: planTitles[i].trim() || null, completed: false,
+  async function deleteSeriesActivity(groupId) {
+    await supabase.from("activities").delete().eq("gcal_event_id", groupId);
+    loadAll();
+  }
+
+  async function editSeriesActivity(act) {
+    setEditId(act.id);
+    setEditGroup(act.gcal_event_id);
+    setAddType(act.activity_type);
+    setAddDate(act.date);
+    setAddSlot(slotToTimeVal(act.time_slot));
+    setAddTitle(act.title || "");
+    setAddDuration(act.duration_min ? String(act.duration_min) : "");
+    setAddNotes(act.notes || "");
+    setOpenTool("add");
+  }
+
+  async function updateSeries() {
+    if (!editGroup) return;
+    const row = {
+      activity_type: addType,
+      title: addTitle.trim() || null,
+      time_slot: timeValToSlot(addSlot) || null,
+      duration_min: addDuration ? parseInt(addDuration) : null,
+      notes: addNotes.trim() || null,
+    };
+    await supabase.from("activities").update(row).eq("gcal_event_id", editGroup);
+    setEditId(null); setEditGroup(null);
+    setAddTitle(""); setAddDuration(""); setAddNotes(""); loadAll();
+  }
+
+  async function updateFutureSeries() {
+    if (!editGroup) return;
+    const row = {
+      activity_type: addType,
+      title: addTitle.trim() || null,
+      time_slot: timeValToSlot(addSlot) || null,
+      duration_min: addDuration ? parseInt(addDuration) : null,
+      notes: addNotes.trim() || null,
+    };
+    await supabase.from("activities").update(row).eq("gcal_event_id", editGroup).gte("date", addDate);
+    setEditId(null); setEditGroup(null);
+    setAddTitle(""); setAddDuration(""); setAddNotes(""); loadAll();
+  }
+
+  function saveTemplates(tpls) {
+    setRecurTemplates(tpls);
+    try { localStorage.setItem("recur_templates", JSON.stringify(tpls)); } catch {}
+  }
+
+  async function createTemplate(e) {
+    e.preventDefault();
+    if (newTpl.days.length === 0) return;
+    const groupId = `recur_${Date.now()}`;
+    const tpl = { ...newTpl, id: `tpl_${Date.now()}`, groupId, duration: newTpl.duration ? parseInt(newTpl.duration) : null };
+    saveTemplates([...recurTemplates, tpl]);
+    await generateInstances(tpl, tpl.weeks);
+    setNewTpl({ activity_type: "lifting", title: "", time: "19:00", duration: "", notes: "", days: [], weeks: 8 });
+  }
+
+  async function generateInstances(tpl, weeks) {
+    const rows = [];
+    const startMon = getMonday(new Date());
+    for (let w = 0; w < weeks; w++) {
+      for (const day of tpl.days) {
+        const d = isoDate(addDays(startMon, w * 7 + day));
+        if (d < today) continue;
+        if (activities.some(a => a.gcal_event_id === tpl.groupId && a.date === d)) continue;
+        rows.push({
+          date: d, activity_type: tpl.activity_type, title: tpl.title || null,
+          time_slot: timeValToSlot(tpl.time), duration_min: tpl.duration || null,
+          notes: tpl.notes || null, completed: false, gcal_event_id: tpl.groupId,
         });
-        added++;
       }
     }
-    if (added) {
-      setPlanTypes(Array(7).fill("---"));
-      setPlanTitles(Array(7).fill(""));
+    if (rows.length > 0) {
+      await supabase.from("activities").insert(rows);
       loadAll();
     }
+    return rows.length;
+  }
+
+  async function deleteTemplateAndInstances(tpl) {
+    saveTemplates(recurTemplates.filter(t => t.id !== tpl.id));
+    await supabase.from("activities").delete().eq("gcal_event_id", tpl.groupId).gte("date", today);
+    loadAll();
   }
 
   function buildIcs() {
@@ -223,7 +316,7 @@ export default function HomePage() {
     activities.forEach((act) => {
       const at = ACTIVITY_TYPES[act.activity_type] || ACTIVITY_TYPES.other;
       const summary = act.title ? `${at.label}: ${act.title}` : at.label;
-      const [h, m] = TIME_HOURS[act.time_slot] || [8, 0];
+      const [h, m] = parseTimeSlot(act.time_slot);
       const dur = act.duration_min || DURATION_MAP[act.activity_type] || 60;
       const d = act.date.replace(/-/g, "");
       const dtstart = `${d}T${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}00`;
@@ -339,7 +432,7 @@ export default function HomePage() {
         const a = item.data;
         const at = ACTIVITY_TYPES[a.activity_type] || { label: a.activity_type, color: "#607D8B" };
         const title = a.title || at.label;
-        const timeStr = TIME_DISPLAY[a.time_slot] || a.time_slot || "";
+        const timeStr = formatTime(a.time_slot);
         return (
           <div key={`a${a.id}`} style={{
             borderLeft: `3px solid ${at.color}`, padding: "4px 8px", margin: "4px 0",
@@ -392,26 +485,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Quick Add */}
-      <div style={{ marginTop: "0.5rem" }}>
-        <button className="btn" onClick={() => setShowQuickAdd(!showQuickAdd)} style={{ fontSize: "0.8rem" }}>
-          {showQuickAdd ? "Cancel" : "+ Add Activity"}
-        </button>
-      </div>
-
-      {showQuickAdd && (
-        <form onSubmit={quickAdd} style={{ display: "flex", gap: "0.5rem", margin: "0.5rem 0", flexWrap: "wrap" }}>
-          <select value={quickType} onChange={(e) => setQuickType(e.target.value)}>
-            {Object.entries(ACTIVITY_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-          <select value={quickSlot} onChange={(e) => setQuickSlot(e.target.value)}>
-            {TIME_SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <input type="text" value={quickNotes} onChange={(e) => setQuickNotes(e.target.value)} placeholder="Title / Notes" style={{ flex: 1 }} />
-          <button type="submit" className="btn btn-primary">Add</button>
-        </form>
-      )}
-
       {/* ============= WEEK VIEW ============= */}
       <hr className="divider" />
 
@@ -453,24 +526,31 @@ export default function HomePage() {
 
       {/* Add Activity */}
       <details open={openTool === "add"} onToggle={(e) => { if (e.target.open) setOpenTool("add"); else if (openTool === "add") setOpenTool(null); }}>
-        <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Add Activity</summary>
+        <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>{editId ? "Edit Activity" : "Add Activity"}</summary>
         <form onSubmit={addActivity} style={{ marginBottom: "1rem" }}>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
-            <select value={addType} onChange={(e) => setAddType(e.target.value)} style={{ flex: 1 }}>
+            <select value={addType} onChange={(e) => setAddType(e.target.value)} style={{ flex: "1 1 120px", minWidth: 0 }}>
               {Object.entries(ACTIVITY_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </select>
-            <input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} style={{ flex: 1 }} />
-            <select value={addSlot} onChange={(e) => setAddSlot(e.target.value)} style={{ flex: 1 }}>
-              <option value="">Time of Day</option>
-              {TIME_SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} style={{ flex: "1 1 120px", minWidth: 0 }} />
+            <input type="time" value={addSlot} onChange={(e) => setAddSlot(e.target.value)} style={{ flex: "1 1 100px", minWidth: 0 }} />
           </div>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
             <input type="text" value={addTitle} onChange={(e) => setAddTitle(e.target.value)} placeholder="Title (optional)" style={{ flex: 2 }} />
             <input type="number" value={addDuration} onChange={(e) => setAddDuration(e.target.value)} placeholder="Duration (min)" min="0" max="300" style={{ flex: 1 }} />
           </div>
           <input type="text" value={addNotes} onChange={(e) => setAddNotes(e.target.value)} placeholder="Notes (optional)" style={{ width: "100%", marginBottom: "0.5rem" }} />
-          <button type="submit" className="btn btn-primary">Add</button>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            <button type="submit" className="btn btn-primary">{editId ? "Save This" : "Add"}</button>
+            {editGroup && <button type="button" className="btn btn-primary" onClick={updateSeries}>Save All</button>}
+            {editGroup && <button type="button" className="btn" onClick={updateFutureSeries}>Save Future</button>}
+            {editId && <button type="button" className="btn" onClick={() => { setEditId(null); setEditGroup(null); setAddTitle(""); setAddDuration(""); setAddNotes(""); setAddSlot(""); }}>Cancel</button>}
+            {!editId && (
+              <label style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px" }}>
+                Repeat weekly <input type="number" value={addRecur} onChange={(e) => setAddRecur(Math.max(0, parseInt(e.target.value) || 0))} min="0" max="52" style={{ width: "50px" }} /> wks
+              </label>
+            )}
+          </div>
         </form>
       </details>
 
@@ -485,15 +565,23 @@ export default function HomePage() {
               weekActs.map((act) => {
                 const at = ACTIVITY_TYPES[act.activity_type] || ACTIVITY_TYPES.other;
                 const title = act.title || at.label;
+                const isSeries = act.gcal_event_id?.startsWith("recur_");
                 return (
-                  <div key={act.id} style={{ display: "flex", alignItems: "center", gap: "8px", margin: "4px 0", fontSize: "0.85rem" }}>
-                    <span style={{ flex: 1, color: "var(--muted)" }}>{fmtDay(act.date)} — {at.label}: {title}</span>
-                    {!act.completed ? (
-                      <button className="btn" onClick={() => toggleActivity(act.id, false)} style={{ padding: "2px 8px", fontSize: "0.75rem" }}>Done</button>
-                    ) : (
-                      <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Done</span>
-                    )}
-                    <button className="btn" onClick={() => deleteActivity(act.id)} style={{ padding: "2px 8px", fontSize: "0.75rem", color: "#F44336" }}>Del</button>
+                  <div key={act.id} style={{ display: "flex", alignItems: "center", gap: "6px", margin: "4px 0", fontSize: "0.85rem", flexWrap: "wrap" }}>
+                    <span style={{ flex: "1 1 100%", color: "var(--muted)", minWidth: 0 }}>
+                      {fmtDay(act.date)} — {at.label}: {title}{act.time_slot ? ` · ${formatTime(act.time_slot)}` : ""}
+                      {isSeries && <span title="Recurring series"> ↻</span>}
+                    </span>
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                      <button className="btn" onClick={() => editSeriesActivity(act)} style={{ padding: "2px 8px", fontSize: "0.75rem" }}>Edit</button>
+                      {!act.completed ? (
+                        <button className="btn" onClick={() => toggleActivity(act.id, false)} style={{ padding: "2px 8px", fontSize: "0.75rem" }}>Done</button>
+                      ) : (
+                        <span style={{ fontSize: "0.75rem", color: "var(--muted)", padding: "2px 8px" }}>Done</span>
+                      )}
+                      <button className="btn" onClick={() => deleteActivity(act.id)} style={{ padding: "2px 8px", fontSize: "0.75rem", color: "#F44336" }}>Del</button>
+                      {isSeries && <button className="btn" onClick={() => deleteSeriesActivity(act.gcal_event_id)} style={{ padding: "2px 8px", fontSize: "0.75rem", color: "#F44336" }}>Del All</button>}
+                    </div>
                   </div>
                 );
               })
@@ -502,29 +590,62 @@ export default function HomePage() {
         </details>
       )}
 
-      {/* Plan the Week */}
-      <details onToggle={(e) => { if (e.target.open) setOpenTool("plan"); else if (openTool === "plan") setOpenTool(null); }}>
-        <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Plan the Week</summary>
-        <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "0.5rem" }}>Quickly add multiple activities for the week.</p>
-        <div style={{ marginBottom: "0.5rem" }}>
-          {weekDates.map((d, i) => (
-            <div key={d} style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "4px" }}>
-              <span style={{ minWidth: "90px", fontWeight: 600, fontSize: "0.85rem" }}>
-                {DAY_NAMES[i]} {new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}
-              </span>
-              <select value={planTypes[i]} onChange={(e) => {
-                const next = [...planTypes]; next[i] = e.target.value; setPlanTypes(next);
-              }} style={{ flex: 1 }}>
-                <option value="---">---</option>
+      {/* Recurring Schedules */}
+      <details onToggle={(e) => { if (e.target.open) setOpenTool("recur"); else if (openTool === "recur") setOpenTool(null); }}>
+        <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Recurring Schedules</summary>
+        <div style={{ marginBottom: "1rem" }}>
+          {recurTemplates.length > 0 && recurTemplates.map((tpl) => {
+            const at = ACTIVITY_TYPES[tpl.activity_type] || ACTIVITY_TYPES.other;
+            const dayNames = (tpl.days || []).map(d => DAY_NAMES[d]).join(", ");
+            const instances = activities.filter(a => a.gcal_event_id === tpl.groupId);
+            const futureCount = instances.filter(a => a.date >= today).length;
+            const lastDate = instances.length ? instances.sort((a, b) => a.date > b.date ? 1 : -1)[instances.length - 1].date : null;
+            return (
+              <div key={tpl.id} style={{ borderLeft: `3px solid ${at.color}`, padding: "6px 8px", margin: "6px 0", borderRadius: "3px", fontSize: "0.85rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span><strong>{at.label}{tpl.title ? `: ${tpl.title}` : ""}</strong> — {dayNames} @ {formatTime(tpl.time)}</span>
+                </div>
+                <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "2px" }}>
+                  {futureCount} upcoming{lastDate ? ` · through ${new Date(lastDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+                </div>
+                <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
+                  <button className="btn" onClick={() => generateInstances(tpl, 4)} style={{ padding: "2px 8px", fontSize: "0.75rem" }}>+4 wks</button>
+                  <button className="btn" onClick={() => generateInstances(tpl, 8)} style={{ padding: "2px 8px", fontSize: "0.75rem" }}>+8 wks</button>
+                  <button className="btn" onClick={() => deleteTemplateAndInstances(tpl)} style={{ padding: "2px 8px", fontSize: "0.75rem", color: "#F44336" }}>Delete</button>
+                </div>
+              </div>
+            );
+          })}
+          {recurTemplates.length === 0 && <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "0.5rem" }}>No recurring schedules yet.</p>}
+          <form onSubmit={createTemplate} style={{ marginTop: "0.5rem", padding: "8px", background: "var(--bg-secondary)", borderRadius: "6px" }}>
+            <p style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem" }}>New Recurring Schedule</p>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+              <select value={newTpl.activity_type} onChange={(e) => setNewTpl(p => ({ ...p, activity_type: e.target.value }))} style={{ flex: 1 }}>
                 {Object.entries(ACTIVITY_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
-              <input type="text" value={planTitles[i]} onChange={(e) => {
-                const next = [...planTitles]; next[i] = e.target.value; setPlanTitles(next);
-              }} placeholder="Title" style={{ flex: 1 }} />
+              <input type="time" value={newTpl.time} onChange={(e) => setNewTpl(p => ({ ...p, time: e.target.value }))} style={{ flex: 1 }} />
+              <input type="number" value={newTpl.duration} onChange={(e) => setNewTpl(p => ({ ...p, duration: e.target.value }))} placeholder="Min" min="0" max="300" style={{ width: "60px" }} />
             </div>
-          ))}
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+              <input type="text" value={newTpl.title} onChange={(e) => setNewTpl(p => ({ ...p, title: e.target.value }))} placeholder="Title (optional)" style={{ flex: 1 }} />
+              <input type="text" value={newTpl.notes} onChange={(e) => setNewTpl(p => ({ ...p, notes: e.target.value }))} placeholder="Notes (optional)" style={{ flex: 1 }} />
+            </div>
+            <div style={{ display: "flex", gap: "4px", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+              {DAY_NAMES.map((name, i) => (
+                <button key={i} type="button" onClick={() => setNewTpl(p => ({ ...p, days: p.days.includes(i) ? p.days.filter(d => d !== i) : [...p.days, i].sort() }))}
+                  style={{ padding: "4px 8px", fontSize: "0.75rem", borderRadius: "4px", border: "1px solid var(--border)", background: newTpl.days.includes(i) ? "var(--accent)" : "transparent", color: newTpl.days.includes(i) ? "white" : "inherit", cursor: "pointer" }}>
+                  {name}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <button type="submit" className="btn btn-primary" disabled={newTpl.days.length === 0}>Create</button>
+              <label style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px" }}>
+                Generate <input type="number" value={newTpl.weeks} onChange={(e) => setNewTpl(p => ({ ...p, weeks: Math.max(1, parseInt(e.target.value) || 1) }))} min="1" max="52" style={{ width: "50px" }} /> wks
+              </label>
+            </div>
+          </form>
         </div>
-        <button className="btn btn-primary" onClick={planWeekSubmit}>Add All</button>
       </details>
 
       {/* Sync to phone */}
