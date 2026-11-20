@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "@/lib/supabase";
 
 const GRADE_THRESHOLDS = [
   { label: "A+", min: 97 }, { label: "A", min: 93 }, { label: "A-", min: 90 },
@@ -50,42 +51,73 @@ function calcClass(categories) {
 }
 
 export default function GradesPage() {
-  const [classes, setClasses] = useState(INITIAL_CLASSES);
+  const [classes, setClasses] = useState([]);
   const [addingClass, setAddingClass] = useState(false);
   const [newClassName, setNewClassName] = useState("");
-  const [loaded, setLoaded] = useState(false);
+  const [status, setStatus] = useState("Loading...");
+  const dirty = useRef(new Set());
+  const started = useRef(false);
 
+  // load from Supabase; first run seeds from old localStorage data (or the default classes)
   useEffect(() => {
-    try { const s = localStorage.getItem("grades_classes"); if (s) setClasses(JSON.parse(s)); } catch {}
-    setLoaded(true);
+    if (started.current) return;
+    started.current = true;
+    (async () => {
+      const { data, error } = await supabase.from("grade_classes").select("*").order("id");
+      if (error) return setStatus(`Couldn't load grades: ${error.message}`);
+      if (data.length) { setClasses(data); return setStatus(""); }
+      let seed = INITIAL_CLASSES;
+      try { const s = localStorage.getItem("grades_classes"); if (s) seed = JSON.parse(s); } catch {}
+      const { data: ins, error: insErr } = await supabase.from("grade_classes").insert(seed.map(({ name, categories }) => ({ name, categories }))).select().order("id");
+      if (insErr) return setStatus(`Couldn't save grades: ${insErr.message}`);
+      setClasses(ins);
+      localStorage.removeItem("grades_classes");
+      setStatus("");
+    })();
   }, []);
 
+  // save edited classes ~0.6s after typing stops
   useEffect(() => {
-    if (loaded) localStorage.setItem("grades_classes", JSON.stringify(classes));
-  }, [classes, loaded]);
+    if (!dirty.current.size) return;
+    const t = setTimeout(async () => {
+      const ids = [...dirty.current];
+      dirty.current.clear();
+      for (const c of classes.filter((c) => ids.includes(c.id))) {
+        const { error } = await supabase.from("grade_classes").update({ categories: c.categories }).eq("id", c.id);
+        if (error) setStatus(`Couldn't save ${c.name}: ${error.message}`);
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [classes]);
+
+  function patchClass(ci, fn) {
+    setClasses((prev) => prev.map((c, i) => { if (i !== ci) return c; dirty.current.add(c.id); return fn(c); }));
+  }
 
   function updateCat(ci, cati, field, val) {
-    setClasses((prev) => {
-      const next = prev.map((c, i) => i === ci ? { ...c, categories: c.categories.map((cat, j) => j === cati ? { ...cat, [field]: val } : cat) } : c);
-      return next;
-    });
+    patchClass(ci, (c) => ({ ...c, categories: c.categories.map((cat, j) => j === cati ? { ...cat, [field]: val } : cat) }));
   }
 
   function addCategory(ci) {
-    setClasses((prev) => prev.map((c, i) => i === ci ? { ...c, categories: [...c.categories, { name: "New Category", weight: 0, earned: "", possible: "" }] } : c));
+    patchClass(ci, (c) => ({ ...c, categories: [...c.categories, { name: "New Category", weight: 0, earned: "", possible: "" }] }));
   }
 
   function removeCategory(ci, cati) {
-    setClasses((prev) => prev.map((c, i) => i === ci ? { ...c, categories: c.categories.filter((_, j) => j !== cati) } : c));
+    patchClass(ci, (c) => ({ ...c, categories: c.categories.filter((_, j) => j !== cati) }));
   }
 
-  function removeClass(ci) {
+  async function removeClass(ci) {
+    const cls = classes[ci];
     setClasses((prev) => prev.filter((_, i) => i !== ci));
+    await supabase.from("grade_classes").delete().eq("id", cls.id);
   }
 
-  function addClass() {
+  async function addClass() {
     if (!newClassName.trim()) return;
-    setClasses((prev) => [...prev, { name: newClassName.trim(), categories: [{ name: "Category 1", weight: 50, earned: "", possible: "" }, { name: "Category 2", weight: 50, earned: "", possible: "" }] }]);
+    const row = { name: newClassName.trim(), categories: [{ name: "Category 1", weight: 50, earned: "", possible: "" }, { name: "Category 2", weight: 50, earned: "", possible: "" }] };
+    const { data, error } = await supabase.from("grade_classes").insert(row).select().single();
+    if (error) return setStatus(`Couldn't add class: ${error.message}`);
+    setClasses((prev) => [...prev, data]);
     setNewClassName("");
     setAddingClass(false);
   }
@@ -93,12 +125,13 @@ export default function GradesPage() {
   return (
     <div>
       <h1 className="page-title">Final Grade Calculator</h1>
+      {status && <p style={{ fontSize: "0.85rem", color: status === "Loading..." ? "var(--muted)" : "var(--error)", marginBottom: "0.75rem" }}>{status}</p>}
 
       {classes.map((cls, ci) => {
         const { currentPct, earnedWeighted, totalWeight, remainingWeight, neededFor } = calcClass(cls.categories);
         const weightSum = cls.categories.reduce((s, c) => s + (parseFloat(c.weight) || 0), 0);
         return (
-          <details key={ci} open className="card" style={{ marginBottom: "1rem" }}>
+          <details key={cls.id} open className="card" style={{ marginBottom: "1rem" }}>
             <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: "1.1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>{cls.name}</span>
               <span style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
