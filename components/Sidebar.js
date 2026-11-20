@@ -14,6 +14,7 @@ const pages = [
   { href: "/minecraft", label: "Minecraft" },
   { href: "/todo", label: "To Do" },
   { href: "/grades", label: "Grades" },
+  { href: "/brain-dump", label: "Brain Dump" },
   { href: "/weather", label: "Weather" },
 ];
 
