@@ -3,6 +3,7 @@
   --fg: #171717;
   --sidebar-bg: #f5f5f5;
   --sidebar-active: #e0e0e0;
+  --bg-secondary: #f5f5f5;
   --border: #ddd;
   --accent: #2563eb;
   --card-bg: #fff;
@@ -19,6 +20,7 @@
     --fg: #ededed;
     --sidebar-bg: #141414;
     --sidebar-active: #262626;
+    --bg-secondary: #1f1f1f;
     --border: #333;
     --accent: #3b82f6;
     --card-bg: #1a1a1a;

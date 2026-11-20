@@ -312,6 +312,7 @@ export default function HomePage() {
       "X-WR-TIMEZONE:America/Indiana/Indianapolis",
     ];
     const tz = "America/Indiana/Indianapolis";
+    const esc = (s) => String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 
     activities.forEach((act) => {
       const at = ACTIVITY_TYPES[act.activity_type] || ACTIVITY_TYPES.other;
@@ -325,8 +326,8 @@ export default function HomePage() {
       const dtend = `${d}T${String(eh).padStart(2, "0")}${String(em).padStart(2, "0")}00`;
       lines.push("BEGIN:VEVENT", `UID:act-${act.id}@mydashboard`,
         `DTSTART;TZID=${tz}:${dtstart}`, `DTEND;TZID=${tz}:${dtend}`,
-        `SUMMARY:${summary}`);
-      if (act.notes) lines.push(`DESCRIPTION:${act.notes}`);
+        `SUMMARY:${esc(summary)}`);
+      if (act.notes) lines.push(`DESCRIPTION:${esc(act.notes)}`);
       lines.push("END:VEVENT");
     });
 
@@ -339,7 +340,7 @@ export default function HomePage() {
       const desc = details.length ? details.join(" | ") : title;
       lines.push("BEGIN:VEVENT", `UID:run-${run.id}@mydashboard`,
         `DTSTART;TZID=${tz}:${d}T210000`, `DTEND;TZID=${tz}:${d}T220000`,
-        `SUMMARY:Running: ${title}`, `DESCRIPTION:${desc}`, "END:VEVENT");
+        `SUMMARY:Running: ${esc(title)}`, `DESCRIPTION:${esc(desc)}`, "END:VEVENT");
     });
 
     lines.push("END:VCALENDAR");
@@ -659,7 +660,7 @@ export default function HomePage() {
             <button className="btn btn-primary" onClick={publishFeed}>Publish feed</button>
             <button className="btn" onClick={downloadIcs}>Download .ics</button>
           </div>
-          {syncMsg && <p style={{ fontSize: "0.85rem", color: syncMsg.startsWith("Error") ? "var(--danger)" : "var(--success)", marginBottom: "0.5rem" }}>{syncMsg}</p>}
+          {syncMsg && <p style={{ fontSize: "0.85rem", color: syncMsg.startsWith("Error") ? "var(--error)" : "var(--success)", marginBottom: "0.5rem" }}>{syncMsg}</p>}
           <code style={{ display: "block", fontSize: "0.75rem", wordBreak: "break-all", padding: "6px 8px", background: "var(--bg-secondary)", borderRadius: "4px", marginBottom: "4px" }}>
             {process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("https://", "webcal://")}/storage/v1/object/public/ical/training_plan.ics
           </code>
