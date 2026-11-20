@@ -13,6 +13,7 @@ const pages = [
   { href: "/wardrobe", label: "Wardrobe" },
   { href: "/minecraft", label: "Minecraft" },
   { href: "/todo", label: "To Do" },
+  { href: "/grades", label: "Grades" },
   { href: "/weather", label: "Weather" },
 ];
 
