@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const GRADE_THRESHOLDS = [
   { label: "A+", min: 97 }, { label: "A", min: 93 }, { label: "A-", min: 90 },
@@ -40,14 +40,11 @@ function calcClass(categories) {
     }
   }
   const currentPct = totalWeight > 0 ? (earnedWeighted / totalWeight) * 100 : null;
+  // average % needed on all remaining categories to finish at each letter's minimum
   const neededFor = {};
+  const allWeight = totalWeight + remainingWeight;
   for (const { label, min } of GRADE_THRESHOLDS) {
-    if (remainingWeight > 0 && totalWeight > 0) {
-      const needed = ((min - earnedWeighted) / remainingWeight) * 100;
-      neededFor[label] = Math.max(0, needed);
-    } else {
-      neededFor[label] = null;
-    }
+    neededFor[label] = remainingWeight > 0 ? ((min / 100) * allWeight - earnedWeighted) / remainingWeight * 100 : null;
   }
   return { currentPct, earnedWeighted, totalWeight, remainingWeight, neededFor };
 }
@@ -56,6 +53,16 @@ export default function GradesPage() {
   const [classes, setClasses] = useState(INITIAL_CLASSES);
   const [addingClass, setAddingClass] = useState(false);
   const [newClassName, setNewClassName] = useState("");
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    try { const s = localStorage.getItem("grades_classes"); if (s) setClasses(JSON.parse(s)); } catch {}
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (loaded) localStorage.setItem("grades_classes", JSON.stringify(classes));
+  }, [classes, loaded]);
 
   function updateCat(ci, cati, field, val) {
     setClasses((prev) => {
@@ -138,23 +145,27 @@ export default function GradesPage() {
 
               <button className="btn" onClick={() => addCategory(ci)} style={{ marginTop: "0.5rem", fontSize: "0.8rem" }}>+ Category</button>
 
-              {currentPct !== null && remainingWeight > 0 && (
+              {remainingWeight > 0 && (
                 <div style={{ marginTop: "0.75rem", padding: "0.5rem", background: "var(--sidebar-bg)", borderRadius: 6 }}>
-                  <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "0.25rem" }}>To get a ___ you need ___ on remaining ({remainingWeight}% of grade):</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                    {["A", "B", "C", "D"].map((target) => {
-                      const need = neededFor[target];
-                      if (need === null) return null;
+                  <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "0.25rem" }}>
+                    Average you need on the remaining coursework ({cls.categories.filter((c) => !(parseFloat(c.possible) > 0 && !isNaN(parseFloat(c.earned)))).map((c) => c.name).join(", ")} — {remainingWeight}% of grade):
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "0.4rem" }}>
+                    {GRADE_THRESHOLDS.filter((g) => g.label !== "F").map(({ label }) => {
+                      const need = neededFor[label];
                       const impossible = need > 100;
-                      const guaranteed = need <= 0;
+                      const locked = need <= 0;
                       return (
-                        <span key={target} style={{ fontSize: "0.85rem", padding: "2px 8px", borderRadius: 4, background: "var(--card-bg)", border: "1px solid var(--border)", color: impossible ? "var(--error)" : guaranteed ? "var(--success)" : "var(--fg)" }}>
-                          {target}: {guaranteed ? "Guaranteed" : impossible ? "Not possible" : `${need.toFixed(1)}%`}
+                        <span key={label} style={{ fontSize: "0.85rem", padding: "2px 8px", borderRadius: 4, background: "var(--card-bg)", border: "1px solid var(--border)", color: impossible ? "var(--error)" : locked ? "var(--success)" : "var(--fg)" }}>
+                          <strong>{label}</strong>: {locked ? "Locked in" : impossible ? "Out of reach" : `${need.toFixed(1)}%`}
                         </span>
                       );
                     })}
                   </div>
                 </div>
+              )}
+              {remainingWeight === 0 && currentPct !== null && (
+                <p style={{ marginTop: "0.75rem", fontSize: "0.85rem", color: "var(--muted)" }}>All coursework entered — final grade is {currentPct.toFixed(1)}% ({letterGrade(currentPct)}).</p>
               )}
             </div>
           </details>
