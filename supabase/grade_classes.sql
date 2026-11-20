@@ -9,5 +9,7 @@ create table if not exists grade_classes (
 -- The app talks to Supabase with the public (anon) key from the browser, like every other page.
 -- This keeps RLS on but lets the anon key read and write, which matches how the other tables
 -- must be set up for the app to work. Tighten it if you add auth later.
+-- Newer Supabase projects don't auto-grant SQL-created tables to the API roles ("permission denied").
+grant select, insert, update, delete on grade_classes to anon;
 alter table grade_classes enable row level security;
 create policy "anon full access" on grade_classes for all to anon using (true) with check (true);
