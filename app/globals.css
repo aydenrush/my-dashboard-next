@@ -284,3 +284,12 @@ details > summary { cursor: pointer; font-weight: 600; margin-bottom: 0.5rem; }
 .hub { display: grid; gap: 4px; font-size: 0.88rem; margin-bottom: 1rem; }
 .hub a:hover { text-decoration: underline; }
 .hub-label { display: inline-block; min-width: 58px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+
+/* app-wide error banner (components/DbStatus.js) */
+.db-status {
+  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 200;
+  display: flex; gap: 10px; align-items: center; max-width: calc(100% - 32px);
+  background: var(--card-bg); color: var(--error); border: 1px solid var(--error); border-radius: 8px;
+  padding: 8px 12px; font-size: 0.85rem; box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+.db-status button { background: none; border: none; color: var(--muted); cursor: pointer; }

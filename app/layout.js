@@ -1,5 +1,6 @@
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
+import DbStatus from "@/components/DbStatus";
 
 export const metadata = {
   title: "Dashboard",
@@ -13,6 +14,7 @@ export default function RootLayout({ children }) {
         <div className="app-layout">
           <Sidebar />
           <main className="main-content">{children}</main>
+          <DbStatus />
         </div>
       </body>
     </html>
