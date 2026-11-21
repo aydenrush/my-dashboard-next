@@ -3,6 +3,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { ACTIVITY_TYPES, PALETTE } from "@/lib/constants";
+import { bestRunMessage } from "@/lib/weather";
+import { bestReachable } from "@/lib/grades";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DURATION_MAP = { lifting: 45, cycling: 60, frisbee_golf: 120, running: 45, other: 60 };
@@ -63,6 +65,9 @@ export default function HomePage() {
   const [todos, setTodos] = useState([]);
   const [calEvents, setCalEvents] = useState([]);
   const [icalUrl, setIcalUrl] = useState("");
+  const [gradeClasses, setGradeClasses] = useState([]);
+  const [pinned, setPinned] = useState([]);
+  const [weather, setWeather] = useState(null);
 
   // tool panels
   const [openTool, setOpenTool] = useState(null);
@@ -92,16 +97,20 @@ export default function HomePage() {
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => isoDate(addDays(weekStart, i))), [weekStart]);
 
   const loadAll = useCallback(async () => {
-    const [{ data: act }, { data: run }, { data: bk }, { data: td }] = await Promise.all([
+    const [{ data: act }, { data: run }, { data: bk }, { data: td }, { data: gc }, { data: pn }] = await Promise.all([
       supabase.from("activities").select("*").order("date"),
       supabase.from("running_schedule").select("*").order("date"),
       supabase.from("books").select("*"),
       supabase.from("notes").select("*, note_tags(color)").eq("tag", "To Do").order("pinned", { ascending: false }).order("created_at"),
+      supabase.from("grade_classes").select("*").order("id"),
+      supabase.from("notes").select("id, content").eq("pinned", true).or('tag.is.null,tag.neq."To Do"').order("created_at", { ascending: false }).limit(3),
     ]);
     setActivities(act || []);
     setRunSchedule(run || []);
     setBooks(bk || []);
     setTodos(td || []);
+    setGradeClasses(gc || []);
+    setPinned(pn || []);
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
@@ -109,6 +118,13 @@ export default function HomePage() {
 
   useEffect(() => {
     try { const t = localStorage.getItem("recur_templates"); if (t) setRecurTemplates(JSON.parse(t)); } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      const loc = JSON.parse(localStorage.getItem("weather_location") || "null");
+      if (loc) fetch(`/api/weather?lat=${loc.lat}&lon=${loc.lon}&days=1`).then((r) => (r.ok ? r.json() : null)).then(setWeather).catch(() => {});
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -384,6 +400,25 @@ export default function HomePage() {
         <h1 className="page-title" style={{ margin: 0 }}>{dayLabel}, {dateDisplay}</h1>
         {!isToday && <button className="btn" onClick={() => { setFocusDate(today); setWeekOffset(0); }}>Today</button>}
       </div>
+
+      {/* Today at a glance: one line from each area */}
+      {isToday && (() => {
+        const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+        const nextClass = focusClasses.filter((c) => parseTimeStr(c.time) > nowMin).sort((a, b) => parseTimeStr(a.time) - parseTimeStr(b.time))[0];
+        const run = focusRuns[0];
+        const runText = (run?.workout || "").split("\n")[0];
+        const isRest = runText.startsWith("Rest");
+        const runTip = run && !isRest && !run.completed ? bestRunMessage(weather) : null;
+        const grades = gradeClasses.map((g) => ({ name: g.name, best: bestReachable(g.categories) })).filter((g) => g.best);
+        return (
+          <div className="card hub">
+            <div><span className="hub-label">Class</span>{nextClass ? <>{nextClass.name} at {nextClass.time.split(" - ")[0]} · {nextClass.room}</> : <span className="muted">{focusClasses.length ? "Done for today" : "No classes today"}</span>}</div>
+            <div><span className="hub-label">Run</span><Link href="/running">{run ? (isRest ? "Rest day" : `${runText}${run.completed ? " ✓" : ""}`) : <span className="muted">Nothing planned</span>}</Link>{runTip && <span className="muted"> · {runTip.replace("Best time to run: ", "best at ")}</span>}</div>
+            {pinned.length > 0 && <div><span className="hub-label">Pinned</span><Link href="/brain-dump">{pinned.map((n) => n.content.split("\n")[0]).join(" · ")}</Link></div>}
+            {grades.length > 0 && <div><span className="hub-label">Grades</span><Link href="/grades">{grades.map((g) => `${g.name}: ${g.best.need <= 0 ? `${g.best.label} locked` : `${g.best.label} needs ${Math.ceil(g.best.need)}%`}`).join(" · ")}</Link></div>}
+          </div>
+        );
+      })()}
 
       {/* Metrics */}
       <div className="metrics-row" style={{ marginBottom: "1rem" }}>

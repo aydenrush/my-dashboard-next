@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { bestRunHour, fmtHour } from "@/lib/weather";
+import { bestRunMessage } from "@/lib/weather";
 import { ACTIVITY_TYPES, PALETTE } from "@/lib/constants";
 
 // --- constants ---
@@ -904,23 +904,7 @@ export default function RunningPage() {
   }
 
   // best run hour from weather
-  let bestHourMsg = null;
-  if (weather?.hourly) {
-    const temps = weather.hourly.temperature_2m;
-    const apparent = weather.hourly.apparent_temperature || temps;
-    const humids = weather.hourly.relative_humidity_2m;
-    const precip = weather.hourly.precipitation_probability || Array(24).fill(0);
-    const dewpoint = weather.hourly.dewpoint_2m || null;
-    const now = new Date().getHours();
-    const br = bestRunHour(temps, humids, precip, now, { apparent, dewpoint });
-    if (br !== null) {
-      const t = temps[br], f = apparent[br], h = humids[br];
-      const p = br < precip.length ? precip[br] : 0;
-      const rain = p > 0 ? `, ${p}% rain` : "";
-      const feels = Math.abs(f - t) >= 2 ? ` (feels ${Math.round(f)}°F)` : "";
-      bestHourMsg = `Best time to run: ${fmtHour(br)} — ${Math.round(t)}°F${feels}, ${h}% humidity${rain}`;
-    }
-  }
+  const bestHourMsg = bestRunMessage(weather);
 
   // --- actions ---
 

@@ -279,3 +279,8 @@ details > summary { cursor: pointer; font-weight: 600; margin-bottom: 0.5rem; }
 .status { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.75rem; }
 .status.error { color: var(--error); }
 .empty { color: var(--muted); font-size: 0.9rem; padding: 1rem 0; }
+
+/* Home "today at a glance" card */
+.hub { display: grid; gap: 4px; font-size: 0.88rem; margin-bottom: 1rem; }
+.hub a:hover { text-decoration: underline; }
+.hub-label { display: inline-block; min-width: 58px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }

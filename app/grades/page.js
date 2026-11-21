@@ -1,25 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-
-const GRADE_THRESHOLDS = [
-  { label: "A+", min: 97 }, { label: "A", min: 93 }, { label: "A-", min: 90 },
-  { label: "B+", min: 87 }, { label: "B", min: 83 }, { label: "B-", min: 80 },
-  { label: "C+", min: 77 }, { label: "C", min: 73 }, { label: "C-", min: 70 },
-  { label: "D+", min: 67 }, { label: "D", min: 63 }, { label: "D-", min: 60 },
-  { label: "F", min: 0 },
-];
-
-function letterGrade(pct) {
-  return GRADE_THRESHOLDS.find((g) => pct >= g.min)?.label || "F";
-}
-
-function gradeColor(pct) {
-  if (pct >= 90) return "var(--success)";
-  if (pct >= 80) return "var(--accent)";
-  if (pct >= 70) return "var(--warning)";
-  return "var(--error)";
-}
+import { GRADE_THRESHOLDS, letterGrade, gradeColor, calcClass } from "@/lib/grades";
 
 const INITIAL_CLASSES = [
   { name: "CS 25000", categories: [{ name: "Labs", weight: 15, earned: "", possible: "" }, { name: "Homework", weight: 20, earned: "", possible: "" }, { name: "Midterm 1", weight: 15, earned: "", possible: "" }, { name: "Midterm 2", weight: 15, earned: "", possible: "" }, { name: "Final", weight: 35, earned: "", possible: "" }] },
@@ -29,26 +11,6 @@ const INITIAL_CLASSES = [
   { name: "POL 32700", categories: [{ name: "Discussion Posts", weight: 20, earned: "", possible: "" }, { name: "Papers", weight: 45, earned: "", possible: "" }, { name: "Final Essay", weight: 35, earned: "", possible: "" }] },
 ];
 
-function calcClass(categories) {
-  let earnedWeighted = 0, totalWeight = 0, remainingWeight = 0;
-  for (const cat of categories) {
-    const e = parseFloat(cat.earned), p = parseFloat(cat.possible);
-    if (!isNaN(e) && !isNaN(p) && p > 0) {
-      earnedWeighted += (e / p) * cat.weight;
-      totalWeight += cat.weight;
-    } else {
-      remainingWeight += cat.weight;
-    }
-  }
-  const currentPct = totalWeight > 0 ? (earnedWeighted / totalWeight) * 100 : null;
-  // average % needed on all remaining categories to finish at each letter's minimum
-  const neededFor = {};
-  const allWeight = totalWeight + remainingWeight;
-  for (const { label, min } of GRADE_THRESHOLDS) {
-    neededFor[label] = remainingWeight > 0 ? ((min / 100) * allWeight - earnedWeighted) / remainingWeight * 100 : null;
-  }
-  return { currentPct, earnedWeighted, totalWeight, remainingWeight, neededFor };
-}
 
 export default function GradesPage() {
   const [classes, setClasses] = useState([]);
