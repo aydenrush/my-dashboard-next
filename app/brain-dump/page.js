@@ -6,6 +6,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/style.css";
 import "./brain-dump.css";
+import { clusterByKeyword, layout } from "@/lib/clusterLayout";
 
 const COLORS = { slate: "#64748b", blue: "#3b82f6", emerald: "#10b981", amber: "#f59e0b", rose: "#f43f5e", violet: "#8b5cf6" };
 const STORE_KEY = "brain_dump";
@@ -109,7 +110,6 @@ function Canvas() {
   const [loaded, setLoaded] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [aiEnabled, setAiEnabled] = useState(false);
   const [clusterMsg, setClusterMsg] = useState("");
   const wrapRef = useRef(null);
   const mouse = useRef(null);
@@ -130,7 +130,6 @@ function Canvas() {
       }
     } catch {}
     setLoaded(true);
-    fetch("/api/cluster").then((r) => r.json()).then((d) => setAiEnabled(!!d.enabled)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -203,25 +202,12 @@ function Canvas() {
     download("brain-dump.md", md.join("\n"), "text/markdown");
   }
 
-  async function autoCluster() {
-    if (!nodes.length) return;
-    setClusterMsg("Clustering…");
-    try {
-      const resp = await fetch("/api/cluster", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: nodes.map((n) => ({ id: n.id, content: n.data.content, x: n.position.x, y: n.position.y })) }),
-      });
-      const out = await resp.json();
-      if (!resp.ok) throw new Error(out.error || resp.statusText);
-      const byId = Object.fromEntries(out.notes.map((n) => [n.id, n]));
-      setNodes((ns) => ns.map((n) => byId[n.id]
-        ? { ...n, position: { x: byId[n.id].x, y: byId[n.id].y }, data: { ...n.data, color: byId[n.id].color, updatedAt: Date.now() } }
-        : n));
-      setClusterMsg(out.clusters.map((c) => c.theme).join(" · "));
-      setTimeout(() => fitView({ duration: 400, padding: 0.15 }), 50);
-    } catch (e) {
-      setClusterMsg(`Cluster failed: ${e.message}`);
-    }
+  function autoCluster() {
+    const clusters = clusterByKeyword(nodes.map((n) => ({ id: n.id, content: n.data.content })));
+    const byId = Object.fromEntries(layout(clusters).map((p) => [p.id, p]));
+    setNodes((ns) => ns.map((n) => ({ ...n, position: { x: byId[n.id].x, y: byId[n.id].y }, data: { ...n.data, color: byId[n.id].color, updatedAt: Date.now() } })));
+    setClusterMsg(clusters.map((c) => c.theme).join(" · "));
+    setTimeout(() => fitView({ duration: 400, padding: 0.15 }), 50);
   }
 
   if (!loaded) return <div className="bd-wrap" ref={wrapRef} />;
@@ -279,8 +265,7 @@ function Canvas() {
         <button className="btn" onClick={() => setSearchOpen((o) => !o)} title="Ctrl/Cmd + K">Search</button>
         <button className="btn" onClick={exportMd}>.md</button>
         <button className="btn" onClick={exportJson}>.json</button>
-        <button className="btn" onClick={autoCluster} disabled={!aiEnabled || !nodes.length}
-          title={aiEnabled ? "Group related notes with Claude" : "Set ANTHROPIC_API_KEY to enable"}>Auto-Cluster</button>
+        <button className="btn" onClick={autoCluster} disabled={!nodes.length} title="Group notes that share words">Auto-Cluster</button>
         {selected.length > 1 && (
           <span className="bd-batch">
             {selected.length} selected
