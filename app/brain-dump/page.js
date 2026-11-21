@@ -1,20 +1,10 @@
 "use client";
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import {
-  ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Handle, Position,
-  NodeResizer, addEdge, useReactFlow, useViewport, MarkerType,
-} from "@xyflow/react";
-import "@xyflow/react/style.css";
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "@/lib/supabase";
 import "./brain-dump.css";
-import { clusterByKeyword, layout } from "@/lib/clusterLayout";
 
 const COLORS = { slate: "#64748b", blue: "#3b82f6", emerald: "#10b981", amber: "#f59e0b", rose: "#f43f5e", violet: "#8b5cf6" };
-const STORE_KEY = "brain_dump";
 const URL_RE = /(https?:\/\/[^\s]+)/g;
-
-function isTyping(el) {
-  return el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
-}
 
 // plain text + "# " headers, "- " bullets, "- [ ] " checklists, clickable URL badges
 function NoteView({ text, onToggle }) {
@@ -26,7 +16,6 @@ function NoteView({ text, onToggle }) {
       </a>
     ) : part
   );
-  if (!text.trim()) return <div className="nd-empty">Empty note</div>;
   return text.split("\n").map((line, i) => {
     const check = line.match(/^- \[( |x)\] (.*)/i);
     if (check) {
@@ -39,61 +28,55 @@ function NoteView({ text, onToggle }) {
     }
     if (line.startsWith("# ")) return <div key={i} className="nd-h">{linkify(line.slice(2))}</div>;
     if (line.startsWith("- ")) return <div key={i} className="nd-bullet">• {linkify(line.slice(2))}</div>;
-    return <div key={i} className="nd-line">{line ? linkify(line) : " "}</div>;
+    return <div key={i}>{line ? linkify(line) : " "}</div>;
   });
 }
 
-function NoteNode({ id, data, selected }) {
-  const { updateNodeData, deleteElements } = useReactFlow();
-  const [editing, setEditing] = useState(!!data.editing);
-  const ref = useRef(null);
-
-  const fit = () => { const t = ref.current; if (t) { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; } };
-  useEffect(() => { if (editing) { fit(); ref.current?.focus(); } }, [editing]);
-
-  const setContent = (content) => updateNodeData(id, { content, updatedAt: Date.now() });
-  const toggleLine = (i) => setContent(data.content.split("\n").map((l, j) =>
-    j === i ? l.replace(/^- \[( |x)\]/i, (m) => (m[3] === " " ? "- [x]" : "- [ ]")) : l).join("\n"));
-
-  return (
-    <div className={`nd-card${selected ? " selected" : ""}`} style={{ "--nd-accent": COLORS[data.color] || COLORS.slate }}>
-      <NodeResizer isVisible={selected} minWidth={160} minHeight={60} color={COLORS[data.color]} />
-      <Handle type="target" position={Position.Left} />
-      <div className="nd-handle">
-        <span className="nd-grip">⋮⋮</span>
-        <span className="nd-actions">
-          {Object.entries(COLORS).map(([name, hex]) => (
-            <button key={name} title={name} aria-label={`Color ${name}`} className={`nd-dot${data.color === name ? " on" : ""}`} style={{ background: hex }}
-              onClick={() => updateNodeData(id, { color: name, updatedAt: Date.now() })} />
-          ))}
-          <button className="nd-trash" title="Delete" aria-label="Delete note" onClick={() => deleteElements({ nodes: [{ id }] })}>✕</button>
-        </span>
-      </div>
-      {editing ? (
-        <textarea
-          ref={ref}
-          className="nd-text nodrag nowheel"
-          value={data.content}
-          placeholder="Type a thought… (# header, - bullet, - [ ] todo)"
-          onChange={(e) => { setContent(e.target.value); fit(); }}
-          onKeyDown={(e) => { if (e.key === "Escape") e.currentTarget.blur(); }}
-          onBlur={() => { setEditing(false); if (!data.content.trim()) deleteElements({ nodes: [{ id }] }); }}
-        />
-      ) : (
-        <div className="nd-body" onClick={() => setEditing(true)}>
-          <NoteView text={data.content} onToggle={toggleLine} />
-        </div>
-      )}
-      <Handle type="source" position={Position.Right} />
-    </div>
-  );
+function toggleLine(content, i) {
+  return content.split("\n").map((l, j) => (j === i ? l.replace(/^- \[( |x)\]/i, (m) => (m[3] === " " ? "- [x]" : "- [ ]")) : l)).join("\n");
 }
 
-const nodeTypes = { note: NoteNode };
+function grow(el) { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }
 
-function toNote(n) {
-  const { editing, ...d } = n.data;
-  return { id: n.id, content: d.content, x: n.position.x, y: n.position.y, width: n.width, color: d.color, createdAt: d.createdAt, updatedAt: d.updatedAt };
+function NoteCard({ note, tags, onSave, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note.content);
+  const ref = useRef(null);
+  const color = COLORS[tags.find((t) => t.name === note.tag)?.color] || COLORS.slate;
+
+  useEffect(() => { if (editing) { grow(ref.current); ref.current.focus(); } }, [editing]);
+  useEffect(() => { if (!editing) setDraft(note.content); }, [note.content, editing]);
+
+  function finish() {
+    setEditing(false);
+    if (!draft.trim()) onDelete(note);
+    else if (draft !== note.content) onSave(note, { content: draft });
+  }
+
+  return (
+    <div className="nd-card" style={{ "--nd-accent": color }}>
+      {editing ? (
+        <textarea ref={ref} className="nd-text" value={draft}
+          onChange={(e) => { setDraft(e.target.value); grow(e.target); }}
+          onKeyDown={(e) => { if (e.key === "Escape") e.currentTarget.blur(); }}
+          onBlur={finish} />
+      ) : (
+        <div className="nd-body" onClick={() => setEditing(true)}>
+          <NoteView text={note.content} onToggle={(i) => onSave(note, { content: toggleLine(note.content, i) })} />
+        </div>
+      )}
+      <div className="nd-foot">
+        <select value={note.tag || ""} onChange={(e) => onSave(note, { tag: e.target.value || null })} aria-label="Tag">
+          <option value="">No tag</option>
+          {tags.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+        </select>
+        <span className="nd-actions">
+          <button className={note.pinned ? "on" : ""} onClick={() => onSave(note, { pinned: !note.pinned })} title={note.pinned ? "Unpin" : "Pin"} aria-label={note.pinned ? "Unpin note" : "Pin note"}>📌</button>
+          <button onClick={() => onDelete(note)} title="Delete" aria-label="Delete note">✕</button>
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function download(name, text, type) {
@@ -103,187 +86,139 @@ function download(name, text, type) {
   URL.revokeObjectURL(url);
 }
 
-function Canvas() {
-  const [nodes, setNodes] = useState([]);
-  const [edges, setEdges] = useState([]);
-  const [viewport, setViewport] = useState(null);
-  const [loaded, setLoaded] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+const sortNotes = (ns) => [...ns].sort((a, b) => (b.pinned - a.pinned) || b.created_at.localeCompare(a.created_at));
+
+export default function BrainDumpPage() {
+  const [notes, setNotes] = useState([]);
+  const [tags, setTags] = useState([]);
+  const [status, setStatus] = useState("Loading...");
+  const [text, setText] = useState("");
+  const [filter, setFilter] = useState(null);
   const [query, setQuery] = useState("");
-  const [clusterMsg, setClusterMsg] = useState("");
-  const wrapRef = useRef(null);
-  const mouse = useRef(null);
-  const { screenToFlowPosition, fitView, setCenter } = useReactFlow();
-  const { zoom } = useViewport();
+  const [newTag, setNewTag] = useState(null);
+  const started = useRef(false);
 
-  // load once on the client (localStorage isn't available during server render)
   useEffect(() => {
-    try {
-      const s = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
-      if (s) {
-        setNodes((s.notes || []).map((n) => ({
-          id: n.id, type: "note", position: { x: n.x, y: n.y }, width: n.width, dragHandle: ".nd-handle",
-          data: { content: n.content, color: n.color, createdAt: n.createdAt, updatedAt: n.updatedAt },
-        })));
-        setEdges((s.edges || []).map((e) => ({ ...e, markerEnd: { type: MarkerType.ArrowClosed } })));
-        setViewport(s.viewport || null);
+    if (started.current) return;
+    started.current = true;
+    (async () => {
+      const [{ data: t, error: e1 }, { data: n, error: e2 }] = await Promise.all([
+        supabase.from("note_tags").select("*").order("name"),
+        supabase.from("notes").select("*"),
+      ]);
+      if (e1 || e2) return setStatus(`Couldn't load notes: ${(e1 || e2).message}`);
+      setTags(t);
+      let rows = n;
+      // one-time import of notes from the old canvas version (stored in this browser)
+      const old = JSON.parse(localStorage.getItem("brain_dump") || "null")?.notes?.filter((x) => x.content?.trim());
+      if (!rows.length && old?.length) {
+        const { data: ins, error } = await supabase.from("notes").insert(old.map((x) => ({ content: x.content }))).select();
+        if (error) return setStatus(`Couldn't import old notes: ${error.message}`);
+        rows = ins;
+        localStorage.removeItem("brain_dump");
       }
-    } catch {}
-    setLoaded(true);
+      setNotes(sortNotes(rows));
+      setStatus("");
+    })();
   }, []);
 
-  useEffect(() => {
-    if (!loaded) return;
-    const out = { notes: nodes.map(toNote), edges: edges.map(({ id, source, target, label }) => ({ id, source, target, label })), viewport };
-    localStorage.setItem(STORE_KEY, JSON.stringify(out));
-  }, [nodes, edges, viewport, loaded]);
-
-  const center = useCallback(() => {
-    const r = wrapRef.current.getBoundingClientRect();
-    return screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
-  }, [screenToFlowPosition]);
-
-  const addNote = useCallback((pos, content = "") => {
-    const now = Date.now();
-    setNodes((ns) => [...ns.map((n) => ({ ...n, selected: false })), {
-      id: crypto.randomUUID(), type: "note", position: pos, width: 240, dragHandle: ".nd-handle", selected: true,
-      data: { content, color: "slate", createdAt: now, updatedAt: now, editing: !content },
-    }]);
-  }, []);
-
-  // paste, N, Cmd/Ctrl+K
-  useEffect(() => {
-    const onPaste = (e) => {
-      if (isTyping(document.activeElement)) return;
-      const text = e.clipboardData?.getData("text")?.trim();
-      if (text) { e.preventDefault(); addNote(center(), text); }
-    };
-    const onKey = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearchOpen(true); return; }
-      if (e.key === "Escape" && searchOpen) { setSearchOpen(false); setQuery(""); return; }
-      if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key.toLowerCase() === "n") {
-        e.preventDefault();
-        addNote(mouse.current ? screenToFlowPosition(mouse.current) : center());
-      }
-    };
-    document.addEventListener("paste", onPaste);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("paste", onPaste); document.removeEventListener("keydown", onKey); };
-  }, [addNote, center, screenToFlowPosition, searchOpen]);
-
-  const q = query.trim().toLowerCase();
-  const matches = q ? nodes.filter((n) => n.data.content.toLowerCase().includes(q)) : [];
-  const shown = useMemo(() => q
-    ? nodes.map((n) => ({ ...n, className: n.data.content.toLowerCase().includes(q) ? "nd-hit" : "nd-dim" }))
-    : nodes, [nodes, q]);
-
-  function goTo(n) {
-    const w = n.measured?.width || n.width || 240, h = n.measured?.height || 100;
-    setCenter(n.position.x + w / 2, n.position.y + h / 2, { zoom: Math.max(zoom, 1), duration: 400 });
-    setNodes((ns) => ns.map((x) => ({ ...x, selected: x.id === n.id })));
+  async function addNote(e) {
+    e?.preventDefault();
+    if (!text.trim()) return;
+    const { data, error } = await supabase.from("notes").insert({ content: text.trim(), tag: filter }).select().single();
+    if (error) return setStatus(`Couldn't add note: ${error.message}`);
+    setNotes((ns) => sortNotes([data, ...ns]));
+    setText("");
   }
 
-  const selected = nodes.filter((n) => n.selected);
-  function recolorSelected(color) {
-    setNodes((ns) => ns.map((n) => (n.selected ? { ...n, data: { ...n.data, color, updatedAt: Date.now() } } : n)));
+  async function saveNote(note, patch) {
+    const updated = { ...patch, updated_at: new Date().toISOString() };
+    setNotes((ns) => sortNotes(ns.map((n) => (n.id === note.id ? { ...n, ...updated } : n))));
+    const { error } = await supabase.from("notes").update(updated).eq("id", note.id);
+    if (error) setStatus(`Couldn't save note: ${error.message}`);
   }
 
-  function exportJson() {
-    download("brain-dump.json", JSON.stringify({ notes: nodes.map(toNote), edges: edges.map(({ id, source, target, label }) => ({ id, source, target, label })) }, null, 2), "application/json");
+  async function deleteNote(note) {
+    setNotes((ns) => ns.filter((n) => n.id !== note.id));
+    const { error } = await supabase.from("notes").delete().eq("id", note.id);
+    if (error) setStatus(`Couldn't delete note: ${error.message}`);
   }
+
+  async function addTag(e) {
+    e.preventDefault();
+    const name = newTag.name.trim();
+    if (!name || tags.some((t) => t.name === name)) return setNewTag(null);
+    const { error } = await supabase.from("note_tags").insert({ name, color: newTag.color });
+    if (error) return setStatus(`Couldn't add tag: ${error.message}`);
+    setTags((ts) => [...ts, { name, color: newTag.color }].sort((a, b) => a.name.localeCompare(b.name)));
+    setNewTag(null);
+  }
+
+  async function deleteTag(name) {
+    if (!confirm(`Delete tag "${name}"? Its notes stay, just untagged.`)) return;
+    const { error } = await supabase.from("note_tags").delete().eq("name", name);
+    if (error) return setStatus(`Couldn't delete tag: ${error.message}`);
+    setTags((ts) => ts.filter((t) => t.name !== name));
+    setNotes((ns) => ns.map((n) => (n.tag === name ? { ...n, tag: null } : n)));
+    if (filter === name) setFilter(null);
+  }
+
   function exportMd() {
-    const byColor = {};
-    for (const n of nodes) (byColor[n.data.color] ||= []).push(n.data.content.trim());
+    const groups = {};
+    for (const n of notes) (groups[n.tag || "Untagged"] ||= []).push(n.content.trim());
     const md = ["# Brain Dump", `_Exported ${new Date().toLocaleString()}_`, ""];
-    for (const [color, items] of Object.entries(byColor)) {
-      md.push(`## ${color[0].toUpperCase() + color.slice(1)}`, "", ...items.flatMap((t) => [t, "", "---", ""]));
-    }
+    for (const [tag, items] of Object.entries(groups)) md.push(`## ${tag}`, "", ...items.flatMap((t) => [t, "", "---", ""]));
     download("brain-dump.md", md.join("\n"), "text/markdown");
   }
 
-  function autoCluster() {
-    const clusters = clusterByKeyword(nodes.map((n) => ({ id: n.id, content: n.data.content })));
-    const byId = Object.fromEntries(layout(clusters).map((p) => [p.id, p]));
-    setNodes((ns) => ns.map((n) => ({ ...n, position: { x: byId[n.id].x, y: byId[n.id].y }, data: { ...n.data, color: byId[n.id].color, updatedAt: Date.now() } })));
-    setClusterMsg(clusters.map((c) => c.theme).join(" · "));
-    setTimeout(() => fitView({ duration: 400, padding: 0.15 }), 50);
-  }
-
-  if (!loaded) return <div className="bd-wrap" ref={wrapRef} />;
+  const q = query.trim().toLowerCase();
+  const shown = notes.filter((n) => (!filter || n.tag === filter) && (!q || n.content.toLowerCase().includes(q)));
 
   return (
-    <div
-      className="bd-wrap"
-      ref={wrapRef}
-      onMouseMove={(e) => { mouse.current = { x: e.clientX, y: e.clientY }; }}
-      onDoubleClick={(e) => {
-        if (e.target.classList.contains("react-flow__pane")) addNote(screenToFlowPosition({ x: e.clientX, y: e.clientY }));
-      }}
-    >
-      <ReactFlow
-        nodes={shown}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={(changes) => setNodes((ns) => changes.applyTo(ns))}
-        onEdgesChange={(changes) => setEdges((es) => changes.applyTo(es))}
-        onConnect={(c) => setEdges((es) => addEdge({ ...c, markerEnd: { type: MarkerType.ArrowClosed } }, es))}
-        onMoveEnd={(_, vp) => setViewport(vp)}
-        defaultViewport={viewport || { x: 0, y: 0, zoom: 1 }}
-        fitView={!viewport && nodes.length > 0}
-        panOnDrag={[1]}
-        panOnScroll
-        zoomOnDoubleClick={false}
-        deleteKeyCode={["Backspace", "Delete"]}
-        minZoom={0.1}
-        maxZoom={3}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} />
-      </ReactFlow>
+    <div>
+      <h1 className="page-title">Brain Dump</h1>
+      {status && <p style={{ fontSize: "0.85rem", color: status === "Loading..." ? "var(--muted)" : "var(--error)", marginBottom: "0.75rem" }}>{status}</p>}
 
-      {nodes.length === 0 && (
-        <div className="bd-hint">Double-click anywhere, press <kbd>N</kbd>, or paste to add a note</div>
-      )}
+      <form onSubmit={addNote} className="bd-add">
+        <textarea value={text} rows={2} placeholder={`Dump a thought${filter ? ` into ${filter}` : ""}… (Enter to add, Shift+Enter for a new line)`}
+          onChange={(e) => { setText(e.target.value); grow(e.target); }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addNote(); } }} />
+        <button type="submit" className="btn btn-primary">Add</button>
+      </form>
 
-      {searchOpen && (
-        <div className="bd-search">
-          <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search notes…"
-            onKeyDown={(e) => { if (e.key === "Enter" && matches[0]) goTo(matches[0]); }} />
-          {matches.slice(0, 8).map((n) => (
-            <button key={n.id} className="bd-result" onClick={() => goTo(n)}>
-              <span className="bd-swatch" style={{ background: COLORS[n.data.color] }} />
-              {n.data.content.split("\n")[0].slice(0, 80)}
-            </button>
-          ))}
-          {q && !matches.length && <div className="bd-none">No matches</div>}
-        </div>
-      )}
-
-      <div className="bd-hud">
-        <span className="bd-zoom">{Math.round(zoom * 100)}%</span>
-        <button className="btn" onClick={() => fitView({ duration: 300, padding: 0.15 })}>Fit</button>
-        <button className="btn" onClick={() => setSearchOpen((o) => !o)} title="Ctrl/Cmd + K">Search</button>
-        <button className="btn" onClick={exportMd}>.md</button>
-        <button className="btn" onClick={exportJson}>.json</button>
-        <button className="btn" onClick={autoCluster} disabled={!nodes.length} title="Group notes that share words">Auto-Cluster</button>
-        {selected.length > 1 && (
-          <span className="bd-batch">
-            {selected.length} selected
-            {Object.entries(COLORS).map(([name, hex]) => (
-              <button key={name} aria-label={`Color selected ${name}`} className="nd-dot" style={{ background: hex }} onClick={() => recolorSelected(name)} />
-            ))}
+      <div className="bd-bar">
+        <button className={`bd-chip${!filter ? " on" : ""}`} onClick={() => setFilter(null)}>All <span>{notes.length}</span></button>
+        {tags.map((t) => (
+          <span key={t.name} className={`bd-chip${filter === t.name ? " on" : ""}`} style={{ "--chip": COLORS[t.color] }}>
+            <button onClick={() => setFilter(t.name)}>{t.name} <span>{notes.filter((n) => n.tag === t.name).length}</span></button>
+            {filter === t.name && <button className="bd-chip-x" onClick={() => deleteTag(t.name)} aria-label={`Delete tag ${t.name}`}>✕</button>}
           </span>
+        ))}
+        {newTag ? (
+          <form onSubmit={addTag} className="bd-newtag">
+            <input autoFocus value={newTag.name} onChange={(e) => setNewTag({ ...newTag, name: e.target.value })} placeholder="Tag name" />
+            {Object.entries(COLORS).map(([name, hex]) => (
+              <button type="button" key={name} aria-label={`Color ${name}`} className={`nd-dot${newTag.color === name ? " on" : ""}`} style={{ background: hex }}
+                onClick={() => setNewTag({ ...newTag, color: name })} />
+            ))}
+            <button type="submit" className="btn">Save</button>
+            <button type="button" className="btn" onClick={() => setNewTag(null)}>Cancel</button>
+          </form>
+        ) : (
+          <button className="bd-chip" onClick={() => setNewTag({ name: "", color: "blue" })}>+ Tag</button>
         )}
-        {clusterMsg && <span className="bd-msg">{clusterMsg}</span>}
+        <span className="bd-tools">
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" aria-label="Search notes" />
+          <button className="btn" onClick={exportMd}>.md</button>
+          <button className="btn" onClick={() => download("brain-dump.json", JSON.stringify({ tags, notes }, null, 2), "application/json")}>.json</button>
+        </span>
+      </div>
+
+      {!status && !shown.length && <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>{notes.length ? "No notes match." : "Nothing here yet. Type above to add your first note."}</p>}
+
+      <div className="bd-grid">
+        {shown.map((n) => <NoteCard key={n.id} note={n} tags={tags} onSave={saveNote} onDelete={deleteNote} />)}
       </div>
     </div>
-  );
-}
-
-export default function BrainDumpPage() {
-  return (
-    <ReactFlowProvider>
-      <Canvas />
-    </ReactFlowProvider>
   );
 }
