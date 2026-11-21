@@ -7,7 +7,7 @@ const sections = [
   ["Today", [["/", "Home"], ["/weather", "Weather"]]],
   ["Training", [["/running", "Running"]]],
   ["School", [["/grades", "Grades"]]],
-  ["Notes", [["/brain-dump", "Brain Dump"], ["/todo", "To Do"], ["/books", "Books"], ["/lyric-lab", "Lyric Lab"]]],
+  ["Notes", [["/brain-dump", "Brain Dump"],["/books", "Books"], ["/lyric-lab", "Lyric Lab"]]],
   ["Life", [["/wardrobe", "Wardrobe"]]],
   ["Games", [["/madden", "Madden Franchise"], ["/cfb-dynasty", "CFB Dynasty"], ["/minecraft", "Minecraft"]]],
 ];

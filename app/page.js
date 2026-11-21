@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { ACTIVITY_TYPES, PRIORITY_COLORS } from "@/lib/constants";
+import Link from "next/link";
+import { ACTIVITY_TYPES, PALETTE } from "@/lib/constants";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DURATION_MAP = { lifting: 45, cycling: 60, frisbee_golf: 120, running: 45, other: 60 };
@@ -95,12 +96,12 @@ export default function HomePage() {
       supabase.from("activities").select("*").order("date"),
       supabase.from("running_schedule").select("*").order("date"),
       supabase.from("books").select("*"),
-      supabase.from("todos").select("*").order("created_at"),
+      supabase.from("notes").select("*, note_tags(color)").eq("tag", "To Do").order("pinned", { ascending: false }).order("created_at"),
     ]);
     setActivities(act || []);
     setRunSchedule(run || []);
     setBooks(bk || []);
-    setTodos((td || []).filter((t) => !t.completed));
+    setTodos(td || []);
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
@@ -185,7 +186,7 @@ export default function HomePage() {
   }
 
   async function completeTodo(id) {
-    await supabase.from("todos").delete().eq("id", id);
+    await supabase.from("notes").delete().eq("id", id);
     loadAll();
   }
 
@@ -472,17 +473,17 @@ export default function HomePage() {
       {/* Active To-Dos */}
       {isToday && todos.length > 0 && (
         <div style={{ marginTop: "0.75rem" }}>
-          <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "4px" }}>To Do</p>
+          <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "4px" }}><Link href="/brain-dump">To Do</Link></p>
           {todos.slice(0, 5).map((t) => {
-            const color = PRIORITY_COLORS[t.priority] || "#f59e0b";
+            const color = PALETTE[t.note_tags?.color] || PALETTE.rose;
             return (
               <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "6px", margin: "2px 0" }}>
-                <button className="btn" onClick={() => completeTodo(t.id)} style={{ padding: "1px 6px", fontSize: "0.7rem" }}>x</button>
-                <span style={{ borderLeft: `3px solid ${color}`, paddingLeft: "8px", fontSize: "0.85rem" }}>{t.task}</span>
+                <button className="btn" onClick={() => completeTodo(t.id)} title="Done (deletes the note)" style={{ padding: "1px 6px", fontSize: "0.7rem" }}>x</button>
+                <span style={{ borderLeft: `3px solid ${color}`, paddingLeft: "8px", fontSize: "0.85rem" }}>{t.pinned ? "📌 " : ""}{t.content.split("\n")[0]}</span>
               </div>
             );
           })}
-          {todos.length > 5 && <p style={{ fontSize: "0.75rem", color: "var(--muted)" }}>+{todos.length - 5} more</p>}
+          {todos.length > 5 && <p style={{ fontSize: "0.75rem", color: "var(--muted)" }}><Link href="/brain-dump">+{todos.length - 5} more</Link></p>}
         </div>
       )}
 
