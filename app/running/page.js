@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { bestRunMessage } from "@/lib/weather";
 import { ACTIVITY_TYPES, PALETTE } from "@/lib/constants";
+import { planRow, workoutFields, planActivity } from "@/lib/runs";
 
 // --- constants ---
 
@@ -731,7 +732,6 @@ function refitWorkout(analysis, { warmup, reps: repDefs, cooldown }) {
 export default function RunningPage() {
   const [schedule, setSchedule] = useState([]);
   const [runLogs, setRunLogs] = useState([]);
-  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [weather, setWeather] = useState(null);
   const [showSchedule, setShowSchedule] = useState(false);
@@ -774,14 +774,12 @@ export default function RunningPage() {
   const today = isoToday();
 
   const load = useCallback(async () => {
-    const [{ data: sched }, { data: logs }, { data: acts }] = await Promise.all([
-      supabase.from("running_schedule").select("*").order("date"),
+    const [{ data: sched }, { data: logs }] = await Promise.all([
+      supabase.from("activities").select("*").eq("activity_type", "running").order("date"),
       supabase.from("run_logs").select("*").order("date"),
-      supabase.from("activities").select("*").order("date"),
     ]);
-    setSchedule((sched || []).map((r) => ({ ...r, date: toDate(r.date), _type: workoutType(r.workout) })));
+    setSchedule((sched || []).map(planRow).map((r) => ({ ...r, date: toDate(r.date), _type: workoutType(r.workout) })));
     setRunLogs((logs || []).map((r) => ({ ...r, date: toDate(r.date) })));
-    setActivities((acts || []).map((r) => ({ ...r, date: toDate(r.date) })));
     setLoading(false);
   }, []);
 
@@ -793,7 +791,7 @@ export default function RunningPage() {
     const pastRest = schedule.filter((r) => r.date <= today && r._type === "rest" && !r.completed);
     if (pastRest.length) {
       Promise.all(pastRest.map((r) =>
-        supabase.from("running_schedule").update({ completed: true }).eq("id", r.id)
+        supabase.from("activities").update({ completed: true }).eq("id", r.id)
       )).then(load);
     }
   }, [schedule.length, today]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -805,7 +803,7 @@ export default function RunningPage() {
     const toComplete = schedule.filter(r => runDates.has(r.date) && !r.completed);
     if (toComplete.length) {
       Promise.all(toComplete.map(r =>
-        supabase.from("running_schedule").update({ completed: true }).eq("id", r.id)
+        supabase.from("activities").update({ completed: true }).eq("id", r.id)
       )).then(load);
     }
   }, [schedule.length, runLogs.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -909,18 +907,18 @@ export default function RunningPage() {
   // --- actions ---
 
   async function markComplete(id) {
-    await supabase.from("running_schedule").update({ completed: true }).eq("id", id);
+    await supabase.from("activities").update({ completed: true }).eq("id", id);
     load();
   }
 
   async function saveEdit(id) {
-    await supabase.from("running_schedule").update({ workout: editWorkout }).eq("id", id);
+    await supabase.from("activities").update(workoutFields(editWorkout)).eq("id", id);
     setEditingId(null);
     load();
   }
 
   async function deleteScheduleRow(id) {
-    await supabase.from("running_schedule").delete().eq("id", id);
+    await supabase.from("activities").delete().eq("id", id);
     load();
   }
 
@@ -942,7 +940,7 @@ export default function RunningPage() {
     // auto-complete matching schedule entry
     const match = schedule.find((r) => r.date === mrDate && !r.completed);
     if (match) {
-      await supabase.from("running_schedule").update({ completed: true }).eq("id", match.id);
+      await supabase.from("activities").update({ completed: true }).eq("id", match.id);
     }
     setMrDist(""); setMrMins(""); setMrSecs(""); setMrNotes(""); setMrType("easy");
     setShowLogForm(false);
@@ -984,7 +982,7 @@ export default function RunningPage() {
     const { error } = await supabase.from("run_logs").insert({ ...row, source: "gpx", notes, workout_data: workoutData, workout_type: gpxType });
     if (error) { alert("Save failed: " + error.message); return; }
     const match = schedule.find((r) => r.date === row.date && !r.completed);
-    if (match) await supabase.from("running_schedule").update({ completed: true }).eq("id", match.id);
+    if (match) await supabase.from("activities").update({ completed: true }).eq("id", match.id);
     setGpxPreview(null); setGpxAnalysis(null); setShowGpx(false); setShowCorrection(false);
     load();
   }
@@ -1011,7 +1009,7 @@ export default function RunningPage() {
     await supabase.from("run_logs").insert(inserts);
     for (const r of stravaRows) {
       const match = schedule.find((s) => s.date === r.date && !s.completed);
-      if (match) await supabase.from("running_schedule").update({ completed: true }).eq("id", match.id);
+      if (match) await supabase.from("activities").update({ completed: true }).eq("id", match.id);
     }
     setStravaRows(null); setShowStrava(false); setStravaPaste(""); load();
   }
@@ -1026,13 +1024,14 @@ export default function RunningPage() {
       const dateStr = parts[0].trim();
       const workout = parts[1].trim().replace(/•/g, "\n-");
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) continue;
-      rows.push({ date: dateStr, workout: workout || "Rest Day", completed: false });
+      rows.push(planActivity(dateStr, workout || "Rest Day"));
     }
     if (!rows.length) return;
     if (replaceExisting) {
-      await supabase.from("running_schedule").delete().neq("id", 0);
+      // only imported plan runs; runs added by hand on Home stay
+      await supabase.from("activities").delete().eq("gcal_event_id", "run_plan");
     }
-    await supabase.from("running_schedule").insert(rows);
+    await supabase.from("activities").insert(rows);
     setPasteText(""); setShowAddSchedule(false);
     load();
   }

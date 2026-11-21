@@ -12,6 +12,8 @@ const INITIAL_CLASSES = [
 ];
 
 
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
 export default function GradesPage() {
   const [classes, setClasses] = useState([]);
   const [addingClass, setAddingClass] = useState(false);
@@ -45,7 +47,8 @@ export default function GradesPage() {
       const ids = [...dirty.current];
       dirty.current.clear();
       for (const c of classes.filter((c) => ids.includes(c.id))) {
-        const { error } = await supabase.from("grade_classes").update({ categories: c.categories }).eq("id", c.id);
+        const { error } = await supabase.from("grade_classes")
+          .update({ categories: c.categories, meetings: c.meetings || [], term_start: c.term_start || null, term_end: c.term_end || null }).eq("id", c.id);
         if (error) setStatus(`Couldn't save ${c.name}: ${error.message}`);
       }
     }, 600);
@@ -66,6 +69,15 @@ export default function GradesPage() {
 
   function removeCategory(ci, cati) {
     patchClass(ci, (c) => ({ ...c, categories: c.categories.filter((_, j) => j !== cati) }));
+  }
+
+  // class meeting times (Home's timeline reads these)
+  function updateMeeting(ci, mi, field, val) {
+    patchClass(ci, (c) => ({ ...c, meetings: (c.meetings || []).map((m, j) => (j === mi ? { ...m, [field]: val } : m)) }));
+  }
+  function toggleDay(ci, mi, d) {
+    const days = (classes[ci].meetings || [])[mi].days;
+    updateMeeting(ci, mi, "days", days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort());
   }
 
   async function removeClass(ci) {
@@ -162,6 +174,32 @@ export default function GradesPage() {
               {remainingWeight === 0 && currentPct !== null && (
                 <p style={{ marginTop: "0.75rem", fontSize: "0.85rem", color: "var(--muted)" }}>All coursework entered — final grade is {currentPct.toFixed(1)}% ({letterGrade(currentPct)}).</p>
               )}
+
+              <details style={{ marginTop: "0.75rem" }}>
+                <summary className="muted">
+                  Schedule {(cls.meetings || []).length ? `· ${cls.meetings.map((m) => `${m.label ? m.label + " " : ""}${m.days.map((d) => DAYS[d]).join("/")} ${m.start}`).join(", ")}` : "· online / none"}
+                </summary>
+                <div className="row" style={{ alignItems: "center" }}>
+                  <span className="muted">Term</span>
+                  <input type="date" value={cls.term_start || ""} onChange={(e) => patchClass(ci, (c) => ({ ...c, term_start: e.target.value }))} aria-label="Term start" />
+                  <span className="muted">to</span>
+                  <input type="date" value={cls.term_end || ""} onChange={(e) => patchClass(ci, (c) => ({ ...c, term_end: e.target.value }))} aria-label="Term end" />
+                </div>
+                {(cls.meetings || []).map((m, mi) => (
+                  <div key={mi} className="row" style={{ alignItems: "center" }}>
+                    <input value={m.label} onChange={(e) => updateMeeting(ci, mi, "label", e.target.value)} placeholder="Lec/Lab" style={{ width: 70 }} aria-label="Meeting label" />
+                    {DAYS.map((name, d) => (
+                      <button key={d} type="button" className={`btn${m.days.includes(d) ? " btn-primary" : ""}`} style={{ padding: "2px 6px", fontSize: "0.75rem" }} onClick={() => toggleDay(ci, mi, d)} aria-pressed={m.days.includes(d)}>{name}</button>
+                    ))}
+                    <input type="time" value={m.start} onChange={(e) => updateMeeting(ci, mi, "start", e.target.value)} aria-label="Start time" />
+                    <input type="time" value={m.end} onChange={(e) => updateMeeting(ci, mi, "end", e.target.value)} aria-label="End time" />
+                    <input value={m.room} onChange={(e) => updateMeeting(ci, mi, "room", e.target.value)} placeholder="Room" style={{ width: 80 }} aria-label="Room" />
+                    <button onClick={() => patchClass(ci, (c) => ({ ...c, meetings: c.meetings.filter((_, j) => j !== mi) }))} style={{ background: "none", border: "none", color: "var(--error)", cursor: "pointer" }} aria-label="Remove meeting">×</button>
+                  </div>
+                ))}
+                <button className="btn" style={{ fontSize: "0.8rem" }}
+                  onClick={() => patchClass(ci, (c) => ({ ...c, meetings: [...(c.meetings || []), { label: "", days: [], start: "09:00", end: "09:50", room: "" }] }))}>+ Meeting time</button>
+              </details>
             </div>
           </details>
         );

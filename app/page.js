@@ -5,27 +5,24 @@ import Link from "next/link";
 import { ACTIVITY_TYPES, PALETTE } from "@/lib/constants";
 import { bestRunMessage } from "@/lib/weather";
 import { bestReachable } from "@/lib/grades";
+import { planRow, isRestText } from "@/lib/runs";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DURATION_MAP = { lifting: 45, cycling: 60, frisbee_golf: 120, running: 45, other: 60 };
 
-const SCHOOL_SCHEDULE = [
-  { name: "CS 25000 Lab", days: [3], time: "9:30 - 11:20 AM", start: "2026-08-27", end: "2026-12-10", room: "SL 251" },
-  { name: "CS 25100 Pso", days: [2], time: "12:30 - 1:20 PM", start: "2026-08-26", end: "2026-12-09", room: "SL 247" },
-  { name: "CS 25000", days: [1, 3], time: "1:30 - 2:45 PM", start: "2026-08-25", end: "2026-12-10", room: "ES 2107" },
-  { name: "CS 25100", days: [0, 2, 4], time: "2:30 - 3:20 PM", start: "2026-08-24", end: "2026-12-11", room: "ES 2107" },
-  { name: "MA 26500", days: [0, 2, 4], time: "4:30 - 5:20 PM", start: "2026-08-24", end: "2026-12-11", room: "SL 011" },
-];
+// class meeting times come from Grades (grade_classes.meetings, days 0 = Mon)
+function classMeetings(gradeClasses) {
+  return gradeClasses.flatMap((g) => (g.meetings || []).filter((m) => m.start).map((m) => {
+    const [h, min] = m.start.split(":").map(Number);
+    return {
+      name: m.label ? `${g.name} ${m.label}` : g.name, days: m.days || [], room: m.room, startMin: h * 60 + min,
+      time: [m.start, m.end].filter(Boolean).map(timeValToSlot).join(" - "),
+      start: g.term_start || "0000-01-01", end: g.term_end || "9999-12-31",
+    };
+  }));
+}
 
 function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
-function parseTimeStr(s) {
-  const m = s.match(/(\d{1,2}):(\d{2})/);
-  if (!m) return 480;
-  let h = parseInt(m[1]);
-  const min = parseInt(m[2]);
-  if (s.toUpperCase().includes("PM") && h < 12) h += 12;
-  return h * 60 + min;
-}
 function localDate(d) { return typeof d === "string" ? new Date(d + "T12:00:00") : new Date(d); }
 function addDays(d, n) { const r = localDate(d); r.setDate(r.getDate() + n); return r; }
 function getMonday(d) { const r = localDate(d); const day = r.getDay(); r.setDate(r.getDate() - ((day + 6) % 7)); return r; }
@@ -60,7 +57,6 @@ export default function HomePage() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [focusDate, setFocusDate] = useState(isoDate(new Date()));
   const [activities, setActivities] = useState([]);
-  const [runSchedule, setRunSchedule] = useState([]);
   const [books, setBooks] = useState([]);
   const [todos, setTodos] = useState([]);
   const [calEvents, setCalEvents] = useState([]);
@@ -97,16 +93,14 @@ export default function HomePage() {
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => isoDate(addDays(weekStart, i))), [weekStart]);
 
   const loadAll = useCallback(async () => {
-    const [{ data: act }, { data: run }, { data: bk }, { data: td }, { data: gc }, { data: pn }] = await Promise.all([
+    const [{ data: act }, { data: bk }, { data: td }, { data: gc }, { data: pn }] = await Promise.all([
       supabase.from("activities").select("*").order("date"),
-      supabase.from("running_schedule").select("*").order("date"),
       supabase.from("books").select("*"),
       supabase.from("notes").select("*, note_tags(color)").eq("tag", "To Do").order("pinned", { ascending: false }).order("created_at"),
       supabase.from("grade_classes").select("*").order("id"),
       supabase.from("notes").select("id, content").eq("pinned", true).or('tag.is.null,tag.neq."To Do"').order("created_at", { ascending: false }).limit(3),
     ]);
     setActivities(act || []);
-    setRunSchedule(run || []);
     setBooks(bk || []);
     setTodos(td || []);
     setGradeClasses(gc || []);
@@ -142,10 +136,13 @@ export default function HomePage() {
   const focusDateObj = new Date(focusDate + "T00:00:00");
   const isToday = focusDate === today;
 
-  const focusClasses = SCHOOL_SCHEDULE.filter((c) =>
+  const focusClasses = classMeetings(gradeClasses).filter((c) =>
     c.days.includes(focusDay) && focusDate >= c.start && focusDate <= c.end
   );
-  const focusActs = activities.filter((a) => a.date === focusDate).sort((a, b) => {
+  // planned runs are activities of type "running"; they get their own row style, so split them out
+  const runSchedule = activities.filter((a) => a.activity_type === "running").map(planRow);
+  const otherActs = activities.filter((a) => a.activity_type !== "running");
+  const focusActs = otherActs.filter((a) => a.date === focusDate).sort((a, b) => {
     const [ah, am] = parseTimeSlot(a.time_slot);
     const [bh, bm] = parseTimeSlot(b.time_slot);
     return (ah * 60 + am) - (bh * 60 + bm);
@@ -155,31 +152,31 @@ export default function HomePage() {
   const focusCal = calEvents.filter((e) => (e.start || "").slice(0, 10) === focusDate);
 
   const focusTimeline = [
-    ...focusClasses.map((c) => ({ type: "class", sortMin: parseTimeStr(c.time), data: c })),
+    ...focusClasses.map((c) => ({ type: "class", sortMin: c.startMin, data: c })),
     ...focusCal.map((e) => ({ type: "cal", sortMin: e.start?.length > 10 ? new Date(e.start).getHours() * 60 + new Date(e.start).getMinutes() : 0, data: e })),
-    ...focusRuns.map((r) => ({ type: "run", sortMin: (r.workout || "").startsWith("Rest") ? 480 : 21 * 60, data: r })),
+    ...focusRuns.map((r) => { const [h, m] = r.time_slot ? parseTimeSlot(r.time_slot) : isRestText(r.workout) ? [8, 0] : [21, 0]; return { type: "run", sortMin: h * 60 + m, data: r }; }),
     ...focusActs.map((a) => { const [h, m] = parseTimeSlot(a.time_slot); return { type: "act", sortMin: h * 60 + m, data: a }; }),
   ].sort((a, b) => a.sortMin - b.sortMin);
 
   const completedDates = new Set();
   activities.filter((a) => a.completed).forEach((a) => completedDates.add(a.date));
-  runSchedule.filter((r) => r.completed).forEach((r) => completedDates.add(r.date));
 
   let streak = 0;
   let check = new Date();
   if (!completedDates.has(isoDate(check))) check = addDays(check, -1);
   while (streak < 365 && completedDates.has(isoDate(check))) { streak++; check = addDays(check, -1); }
 
-  const weekActs = activities.filter((a) => weekDates.includes(a.date));
+  const weekActs = activities.filter((a) => weekDates.includes(a.date)); // Manage list: everything, runs included
+  const weekOther = otherActs.filter((a) => weekDates.includes(a.date));
   const weekRuns = runSchedule.filter((r) => weekDates.includes(r.date));
-  const weekActDone = weekActs.filter((a) => a.completed).length;
-  const weekRunDone = weekRuns.filter((r) => r.completed && !(r.workout || "").startsWith("Rest")).length;
-  const weekRunTotal = weekRuns.filter((r) => !(r.workout || "").startsWith("Rest")).length;
+  const weekActDone = weekOther.filter((a) => a.completed).length;
+  const weekRunDone = weekRuns.filter((r) => r.completed && !isRestText(r.workout)).length;
+  const weekRunTotal = weekRuns.filter((r) => !isRestText(r.workout)).length;
 
   // year stats
   const yearStart = `${thisYear}-01-01`;
-  const yrActs = activities.filter((a) => a.date >= yearStart && a.completed);
-  const yrRuns = runSchedule.filter((r) => r.date >= yearStart && r.completed && !(r.workout || "").startsWith("Rest"));
+  const yrActs = otherActs.filter((a) => a.date >= yearStart && a.completed);
+  const yrRuns = runSchedule.filter((r) => r.date >= yearStart && r.completed && !isRestText(r.workout));
   const yrBooks = books.filter((b) => b.status === "completed" && (b.end_date || "") >= yearStart);
   const yrPages = yrBooks.reduce((s, b) => s + (b.total_pages || 0), 0);
 
@@ -197,7 +194,7 @@ export default function HomePage() {
   }
 
   async function toggleRun(id, current) {
-    await supabase.from("running_schedule").update({ completed: !current }).eq("id", id);
+    await supabase.from("activities").update({ completed: !current }).eq("id", id);
     loadAll();
   }
 
@@ -332,6 +329,7 @@ export default function HomePage() {
     const esc = (s) => String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 
     activities.forEach((act) => {
+      if (act.activity_type === "running" && isRestText(act.title)) return; // rest days aren't calendar events
       const at = ACTIVITY_TYPES[act.activity_type] || ACTIVITY_TYPES.other;
       const summary = act.title ? `${at.label}: ${act.title}` : at.label;
       const [h, m] = parseTimeSlot(act.time_slot);
@@ -346,18 +344,6 @@ export default function HomePage() {
         `SUMMARY:${esc(summary)}`);
       if (act.notes) lines.push(`DESCRIPTION:${esc(act.notes)}`);
       lines.push("END:VEVENT");
-    });
-
-    runSchedule.forEach((run) => {
-      const wo = run.workout || "";
-      if (!wo.trim() || wo.startsWith("Rest")) return;
-      const title = wo.split("\n")[0];
-      const d = run.date.replace(/-/g, "");
-      const details = wo.split("\n").slice(1).map((l) => l.trim().replace(/^- /, "")).filter(Boolean);
-      const desc = details.length ? details.join(" | ") : title;
-      lines.push("BEGIN:VEVENT", `UID:run-${run.id}@mydashboard`,
-        `DTSTART;TZID=${tz}:${d}T210000`, `DTEND;TZID=${tz}:${d}T220000`,
-        `SUMMARY:Running: ${esc(title)}`, `DESCRIPTION:${esc(desc)}`, "END:VEVENT");
     });
 
     lines.push("END:VCALENDAR");
@@ -404,10 +390,10 @@ export default function HomePage() {
       {/* Today at a glance: one line from each area */}
       {isToday && (() => {
         const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-        const nextClass = focusClasses.filter((c) => parseTimeStr(c.time) > nowMin).sort((a, b) => parseTimeStr(a.time) - parseTimeStr(b.time))[0];
+        const nextClass = focusClasses.filter((c) => c.startMin > nowMin).sort((a, b) => a.startMin - b.startMin)[0];
         const run = focusRuns[0];
         const runText = (run?.workout || "").split("\n")[0];
-        const isRest = runText.startsWith("Rest");
+        const isRest = isRestText(runText);
         const runTip = run && !isRest && !run.completed ? bestRunMessage(weather) : null;
         const grades = gradeClasses.map((g) => ({ name: g.name, best: bestReachable(g.categories) })).filter((g) => g.best);
         return (
@@ -453,7 +439,7 @@ export default function HomePage() {
         if (item.type === "run") {
           const r = item.data;
           const wo = r.workout || "";
-          const isRest = wo.startsWith("Rest");
+          const isRest = isRestText(wo);
           return (
             <div key={`r${r.id}`} style={{
               borderLeft: `3px solid ${isRest ? "#64748b" : "#f43f5e"}`,
@@ -461,7 +447,7 @@ export default function HomePage() {
               opacity: r.completed ? 0.5 : 1, textDecoration: r.completed ? "line-through" : "none",
               display: "flex", justifyContent: "space-between", alignItems: "center",
             }}>
-              <span><span style={{ color: "#f43f5e", fontSize: "0.8rem" }}>Run</span> {wo}{r.distance ? ` · ${r.distance} mi` : ""}{r.notes ? ` — ${r.notes}` : ""}</span>
+              <span><span style={{ color: "#f43f5e", fontSize: "0.8rem" }}>Run</span> {wo}</span>
               {!isRest && <button className="btn" onClick={() => toggleRun(r.id, r.completed)} style={{ padding: "2px 8px", fontSize: "0.75rem" }}>{r.completed ? "Undo" : "Done"}</button>}
             </div>
           );
