@@ -995,7 +995,7 @@ export default function MaddenFranchisePage() {
                 return (
                   <>
                     <h3 style={{ marginTop: "1rem" }}>Parity Index</h3>
-                    <p style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Std dev of wins per year -- lower = more parity</p>
+                    <p className="muted">Std dev of wins per year -- lower = more parity</p>
                     {parity.map(([yr, std]) => <CssBar key={yr} label={yr} value={std} max={max} />)}
                   </>
                 );
@@ -1053,7 +1053,7 @@ export default function MaddenFranchisePage() {
           {addTab === "eos" && (
             <div className="card" style={{ padding: "1rem" }}>
               <h3>End of Season Entry</h3>
-              <p style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Enter all season data at once: awards, team records, and All-Pro selections.</p>
+              <p className="muted">Enter all season data at once: awards, team records, and All-Pro selections.</p>
               <form onSubmit={submitEos}>
                 <AwardForm form={eosForm} setField={(k, v) => setEosForm((f) => ({ ...f, [k]: v }))} yearDefault={defaultYear} />
 
@@ -1095,7 +1095,7 @@ export default function MaddenFranchisePage() {
           {addTab === "bulk" && (
             <div className="card" style={{ padding: "1rem" }}>
               <h3>Bulk Add Seasons</h3>
-              <p style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Paste tab-separated: Year, SB Winner, SB MVP, NFL MVP, Coach of Year, OPOY, DPOY, OROY, DROY, 99 Club</p>
+              <p className="muted">Paste tab-separated: Year, SB Winner, SB MVP, NFL MVP, Coach of Year, OPOY, DPOY, OROY, DROY, 99 Club</p>
               <input type="text" placeholder="Franchise for all rows" value={bulkFran || selectedFranchise} onChange={(e) => setBulkFran(e.target.value)} style={{ width: "100%", marginBottom: "0.5rem" }} />
               <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} rows={8} style={{ width: "100%", fontFamily: "monospace", fontSize: "0.8rem" }} />
               <button className="btn btn-primary" onClick={submitBulkSeasons} style={{ marginTop: "0.5rem" }}>Upload</button>
@@ -1106,7 +1106,7 @@ export default function MaddenFranchisePage() {
           {addTab === "addwins" && (
             <div className="card" style={{ padding: "1rem" }}>
               <h3>Add Team Wins</h3>
-              <p style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Enter records (W-L). Wins are extracted automatically.</p>
+              <p className="muted">Enter records (W-L). Wins are extracted automatically.</p>
               <form onSubmit={submitTeamWins}>
                 <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
                   <input type="text" placeholder="Franchise" value={winsFormFran || selectedFranchise} onChange={(e) => setWinsFormFran(e.target.value)} style={{ flex: 1 }} />
@@ -1145,7 +1145,7 @@ export default function MaddenFranchisePage() {
 
               <details style={{ marginTop: "1rem" }}>
                 <summary style={{ cursor: "pointer", fontWeight: 600 }}>Bulk Paste All-Pro</summary>
-                <p style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Tab-separated: Position, Player, Team, OVR</p>
+                <p className="muted">Tab-separated: Position, Player, Team, OVR</p>
                 <div style={{ marginBottom: "0.5rem" }}>
                   <label style={{ fontSize: "0.8rem" }}>Year</label>
                   <input type="number" value={bulkApYear} onChange={(e) => setBulkApYear(parseInt(e.target.value))} style={{ width: "80px", marginLeft: "0.5rem" }} />

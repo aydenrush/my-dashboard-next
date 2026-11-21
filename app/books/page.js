@@ -207,7 +207,7 @@ export default function BooksPage() {
 
       {completed.length > 0 && (
         <details open>
-          <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Completed ({completed.length})</summary>
+          <summary>Completed ({completed.length})</summary>
           {[...completed].sort((a, b) => (b.end_date || "").localeCompare(a.end_date || "")).map((book) => {
             let line = bookLine(book);
             if (book.start_date && book.end_date) {
@@ -223,7 +223,7 @@ export default function BooksPage() {
 
       {wantToRead.length > 0 && (
         <details style={{ marginTop: "1rem" }}>
-          <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Want to Read ({wantToRead.length})</summary>
+          <summary>Want to Read ({wantToRead.length})</summary>
           {wantToRead.map((book) => (
             <div key={book.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "4px 0" }}>
               <span style={{ fontSize: "0.9rem" }}>{bookLine(book)}</span>
@@ -236,13 +236,13 @@ export default function BooksPage() {
       <hr className="divider" />
 
       <details>
-        <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Add Book</summary>
+        <summary>Add Book</summary>
         <form onSubmit={addBook}>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+          <div className="row">
             <input type="text" value={newBook.title} onChange={(e) => setNewBook((p) => ({ ...p, title: e.target.value }))} placeholder="Title" style={{ flex: 2 }} />
             <input type="text" value={newBook.author} onChange={(e) => setNewBook((p) => ({ ...p, author: e.target.value }))} placeholder="Author" style={{ flex: 2 }} />
           </div>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+          <div className="row">
             <select value={newBook.status} onChange={(e) => setNewBook((p) => ({ ...p, status: e.target.value }))}>
               {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
@@ -256,7 +256,7 @@ export default function BooksPage() {
 
       {books.length > 0 && (
         <details style={{ marginTop: "1rem" }}>
-          <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Manage Books</summary>
+          <summary>Manage Books</summary>
           {books.map((book) => (
             <div key={book.id} style={{ display: "flex", gap: "0.5rem", alignItems: "center", margin: "4px 0", fontSize: "0.85rem" }}>
               <span style={{ flex: 1 }}>
@@ -272,7 +272,7 @@ export default function BooksPage() {
 
       {completed.length >= 2 && (
         <details style={{ marginTop: "1rem" }}>
-          <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Analytics</summary>
+          <summary>Analytics</summary>
           {(() => {
             const genres = {};
             completed.forEach((b) => { if (b.genre) genres[b.genre] = (genres[b.genre] || 0) + 1; });

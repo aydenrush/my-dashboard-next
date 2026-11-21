@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 
 const SEED = "7338286372832099621";
 const CHUNKBASE_URL = "https://www.chunkbase.com/apps/seed-map#seed=7338286372832099621&platform=bedrock_26_0&dimension=overworld&x=895&z=-7&zoom=0.927";
-const DIM_COLORS = { overworld: "#4CAF50", nether: "#F44336", end: "#9C27B0" };
+const DIM_COLORS = { overworld: "#10b981", nether: "#f43f5e", end: "#8b5cf6" };
 const DIM_BG = { overworld: "rgba(76,175,80,0.08)", nether: "rgba(244,67,54,0.08)", end: "rgba(156,39,176,0.08)" };
 const DIM_ICONS = { overworld: "🌳", nether: "🔥", end: "⭐" };
 
@@ -91,9 +91,9 @@ export default function MinecraftPage() {
                 {DIM_ICONS[dim]} {row.label}
               </span>
               <span style={{ fontFamily: "monospace", fontSize: "0.95rem", minWidth: "120px" }}>
-                X: <span style={{ color: negX ? "#ef5350" : "inherit" }}>{row.x}</span>
+                X: <span style={{ color: negX ? "#f43f5e" : "inherit" }}>{row.x}</span>
                 {" "}
-                Z: <span style={{ color: negZ ? "#ef5350" : "inherit" }}>{row.z}</span>
+                Z: <span style={{ color: negZ ? "#f43f5e" : "inherit" }}>{row.z}</span>
               </span>
               <span style={{ fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "1px", opacity: 0.7 }}>
                 {dim}

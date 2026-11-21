@@ -2,13 +2,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { bestRunHour, fmtHour } from "@/lib/weather";
-import { ACTIVITY_TYPES } from "@/lib/constants";
+import { ACTIVITY_TYPES, PALETTE } from "@/lib/constants";
 
 // --- constants ---
 
 const TYPE_COLORS = {
-  rest: "#888888", easy: "#4CAF50", tempo: "#FF9800",
-  hills: "#9C27B0", speed: "#F44336", long: "#2196F3",
+  rest: PALETTE.slate, easy: PALETTE.emerald, tempo: PALETTE.amber,
+  hills: PALETTE.violet, speed: PALETTE.rose, long: PALETTE.blue,
 };
 const TYPE_LABELS = {
   rest: "Rest", easy: "Easy", tempo: "Tempo",
@@ -1223,7 +1223,7 @@ export default function RunningPage() {
             if (tl.pace_seconds > 0) parts.push(fmtPace(tl.pace_seconds));
             if (tl.elevation_gain_ft > 0) parts.push(`↑${Math.round(tl.elevation_gain_ft)} ft`);
             return parts.length ? (
-              <p key={tl.id} style={{ fontSize: "0.85em", color: "#888", margin: "4px 0 0" }}>
+              <p key={tl.id} style={{ fontSize: "0.85em", color: "var(--muted)", margin: "4px 0 0" }}>
                 Actual: {parts.join(" · ")}
               </p>
             ) : null;
@@ -1241,7 +1241,7 @@ export default function RunningPage() {
             const isToday = day === today;
             return (
               <div key={i} style={{ textAlign: "center", padding: "6px 2px" }}>
-                <div style={{ fontSize: "0.8em", color: "#888", fontWeight: isToday ? "bold" : "normal" }}>
+                <div style={{ fontSize: "0.8em", color: "var(--muted)", fontWeight: isToday ? "bold" : "normal" }}>
                   {name} {fmtMD(day)}
                 </div>
                 {row ? (
@@ -1253,11 +1253,11 @@ export default function RunningPage() {
                     }}>
                       {row.workout.split("\n")[0]}
                     </div>
-                    {dayLog && <div style={{ fontSize: "0.7em", color: "#888" }}>{(+dayLog.distance_miles).toFixed(1)} mi</div>}
-                    {!dayLog && row.completed && <div style={{ fontSize: "0.75em", color: "#888" }}>Done</div>}
+                    {dayLog && <div style={{ fontSize: "0.7em", color: "var(--muted)" }}>{(+dayLog.distance_miles).toFixed(1)} mi</div>}
+                    {!dayLog && row.completed && <div style={{ fontSize: "0.75em", color: "var(--muted)" }}>Done</div>}
                   </>
                 ) : (
-                  <div style={{ fontSize: "0.85em", color: "#888" }}>--</div>
+                  <div style={{ fontSize: "0.85em", color: "var(--muted)" }}>--</div>
                 )}
               </div>
             );
@@ -1320,7 +1320,7 @@ export default function RunningPage() {
             </div>
           </div>
           {mrDist && parseFloat(mrDist) > 0 && (parseInt(mrMins) || parseInt(mrSecs)) ? (
-            <p style={{ fontSize: "0.85em", color: "#888", marginTop: "4px" }}>
+            <p style={{ fontSize: "0.85em", color: "var(--muted)", marginTop: "4px" }}>
               Pace: {fmtPace(((parseInt(mrMins) || 0) * 60 + (parseInt(mrSecs) || 0)) / parseFloat(mrDist))}
             </p>
           ) : null}
@@ -1358,7 +1358,7 @@ export default function RunningPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{
                       fontSize: "0.75em", fontWeight: "bold", padding: "2px 8px", borderRadius: "3px",
-                      background: gpxAnalysis.type === "intervals" ? "#F44336" : gpxAnalysis.type === "tempo" ? "#FF9800" : "#4CAF50",
+                      background: gpxAnalysis.type === "intervals" ? "#f43f5e" : gpxAnalysis.type === "tempo" ? "#f59e0b" : "#10b981",
                       color: "white",
                     }}>
                       {gpxAnalysis.type === "intervals" ? "INTERVALS" : gpxAnalysis.type === "tempo" ? "TEMPO" : "EASY"}
@@ -1388,7 +1388,7 @@ export default function RunningPage() {
 
                   <p style={{ margin: "8px 0 0", fontSize: "0.9em" }}>{gpxAnalysis.summary}</p>
                   {gpxAnalysis.type === "easy" && gpxAnalysis.easyPace && gpxAnalysis.fastPace && (
-                    <p style={{ margin: "4px 0 0", fontSize: "0.8em", color: "#888" }}>
+                    <p style={{ margin: "4px 0 0", fontSize: "0.8em", color: "var(--muted)" }}>
                       No intervals detected — pace stayed within {((gpxAnalysis.easyPace - gpxAnalysis.fastPace) * 60).toFixed(0)}s/mi range. Use &quot;Doesn&apos;t look right?&quot; to define the workout.
                     </p>
                   )}
@@ -1397,7 +1397,7 @@ export default function RunningPage() {
                     const planned = schedule.find((s) => s.date === gpxPreview.date);
                     if (!planned) return null;
                     return (
-                      <div style={{ marginTop: "8px", fontSize: "0.85em", color: "#888" }}>
+                      <div style={{ marginTop: "8px", fontSize: "0.85em", color: "var(--muted)" }}>
                         Planned: <strong style={{ color: TYPE_COLORS[planned._type] }}>{planned.workout.split("\n")[0]}</strong>
                       </div>
                     );
@@ -1474,7 +1474,7 @@ export default function RunningPage() {
                             const clampedPace = Math.min(Math.max(p.pace, minP), maxP);
                             const y = ((clampedPace - minP) / range) * 100;
                             const seg = segs.find((s) => p.t >= s.s && p.t <= s.e);
-                            const color = seg?.z === "fast" ? "#F44336" : "#4CAF50";
+                            const color = seg?.z === "fast" ? "#f43f5e" : "#10b981";
                             return (
                               <div key={i} style={{
                                 position: "absolute",
@@ -1484,14 +1484,14 @@ export default function RunningPage() {
                               }} />
                             );
                           })}
-                          <div style={{ position: "absolute", left: 0, top: "2px", fontSize: "0.65em", color: "#888" }}>
+                          <div style={{ position: "absolute", left: 0, top: "2px", fontSize: "0.65em", color: "var(--muted)" }}>
                             {fmtPaceMin(minP)}
                           </div>
-                          <div style={{ position: "absolute", left: 0, bottom: "2px", fontSize: "0.65em", color: "#888" }}>
+                          <div style={{ position: "absolute", left: 0, bottom: "2px", fontSize: "0.65em", color: "var(--muted)" }}>
                             {fmtPaceMin(maxP)}
                           </div>
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7em", color: "#888", marginTop: "2px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7em", color: "var(--muted)", marginTop: "2px" }}>
                           <span>0:00</span>
                           <span>{Math.floor(maxT / 60)} min</span>
                         </div>
@@ -1524,7 +1524,7 @@ export default function RunningPage() {
 
                   {gpxAnalysis.laps && gpxAnalysis.laps.length > 0 && (
                     <details style={{ marginTop: "8px" }}>
-                      <summary style={{ fontSize: "0.8em", cursor: "pointer", color: "#888" }}>Garmin Laps ({gpxAnalysis.laps.length})</summary>
+                      <summary style={{ fontSize: "0.8em", cursor: "pointer", color: "var(--muted)" }}>Garmin Laps ({gpxAnalysis.laps.length})</summary>
                       <div style={{ overflowX: "auto", marginTop: "4px" }}>
                         <table style={{ fontSize: "0.75em", width: "100%" }}>
                           <thead>
@@ -1539,7 +1539,7 @@ export default function RunningPage() {
                                 const isHard = gpxAnalysis.reps?.some(r => Math.abs(r.pace - l.pace) < 0.05 && Math.abs(r.duration - l.dur) < 2);
                                 const fmtT = (s) => { const ts = Math.round(s); return `${Math.floor(ts / 60)}:${String(ts % 60).padStart(2, "0")}`; };
                                 return (
-                                  <tr key={i} style={isHard ? { fontWeight: 600, color: "var(--accent, #e53935)" } : undefined}>
+                                  <tr key={i} style={isHard ? { fontWeight: 600, color: "var(--accent, #f43f5e)" } : undefined}>
                                     <td>{i + 1}</td>
                                     <td>{fmtT(startT)}</td>
                                     <td>{l.dur >= 60 ? fmtT(l.dur) : `0:${String(Math.round(l.dur)).padStart(2, "0")}`}</td>
@@ -1575,10 +1575,10 @@ export default function RunningPage() {
                       <label className="metric-label">Reps</label>
                       {corReps.map((rep, i) => (
                         <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}>
-                          <span style={{ width: "18px", color: "#888", fontSize: "0.85em" }}>{i + 1}</span>
+                          <span style={{ width: "18px", color: "var(--muted)", fontSize: "0.85em" }}>{i + 1}</span>
                           <input type="text" value={rep.start} placeholder="0:00" style={{ width: "55px", textAlign: "center" }}
                             onChange={(e) => { const r = [...corReps]; r[i] = { ...r[i], start: e.target.value }; setCorReps(r); }} />
-                          <span style={{ color: "#888" }}>→</span>
+                          <span style={{ color: "var(--muted)" }}>→</span>
                           <input type="text" value={rep.end} placeholder="2:00" style={{ width: "55px", textAlign: "center" }}
                             onChange={(e) => { const r = [...corReps]; r[i] = { ...r[i], end: e.target.value }; setCorReps(r); }} />
                           <span style={{ color: "#666", fontSize: "0.8em", minWidth: "45px" }}>
@@ -1732,7 +1732,7 @@ export default function RunningPage() {
               </div>
               {run.workout_data?.reps?.length > 0 && (
                 <details style={{ marginTop: "4px" }}>
-                  <summary style={{ fontSize: "0.8em", color: "#888", cursor: "pointer" }}>
+                  <summary style={{ fontSize: "0.8em", color: "var(--muted)", cursor: "pointer" }}>
                     {run.workout_data.reps.length} reps
                     {run.workout_data.warmup_s > 0 && ` · WU ${Math.round(run.workout_data.warmup_s / 60)}m`}
                     {run.workout_data.cooldown_s > 0 && ` · CD ${Math.round(run.workout_data.cooldown_s / 60)}m`}
@@ -1742,8 +1742,8 @@ export default function RunningPage() {
                       <div key={i} style={{ display: "flex", gap: "12px", padding: "1px 0" }}>
                         <span style={{ color: "#666", minWidth: "24px" }}>R{i + 1}</span>
                         <span>{(rep.duration / 60).toFixed(1)}m</span>
-                        <span style={{ color: "#2196F3" }}>{fmtPace(Math.round(rep.pace * 60))}</span>
-                        {rep.hr > 0 && <span style={{ color: "#e53935" }}>{Math.round(rep.hr)} bpm</span>}
+                        <span style={{ color: "#3b82f6" }}>{fmtPace(Math.round(rep.pace * 60))}</span>
+                        {rep.hr > 0 && <span style={{ color: "#f43f5e" }}>{Math.round(rep.hr)} bpm</span>}
                         {run.workout_data.recoveries?.[i] != null && i < run.workout_data.reps.length - 1 && (
                           <span style={{ color: "#555" }}>/ {(run.workout_data.recoveries[i] / 60).toFixed(1)}m rest</span>
                         )}
@@ -1763,7 +1763,7 @@ export default function RunningPage() {
                     onClick={() => setEditingRunId(null)}>Cancel</button>
                 </div>
               ) : (
-                <p style={{ fontSize: "0.85em", color: "#888", margin: "2px 0 0", cursor: "pointer" }}
+                <p style={{ fontSize: "0.85em", color: "var(--muted)", margin: "2px 0 0", cursor: "pointer" }}
                   onClick={() => { setEditingRunId(run.id); setEditRunNotes(run.notes || ""); }}>
                   {run.notes || <span style={{ fontStyle: "italic", color: "#555" }}>Add notes...</span>}
                 </p>
@@ -1787,17 +1787,17 @@ export default function RunningPage() {
         <h2 style={{ margin: 0 }}>Schedule</h2>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           {hasSchedule && (
-            <span style={{ fontSize: "0.8em", color: "#888" }}>
+            <span style={{ fontSize: "0.8em", color: "var(--muted)" }}>
               {completedWorkouts}/{totalWorkouts} done ({progressPct}%)
             </span>
           )}
-          <span style={{ color: "#888" }}>{showSchedule ? "▾" : "▸"}</span>
+          <span style={{ color: "var(--muted)" }}>{showSchedule ? "▾" : "▸"}</span>
         </div>
       </div>
       {hasSchedule && (
         <div style={{ background: "#333", borderRadius: "4px", height: "6px", marginTop: "8px" }}>
           <div style={{
-            background: "#4CAF50", height: "100%", borderRadius: "4px",
+            background: "#10b981", height: "100%", borderRadius: "4px",
             width: `${progressPct}%`, transition: "width 0.3s",
           }} />
         </div>
@@ -1850,7 +1850,7 @@ export default function RunningPage() {
                           <button className="btn" onClick={() => markComplete(row.id)}
                             style={{ fontSize: "0.85em" }}>Done</button>
                         ) : row.completed ? (
-                          <span style={{ fontSize: "0.85em", color: "#888" }}>Done</span>
+                          <span style={{ fontSize: "0.85em", color: "var(--muted)" }}>Done</span>
                         ) : null}
                       </td>
                     </tr>
@@ -1879,7 +1879,7 @@ export default function RunningPage() {
                             </td>
                             <td style={{ width: "100px" }}>
                               {row.completed
-                                ? <span style={{ fontSize: "0.85em", color: "#888" }}>Done</span>
+                                ? <span style={{ fontSize: "0.85em", color: "var(--muted)" }}>Done</span>
                                 : <button className="btn" onClick={() => markComplete(row.id)} style={{ fontSize: "0.85em" }}>Done</button>}
                             </td>
                           </tr>
@@ -1903,7 +1903,7 @@ export default function RunningPage() {
               <p style={{ fontSize: "0.9em", marginBottom: "8px" }}>
                 Paste tab-separated rows: <code>Date</code> and <code>Workout</code>
               </p>
-              <pre style={{ fontSize: "0.8em", color: "#888", margin: "0 0 8px" }}>
+              <pre style={{ fontSize: "0.8em", color: "var(--muted)", margin: "0 0 8px" }}>
                 2026-08-17{"\t"}Easy Run - 30 min{"\n"}2026-08-18{"\t"}Rest Day
               </pre>
               <textarea rows={6} value={pasteText} onChange={(e) => setPasteText(e.target.value)}
@@ -1928,45 +1928,45 @@ export default function RunningPage() {
             <div className="metric">
               <div className="metric-label">This Week</div>
               <div className="metric-value">{thisWkMi.toFixed(1)} mi</div>
-              <div style={{ fontSize: "0.8em", color: "#888" }}>
+              <div style={{ fontSize: "0.8em", color: "var(--muted)" }}>
                 {(thisWkMi - lastWkMi) >= 0 ? "+" : ""}{(thisWkMi - lastWkMi).toFixed(1)} vs last
               </div>
             </div>
             <div className="metric">
               <div className="metric-label">This Month</div>
               <div className="metric-value">{thisMonthMi.toFixed(1)} mi</div>
-              <div style={{ fontSize: "0.8em", color: "#888" }}>
+              <div style={{ fontSize: "0.8em", color: "var(--muted)" }}>
                 {thisMonthRuns} runs{lastMonthMi > 0 ? ` · ${lastMonthMi > thisMonthMi ? "" : "+"}${(thisMonthMi - lastMonthMi).toFixed(1)} vs last` : ""}
               </div>
             </div>
             <div className="metric">
               <div className="metric-label">ACWR</div>
-              <div className="metric-value" style={{ color: acwr > 1.5 ? "#F44336" : acwr < 0.8 ? "#FF9800" : "#4CAF50" }}>{acwr.toFixed(2)}</div>
-              <div style={{ fontSize: "0.8em", color: "#888" }}>{acwrStatus}</div>
+              <div className="metric-value" style={{ color: acwr > 1.5 ? "#f43f5e" : acwr < 0.8 ? "#f59e0b" : "#10b981" }}>{acwr.toFixed(2)}</div>
+              <div style={{ fontSize: "0.8em", color: "var(--muted)" }}>{acwrStatus}</div>
             </div>
             <div className="metric">
               <div className="metric-label">Avg Pace</div>
               <div className="metric-value">{last5Pace > 0 ? fmtPace(last5Pace) : "--"}</div>
-              <div style={{ fontSize: "0.8em", color: "#888" }}>last 5 runs</div>
+              <div style={{ fontSize: "0.8em", color: "var(--muted)" }}>last 5 runs</div>
             </div>
           </div>
           <div className="metrics-row" style={{ marginBottom: "16px" }}>
             <div className="metric">
               <div className="metric-label">Longest Run</div>
               <div className="metric-value">{longestRun.toFixed(1)} mi</div>
-              <div style={{ fontSize: "0.8em", color: "#888" }}>last 30 days</div>
+              <div style={{ fontSize: "0.8em", color: "var(--muted)" }}>last 30 days</div>
             </div>
             <div className="metric">
               <div className="metric-label">Easy %</div>
               <div className="metric-value">{easyPct.toFixed(0)}%</div>
-              <div style={{ fontSize: "0.8em", color: easyPct < 70 ? "#FF9800" : "#4CAF50" }}>
+              <div style={{ fontSize: "0.8em", color: easyPct < 70 ? "#f59e0b" : "#10b981" }}>
                 {easyPct < 70 ? "aim ~80%" : "good"}
               </div>
             </div>
             <div className="metric">
               <div className="metric-label">Streak</div>
               <div className="metric-value">{streak} wk{streak !== 1 ? "s" : ""}</div>
-              <div style={{ fontSize: "0.8em", color: "#888" }}>3+ runs/wk</div>
+              <div style={{ fontSize: "0.8em", color: "var(--muted)" }}>3+ runs/wk</div>
             </div>
             {(() => {
               const hr = hrTrend();
@@ -1975,7 +1975,7 @@ export default function RunningPage() {
               return <div className="metric">
                 <div className="metric-label">Avg HR</div>
                 <div className="metric-value">{latest.hr} bpm</div>
-                <div style={{ fontSize: "0.8em", color: "#888" }}>7-run avg: {latest.avg7}</div>
+                <div style={{ fontSize: "0.8em", color: "var(--muted)" }}>7-run avg: {latest.avg7}</div>
               </div>;
             })()}
           </div>
@@ -1986,27 +1986,27 @@ export default function RunningPage() {
               <h3 style={{ fontSize: "0.9em", marginBottom: "8px" }}>Workout Trends</h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "8px" }}>
                 {trends.map(t => (
-                  <details key={t.type} style={{ background: "var(--card-bg)", borderRadius: "8px", padding: "10px", border: `1px solid ${t.direction === "faster" ? "#4CAF50" : t.direction === "slower" ? "#F44336" : "#555"}33` }}>
+                  <details key={t.type} style={{ background: "var(--card-bg)", borderRadius: "8px", padding: "10px", border: `1px solid ${t.direction === "faster" ? "#10b981" : t.direction === "slower" ? "#f43f5e" : "#555"}33` }}>
                     <summary style={{ cursor: "pointer", listStyle: "none" }}>
                       <div style={{ fontSize: "0.8em", color: TYPE_COLORS[t.type], fontWeight: 600, textTransform: "capitalize", marginBottom: "4px" }}>{TYPE_LABELS[t.type]}</div>
                       <div style={{ fontSize: "1.3em", fontWeight: 700 }}>
                         {t.direction === "faster" ? "↑" : t.direction === "slower" ? "↓" : "→"}{" "}
-                        <span style={{ color: t.direction === "faster" ? "#4CAF50" : t.direction === "slower" ? "#F44336" : "#888" }}>
+                        <span style={{ color: t.direction === "faster" ? "#10b981" : t.direction === "slower" ? "#f43f5e" : "#888" }}>
                           {t.direction === "flat" ? "Steady" : `${t.pct}%`}
                         </span>
                       </div>
-                      {t.recentPace && <div style={{ fontSize: "0.75em", color: "#888", marginTop: "2px" }}>
+                      {t.recentPace && <div style={{ fontSize: "0.75em", color: "var(--muted)", marginTop: "2px" }}>
                         {fmtPace(t.olderPace)} → {fmtPace(t.recentPace)}
                       </div>}
                       <div style={{ fontSize: "0.65em", color: "#666", marginTop: "2px" }}>tap to expand</div>
                     </summary>
                     <div style={{ marginTop: "8px", borderTop: "1px solid #333", paddingTop: "6px", fontSize: "0.75em" }}>
-                      <div style={{ color: "#888", marginBottom: "4px" }}>Recent</div>
+                      <div style={{ color: "var(--muted)", marginBottom: "4px" }}>Recent</div>
                       {t.recentRuns.map((r, i) => (
                         <div key={i} style={{ marginBottom: "4px" }}>
                           <div style={{ color: "#ccc" }}>{fmtShortDate(r.date)} — {(+r.distance_miles).toFixed(2)} mi @ {fmtPace(r.pace_seconds)}</div>
                           {r.workout_data?.reps?.length > 0 && (
-                            <div style={{ paddingLeft: "10px", color: "#888" }}>
+                            <div style={{ paddingLeft: "10px", color: "var(--muted)" }}>
                               {r.workout_data.reps.map((rep, j) => (
                                 <span key={j}>{j > 0 && " / "}{(rep.duration / 60).toFixed(1)}m @ {fmtPace(Math.round(rep.pace * 60))}{rep.hr > 0 && ` (${Math.round(rep.hr)}bpm)`}</span>
                               ))}
@@ -2014,12 +2014,12 @@ export default function RunningPage() {
                           )}
                         </div>
                       ))}
-                      <div style={{ color: "#888", marginBottom: "4px", marginTop: "6px" }}>Previous</div>
+                      <div style={{ color: "var(--muted)", marginBottom: "4px", marginTop: "6px" }}>Previous</div>
                       {t.olderRuns.map((r, i) => (
                         <div key={i} style={{ marginBottom: "4px" }}>
                           <div style={{ color: "#ccc" }}>{fmtShortDate(r.date)} — {(+r.distance_miles).toFixed(2)} mi @ {fmtPace(r.pace_seconds)}</div>
                           {r.workout_data?.reps?.length > 0 && (
-                            <div style={{ paddingLeft: "10px", color: "#888" }}>
+                            <div style={{ paddingLeft: "10px", color: "var(--muted)" }}>
                               {r.workout_data.reps.map((rep, j) => (
                                 <span key={j}>{j > 0 && " / "}{(rep.duration / 60).toFixed(1)}m @ {fmtPace(Math.round(rep.pace * 60))}{rep.hr > 0 && ` (${Math.round(rep.hr)}bpm)`}</span>
                               ))}
@@ -2108,7 +2108,7 @@ function StackedMileageChart({ data }) {
         })}
       </svg>
       {el}
-      <div style={{ display: "flex", gap: "12px", fontSize: "0.7em", color: "#888", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "12px", fontSize: "0.7em", color: "var(--muted)", flexWrap: "wrap" }}>
         {STACK_TYPES.map(t => <span key={t}><span style={{ color: TYPE_COLORS[t] }}>{"■"}</span> {TYPE_LABELS[t]}</span>)}
       </div>
     </div>
@@ -2137,7 +2137,7 @@ function FrequencyChart({ data }) {
           const x = pad.l + (i + 0.5) * (cw / data.length) - bw / 2;
           const h = (d.count / max) * ch;
           return <g key={i}>
-            <rect x={x} y={pad.t + ch - h} width={bw} height={Math.max(h, 1)} rx="2" fill="#2196F3" opacity="0.7" style={{ cursor: "crosshair" }}
+            <rect x={x} y={pad.t + ch - h} width={bw} height={Math.max(h, 1)} rx="2" fill="#3b82f6" opacity="0.7" style={{ cursor: "crosshair" }}
               onMouseMove={e => show(e, `${fmtMD(d.week)}: ${d.count} runs`)} onMouseLeave={hide} />
             {(i === 0 || i === data.length - 1 || i % Math.max(1, Math.floor(data.length / 5)) === 0) && (
               <text x={x + bw / 2} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{d.week.slice(5)}</text>
@@ -2174,22 +2174,22 @@ function PaceChart({ data }) {
             <text x={pad.l - 4} y={yy + 3} textAnchor="end" fill="#888" fontSize="8">{fmtPace(v)}</text>
           </g>;
         })}
-        <path d={avgLine} fill="none" stroke="#FF9800" strokeWidth="2" opacity="0.8" />
+        <path d={avgLine} fill="none" stroke="#f59e0b" strokeWidth="2" opacity="0.8" />
         {data.map((d, i) => (
-          <circle key={i} cx={x(i)} cy={y(d.pace)} r="5" fill="#2196F3" opacity="0" style={{ cursor: "crosshair" }}
+          <circle key={i} cx={x(i)} cy={y(d.pace)} r="5" fill="#3b82f6" opacity="0" style={{ cursor: "crosshair" }}
             onMouseMove={e => show(e, `${fmtMD(d.date)}: ${fmtPace(d.pace)} (avg: ${fmtPace(d.avg7)})`)} onMouseLeave={hide} />
         ))}
         {data.map((d, i) => (
-          <circle key={`v${i}`} cx={x(i)} cy={y(d.pace)} r="3" fill="#2196F3" opacity="0.7" pointerEvents="none" />
+          <circle key={`v${i}`} cx={x(i)} cy={y(d.pace)} r="3" fill="#3b82f6" opacity="0.7" pointerEvents="none" />
         ))}
         {[0, Math.floor(data.length / 2), data.length - 1].map((i) => (
           <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{data[i].date.slice(5)}</text>
         ))}
       </svg>
       {el}
-      <div style={{ display: "flex", gap: "16px", fontSize: "0.75em", color: "#888" }}>
-        <span><span style={{ color: "#2196F3" }}>{"●"}</span> Pace</span>
-        <span><span style={{ color: "#FF9800" }}>{"—"}</span> 7-run avg</span>
+      <div style={{ display: "flex", gap: "16px", fontSize: "0.75em", color: "var(--muted)" }}>
+        <span><span style={{ color: "#3b82f6" }}>{"●"}</span> Pace</span>
+        <span><span style={{ color: "#f59e0b" }}>{"—"}</span> 7-run avg</span>
       </div>
     </div>
   );
@@ -2217,22 +2217,22 @@ function HRChart({ data }) {
             <text x={pad.l - 4} y={yy + 3} textAnchor="end" fill="#888" fontSize="8">{v}</text>
           </g>;
         })}
-        <path d={avgLine} fill="none" stroke="#F44336" strokeWidth="2" opacity="0.7" />
+        <path d={avgLine} fill="none" stroke="#f43f5e" strokeWidth="2" opacity="0.7" />
         {data.map((d, i) => (
-          <circle key={i} cx={x(i)} cy={y(d.hr)} r="5" fill="#e53935" opacity="0" style={{ cursor: "crosshair" }}
+          <circle key={i} cx={x(i)} cy={y(d.hr)} r="5" fill="#f43f5e" opacity="0" style={{ cursor: "crosshair" }}
             onMouseMove={e => show(e, `${fmtMD(d.date)}: ${d.hr} bpm (avg: ${d.avg7} bpm)`)} onMouseLeave={hide} />
         ))}
         {data.map((d, i) => (
-          <circle key={`v${i}`} cx={x(i)} cy={y(d.hr)} r="3" fill="#e53935" opacity="0.7" pointerEvents="none" />
+          <circle key={`v${i}`} cx={x(i)} cy={y(d.hr)} r="3" fill="#f43f5e" opacity="0.7" pointerEvents="none" />
         ))}
         {[0, Math.floor(data.length / 2), data.length - 1].map(i => (
           <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{data[i].date.slice(5)}</text>
         ))}
       </svg>
       {el}
-      <div style={{ display: "flex", gap: "16px", fontSize: "0.75em", color: "#888" }}>
-        <span><span style={{ color: "#e53935" }}>{"●"}</span> Avg HR</span>
-        <span><span style={{ color: "#F44336" }}>{"—"}</span> 7-run avg</span>
+      <div style={{ display: "flex", gap: "16px", fontSize: "0.75em", color: "var(--muted)" }}>
+        <span><span style={{ color: "#f43f5e" }}>{"●"}</span> Avg HR</span>
+        <span><span style={{ color: "#f43f5e" }}>{"—"}</span> 7-run avg</span>
       </div>
     </div>
   );
@@ -2262,20 +2262,20 @@ function EfficiencyChart({ data }) {
             <text x={pad.l - 4} y={yy + 3} textAnchor="end" fill="#888" fontSize="8">{v.toFixed(1)}</text>
           </g>;
         })}
-        <path d={line} fill="none" stroke="#9C27B0" strokeWidth="2" opacity="0.8" />
+        <path d={line} fill="none" stroke="#8b5cf6" strokeWidth="2" opacity="0.8" />
         {data.map((d, i) => (
-          <circle key={i} cx={x(i)} cy={y(d.efficiency)} r="5" fill="#9C27B0" opacity="0" style={{ cursor: "crosshair" }}
+          <circle key={i} cx={x(i)} cy={y(d.efficiency)} r="5" fill="#8b5cf6" opacity="0" style={{ cursor: "crosshair" }}
             onMouseMove={e => show(e, `${fmtMD(d.date)}: ${d.efficiency} s/bpm — ${fmtPace(d.pace)} @ ${d.hr}bpm`)} onMouseLeave={hide} />
         ))}
         {data.map((d, i) => (
-          <circle key={`v${i}`} cx={x(i)} cy={y(d.efficiency)} r="3" fill="#9C27B0" opacity="0.7" pointerEvents="none" />
+          <circle key={`v${i}`} cx={x(i)} cy={y(d.efficiency)} r="3" fill="#8b5cf6" opacity="0.7" pointerEvents="none" />
         ))}
         {[0, Math.floor(data.length / 2), data.length - 1].map(i => (
           <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{data[i].date.slice(5)}</text>
         ))}
       </svg>
       {el}
-      <p style={{ fontSize: "0.75em", color: "#888", margin: "4px 0 0" }}>
+      <p style={{ fontSize: "0.75em", color: "var(--muted)", margin: "4px 0 0" }}>
         Pace ÷ HR (s/bpm) — lower = more efficient. {improving ? "Trending down — fitness improving." : ""}
       </p>
     </div>

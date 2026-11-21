@@ -11,7 +11,7 @@ const STOP_WORDS = new Set([
 
 const STATUS_LABELS = { draft: "Draft", in_progress: "In Progress", finished: "Finished" };
 
-const GRADE_COLORS = { S: "#FFD700", A: "#4CAF50", B: "#2196F3", C: "#FF9800", D: "#F44336", F: "#9E9E9E" };
+const GRADE_COLORS = { S: "#FFD700", A: "#10b981", B: "#3b82f6", C: "#f59e0b", D: "#f43f5e", F: "#9E9E9E" };
 
 // --- Syllable heuristic (no CMU dict) ---
 function countSyllables(word) {
@@ -597,7 +597,7 @@ export default function LyricLabPage() {
               <div>
                 <p><strong>{rhymeResults.length} rhymes</strong> for <em>{rhymeWord}</em> ({countSyllables(rhymeWord)} syl)</p>
                 {Object.keys(rhymeBySyl).sort((a, b) => a - b).map((s) => (
-                  <p key={s} style={{ color: "#888", fontSize: "0.85em", margin: "2px 0" }}>
+                  <p key={s} style={{ color: "var(--muted)", fontSize: "0.85em", margin: "2px 0" }}>
                     {s} syl &mdash; {rhymeBySyl[s].join(" / ")}
                   </p>
                 ))}
@@ -606,7 +606,7 @@ export default function LyricLabPage() {
                 </pre>
               </div>
             ) : (
-              <p style={{ color: "#888", fontSize: "0.85em" }}>No rhymes found for <em>{rhymeWord}</em> ({countSyllables(rhymeWord)} syl)</p>
+              <p style={{ color: "var(--muted)", fontSize: "0.85em" }}>No rhymes found for <em>{rhymeWord}</em> ({countSyllables(rhymeWord)} syl)</p>
             )
           )}
           {cmuData && cmuData.phonemes && (
@@ -627,7 +627,7 @@ export default function LyricLabPage() {
             </div>
           )}
           {cmuData && !cmuData.phonemes && (
-            <p style={{ fontSize: "0.8em", color: "#888", marginTop: 4 }}>Not in CMU dictionary</p>
+            <p style={{ fontSize: "0.8em", color: "var(--muted)", marginTop: 4 }}>Not in CMU dictionary</p>
           )}
         </div>
 
@@ -644,7 +644,7 @@ export default function LyricLabPage() {
           {sylInput.trim() && (
             <div>
               <p><strong>{sylTotal} syllables</strong></p>
-              <p style={{ color: "#888", fontSize: "0.85em" }}>
+              <p style={{ color: "var(--muted)", fontSize: "0.85em" }}>
                 {sylPairs.map(([w, s]) => `${w}(${s})`).join("  ")}
               </p>
             </div>
@@ -658,7 +658,7 @@ export default function LyricLabPage() {
       <h3>Analyze</h3>
       {loadedId && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <span style={{ color: "#888", fontSize: "0.85em" }}>Editing: <strong>{loadedTitle}</strong></span>
+          <span style={{ color: "var(--muted)", fontSize: "0.85em" }}>Editing: <strong>{loadedTitle}</strong></span>
           <button className="btn" onClick={() => { setLoadedId(null); setLoadedTitle(""); setPasteArea(""); }}>Clear</button>
         </div>
       )}
@@ -692,7 +692,7 @@ export default function LyricLabPage() {
                 <span style={{ color: GRADE_COLORS[analysis.grade] || "#666", fontWeight: 800 }}>
                   {analysis.grade}
                 </span>
-                <span style={{ fontSize: "0.6em", color: "#888", marginLeft: 4 }}>
+                <span style={{ fontSize: "0.6em", color: "var(--muted)", marginLeft: 4 }}>
                   {(analysis.score * 10).toFixed(0)}/100
                 </span>
               </div>
@@ -717,24 +717,24 @@ export default function LyricLabPage() {
               <div className="card" style={{ marginTop: 8 }}>
                 {[...analysis.extras.components].sort((a, b) => a.sc - b.sc).map((c) => {
                   const pct = (c.sc / 10) * 100;
-                  const barClr = pct >= 80 ? "#4CAF50" : pct >= 50 ? "#FF9800" : "#F44336";
+                  const barClr = pct >= 80 ? "#10b981" : pct >= 50 ? "#f59e0b" : "#f43f5e";
                   return (
                     <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0" }}>
                       <span style={{ minWidth: 120, fontSize: "0.85em" }}>{c.name} ({(c.weight * 100).toFixed(0)}%)</span>
                       <div style={{ flex: 1, background: "#333", borderRadius: 4, height: 16, overflow: "hidden" }}>
                         <div style={{ width: `${pct.toFixed(0)}%`, height: "100%", background: barClr, borderRadius: 4 }} />
                       </div>
-                      <span style={{ minWidth: 40, textAlign: "right", fontSize: "0.85em", color: "#888" }}>{c.sc.toFixed(1)}/10</span>
+                      <span style={{ minWidth: 40, textAlign: "right", fontSize: "0.85em", color: "var(--muted)" }}>{c.sc.toFixed(1)}/10</span>
                     </div>
                   );
                 })}
                 {analysis.extras.bonuses.filter((b) => b.val > 0).length > 0 && (
-                  <div style={{ marginTop: 6, fontSize: "0.82em", color: "#888" }}>
+                  <div style={{ marginTop: 6, fontSize: "0.82em", color: "var(--muted)" }}>
                     Bonuses: {analysis.extras.bonuses.filter((b) => b.val > 0).map((b) => `${b.name} +${b.val.toFixed(1)}`).join(" · ")}
                   </div>
                 )}
                 {(analysis.extras.uniqueMult < 1 || analysis.extras.repeatMult < 1) && (
-                  <div style={{ marginTop: 4, fontSize: "0.82em", color: "#F44336" }}>
+                  <div style={{ marginTop: 4, fontSize: "0.82em", color: "#f43f5e" }}>
                     Penalties: {[
                       analysis.extras.uniqueMult < 1 && `Low unique words (${(analysis.extras.uniqueMult * 100).toFixed(0)}%)`,
                       analysis.extras.repeatMult < 1 && `Repeated lines (${(analysis.extras.repeatMult * 100).toFixed(0)}%)`,
@@ -744,7 +744,7 @@ export default function LyricLabPage() {
                 {(() => {
                   const weakest = [...analysis.extras.components].sort((a, b) => a.sc - b.sc)[0];
                   return (
-                    <div style={{ marginTop: 8, padding: 8, background: "#1a1a2e", borderRadius: 6, borderLeft: "3px solid #F44336", fontSize: "0.85em" }}>
+                    <div style={{ marginTop: 8, padding: 8, background: "#1a1a2e", borderRadius: 6, borderLeft: "3px solid #f43f5e", fontSize: "0.85em" }}>
                       Biggest opportunity: <strong>{weakest.name}</strong> &mdash; scoring {weakest.sc.toFixed(1)}/10 at {(weakest.weight * 100).toFixed(0)}% weight
                     </div>
                   );
@@ -764,7 +764,7 @@ export default function LyricLabPage() {
               return (
                 <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "3px 0" }}>
                   <span style={{ color: lclr, fontWeight: 700, minWidth: 18, textAlign: "center" }}>{lbl}</span>
-                  <span style={{ color: "#888", minWidth: 30, textAlign: "right", fontSize: "0.85em" }}>{s}s</span>
+                  <span style={{ color: "var(--muted)", minWidth: 30, textAlign: "right", fontSize: "0.85em" }}>{s}s</span>
                   <span>{bar}</span>
                 </div>
               );
@@ -782,7 +782,7 @@ export default function LyricLabPage() {
                   <div>
                     <strong>Similes</strong>
                     {analysis.simileHits.map((h, i) => (
-                      <div key={i} style={{ fontSize: "0.85em", color: "#888", margin: "2px 0" }}>
+                      <div key={i} style={{ fontSize: "0.85em", color: "var(--muted)", margin: "2px 0" }}>
                         Bar {h.bar}: &ldquo;...{h.ctx}...&rdquo;
                       </div>
                     ))}
@@ -792,14 +792,14 @@ export default function LyricLabPage() {
                   <div style={{ marginTop: 8 }}>
                     <strong>Alliteration</strong>
                     {analysis.allitHits.map((h, i) => (
-                      <div key={i} style={{ fontSize: "0.85em", color: "#888", margin: "2px 0" }}>
+                      <div key={i} style={{ fontSize: "0.85em", color: "var(--muted)", margin: "2px 0" }}>
                         Bar {h.bar} ({h.letter}): {h.words.join(", ")}
                       </div>
                     ))}
                   </div>
                 )}
                 {!analysis.simileHits.length && !analysis.allitHits.length && (
-                  <p style={{ color: "#888", fontSize: "0.85em" }}>No notable devices detected.</p>
+                  <p style={{ color: "var(--muted)", fontSize: "0.85em" }}>No notable devices detected.</p>
                 )}
               </div>
             )}
@@ -820,7 +820,7 @@ export default function LyricLabPage() {
                         {word} &rarr; {rh.slice(0, 10).join(" / ")}
                       </pre>
                     ) : (
-                      <p key={i} style={{ color: "#888", fontSize: "0.85em", margin: "2px 0" }}><strong>{word}</strong> &mdash; no rhymes found</p>
+                      <p key={i} style={{ color: "var(--muted)", fontSize: "0.85em", margin: "2px 0" }}><strong>{word}</strong> &mdash; no rhymes found</p>
                     );
                   })}
                 </div>
@@ -863,7 +863,7 @@ export default function LyricLabPage() {
         {showArchive && (
           <div className="card" style={{ marginTop: 8 }}>
             {!lyrics.length ? (
-              <p style={{ color: "#888", fontSize: "0.85em" }}>No saved lyrics yet. Paste bars above and save them.</p>
+              <p style={{ color: "var(--muted)", fontSize: "0.85em" }}>No saved lyrics yet. Paste bars above and save them.</p>
             ) : (
               lyrics.map((ly) => {
                 const ct = ly.content || "";
@@ -879,7 +879,7 @@ export default function LyricLabPage() {
                     <button className="btn" onClick={() => loadLyric(ly)}>Load</button>
                     {deleteConfirm === ly.id ? (
                       <span style={{ display: "flex", gap: 4 }}>
-                        <button className="btn" style={{ color: "#F44336" }} onClick={() => deleteLyric(ly.id, ly.title)}>Yes</button>
+                        <button className="btn" style={{ color: "#f43f5e" }} onClick={() => deleteLyric(ly.id, ly.title)}>Yes</button>
                         <button className="btn" onClick={() => setDeleteConfirm(null)}>No</button>
                       </span>
                     ) : (
@@ -900,7 +900,7 @@ export default function LyricLabPage() {
         </button>
         {showRhymeDb && (
           <div className="card" style={{ marginTop: 8 }}>
-            <p style={{ color: "#888", fontSize: "0.85em", marginBottom: 8 }}>
+            <p style={{ color: "var(--muted)", fontSize: "0.85em", marginBottom: 8 }}>
               Teach the analyzer rhymes it cannot detect: phrases, slang, your pronunciation.
             </p>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -946,7 +946,7 @@ export default function LyricLabPage() {
                   </div>
                 ))}
                 {rhymeFilter && !filteredGroups.length && (
-                  <p style={{ color: "#888", fontSize: "0.85em" }}>No matches.</p>
+                  <p style={{ color: "var(--muted)", fontSize: "0.85em" }}>No matches.</p>
                 )}
               </>
             )}

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import "./brain-dump.css";
 
-const COLORS = { slate: "#64748b", blue: "#3b82f6", emerald: "#10b981", amber: "#f59e0b", rose: "#f43f5e", violet: "#8b5cf6" };
+import { PALETTE as COLORS } from "@/lib/constants";
 const URL_RE = /(https?:\/\/[^\s]+)/g;
 
 // plain text + "# " headers, "- " bullets, "- [ ] " checklists, clickable URL badges
@@ -177,7 +177,7 @@ export default function BrainDumpPage() {
   return (
     <div>
       <h1 className="page-title">Brain Dump</h1>
-      {status && <p style={{ fontSize: "0.85rem", color: status === "Loading..." ? "var(--muted)" : "var(--error)", marginBottom: "0.75rem" }}>{status}</p>}
+      {status && <p className={`status${status === "Loading..." ? "" : " error"}`}>{status}</p>}
 
       <form onSubmit={addNote} className="bd-add">
         <textarea value={text} rows={2} placeholder={`Dump a thought${filter ? ` into ${filter}` : ""}… (Enter to add, Shift+Enter for a new line)`}
@@ -214,7 +214,7 @@ export default function BrainDumpPage() {
         </span>
       </div>
 
-      {!status && !shown.length && <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>{notes.length ? "No notes match." : "Nothing here yet. Type above to add your first note."}</p>}
+      {!status && !shown.length && <p className="empty">{notes.length ? "No notes match." : "Nothing here yet. Type above to add your first note."}</p>}
 
       <div className="bd-grid">
         {shown.map((n) => <NoteCard key={n.id} note={n} tags={tags} onSave={saveNote} onDelete={deleteNote} />)}

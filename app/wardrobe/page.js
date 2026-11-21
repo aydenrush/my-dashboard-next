@@ -223,14 +223,14 @@ export default function WardrobePage() {
             </div>
           ))}
           <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>
-            Color compatibility: <strong style={{ color: compatPct >= 80 ? "#4CAF50" : compatPct >= 50 ? "#FF9800" : "#F44336" }}>{compatPct}%</strong>
+            Color compatibility: <strong style={{ color: compatPct >= 80 ? "#10b981" : compatPct >= 50 ? "#f59e0b" : "#f43f5e" }}>{compatPct}%</strong>
           </p>
         </div>
       )}
 
       {showAdd && (
         <form onSubmit={addItem} style={{ marginBottom: "1rem" }}>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+          <div className="row">
             <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Item name" style={{ flex: 2 }} />
             <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}>
               {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -248,7 +248,7 @@ export default function WardrobePage() {
               setForm((f) => ({ ...f, colors }));
               setExtracting(false);
             }} style={{ fontSize: "0.8rem" }} />
-            {extracting && <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Extracting...</span>}
+            {extracting && <span className="muted">Extracting...</span>}
           </div>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap" }}>
             <span style={{ fontSize: "0.85rem" }}>Colors:</span>
@@ -266,7 +266,7 @@ export default function WardrobePage() {
               <button type="button" className="btn" onClick={() => setForm((f) => ({ ...f, colors: f.colors.slice(0, -1) }))} style={{ padding: "4px 8px" }}>-</button>
             )}
           </div>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+          <div className="row">
             {WEATHER_TAGS.map((tag) => (
               <label key={tag} style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "0.8rem" }}>
                 <input type="checkbox" checked={form.weather_tags.includes(tag)}

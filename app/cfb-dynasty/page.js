@@ -269,21 +269,21 @@ export default function CFBDynastyPage() {
           <hr className="divider" />
 
           <details>
-            <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Add Pick</summary>
+            <summary>Add Pick</summary>
             <form onSubmit={addPick}>
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+              <div className="row">
                 <input type="text" value={form.school || selectedSchool} onChange={(e) => setForm((f) => ({ ...f, school: e.target.value }))} placeholder="School" style={{ flex: 1 }} />
                 <input type="number" value={form.year} onChange={(e) => setForm((f) => ({ ...f, year: Number(e.target.value) }))} style={{ width: "80px" }} />
                 <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Player Name" style={{ flex: 2 }} />
               </div>
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+              <div className="row">
                 <input type="text" value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} placeholder="Position" style={{ flex: 1 }} />
                 <input type="text" value={form.class} onChange={(e) => setForm((f) => ({ ...f, class: e.target.value }))} placeholder="Class (SR, JR(RS))" style={{ flex: 1 }} />
                 <select value={form.round} onChange={(e) => setForm((f) => ({ ...f, round: e.target.value }))}>
                   {ROUND_ORDER.map((r) => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+              <div className="row">
                 <input type="text" value={form.height} onChange={(e) => setForm((f) => ({ ...f, height: e.target.value }))} placeholder="Height" style={{ flex: 1 }} />
                 <input type="number" value={form.weight} onChange={(e) => setForm((f) => ({ ...f, weight: Number(e.target.value) }))} style={{ width: "80px" }} />
                 <input type="text" value={form.number} onChange={(e) => setForm((f) => ({ ...f, number: e.target.value }))} placeholder="#" style={{ width: "60px" }} />
@@ -295,8 +295,8 @@ export default function CFBDynastyPage() {
           </details>
 
           <details style={{ marginTop: "0.5rem" }}>
-            <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Bulk Add</summary>
-            <p style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Paste tab-separated: Year, Name, Position, Class, Age, Height, Weight, Number, Race, Round, Notes</p>
+            <summary>Bulk Add</summary>
+            <p className="muted">Paste tab-separated: Year, Name, Position, Class, Age, Height, Weight, Number, Race, Round, Notes</p>
             <input type="text" value={bulkSchool || selectedSchool} onChange={(e) => setBulkSchool(e.target.value)} placeholder="School for all rows" style={{ marginBottom: "0.5rem", width: "100%" }} />
             <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} rows={6} style={{ width: "100%", fontFamily: "monospace", fontSize: "0.8rem" }} />
             <button className="btn btn-primary" onClick={bulkUpload} style={{ marginTop: "0.5rem" }}>Upload</button>

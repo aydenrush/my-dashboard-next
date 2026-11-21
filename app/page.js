@@ -420,18 +420,18 @@ export default function HomePage() {
           const isRest = wo.startsWith("Rest");
           return (
             <div key={`r${r.id}`} style={{
-              borderLeft: `3px solid ${isRest ? "#607D8B" : "#F44336"}`,
+              borderLeft: `3px solid ${isRest ? "#64748b" : "#f43f5e"}`,
               padding: "4px 8px", margin: "4px 0", borderRadius: "3px", fontSize: "0.9rem",
               opacity: r.completed ? 0.5 : 1, textDecoration: r.completed ? "line-through" : "none",
               display: "flex", justifyContent: "space-between", alignItems: "center",
             }}>
-              <span><span style={{ color: "#F44336", fontSize: "0.8rem" }}>Run</span> {wo}{r.distance ? ` · ${r.distance} mi` : ""}{r.notes ? ` — ${r.notes}` : ""}</span>
+              <span><span style={{ color: "#f43f5e", fontSize: "0.8rem" }}>Run</span> {wo}{r.distance ? ` · ${r.distance} mi` : ""}{r.notes ? ` — ${r.notes}` : ""}</span>
               {!isRest && <button className="btn" onClick={() => toggleRun(r.id, r.completed)} style={{ padding: "2px 8px", fontSize: "0.75rem" }}>{r.completed ? "Undo" : "Done"}</button>}
             </div>
           );
         }
         const a = item.data;
-        const at = ACTIVITY_TYPES[a.activity_type] || { label: a.activity_type, color: "#607D8B" };
+        const at = ACTIVITY_TYPES[a.activity_type] || { label: a.activity_type, color: "#64748b" };
         const title = a.title || at.label;
         const timeStr = formatTime(a.time_slot);
         return (
@@ -474,7 +474,7 @@ export default function HomePage() {
         <div style={{ marginTop: "0.75rem" }}>
           <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "4px" }}>To Do</p>
           {todos.slice(0, 5).map((t) => {
-            const color = PRIORITY_COLORS[t.priority] || "#FF9800";
+            const color = PRIORITY_COLORS[t.priority] || "#f59e0b";
             return (
               <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "6px", margin: "2px 0" }}>
                 <button className="btn" onClick={() => completeTodo(t.id)} style={{ padding: "1px 6px", fontSize: "0.7rem" }}>x</button>
@@ -513,8 +513,8 @@ export default function HomePage() {
             }}>
               <div style={{ fontSize: "0.75rem", fontWeight: 600 }}>{DAY_NAMES[i]}</div>
               <div style={{ fontSize: "0.85rem" }}>{new Date(d + "T00:00:00").getDate()}</div>
-              {hasDone && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: isActive ? "white" : "#4CAF50", margin: "2px auto 0" }} />}
-              {dayRuns.length > 0 && <div style={{ fontSize: "0.6rem", color: isActive ? "rgba(255,255,255,0.8)" : "#F44336", marginTop: "2px" }}>
+              {hasDone && <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: isActive ? "white" : "#10b981", margin: "2px auto 0" }} />}
+              {dayRuns.length > 0 && <div style={{ fontSize: "0.6rem", color: isActive ? "rgba(255,255,255,0.8)" : "#f43f5e", marginTop: "2px" }}>
                 {(dayRuns[0].workout || "").slice(0, 8)}
               </div>}
             </div>
@@ -527,16 +527,16 @@ export default function HomePage() {
 
       {/* Add Activity */}
       <details open={openTool === "add"} onToggle={(e) => { if (e.target.open) setOpenTool("add"); else if (openTool === "add") setOpenTool(null); }}>
-        <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>{editId ? "Edit Activity" : "Add Activity"}</summary>
+        <summary>{editId ? "Edit Activity" : "Add Activity"}</summary>
         <form onSubmit={addActivity} style={{ marginBottom: "1rem" }}>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+          <div className="row">
             <select value={addType} onChange={(e) => setAddType(e.target.value)} style={{ flex: "1 1 120px", minWidth: 0 }}>
               {Object.entries(ACTIVITY_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </select>
             <input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} style={{ flex: "1 1 120px", minWidth: 0 }} />
             <input type="time" value={addSlot} onChange={(e) => setAddSlot(e.target.value)} style={{ flex: "1 1 100px", minWidth: 0 }} />
           </div>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+          <div className="row">
             <input type="text" value={addTitle} onChange={(e) => setAddTitle(e.target.value)} placeholder="Title (optional)" style={{ flex: 2 }} />
             <input type="number" value={addDuration} onChange={(e) => setAddDuration(e.target.value)} placeholder="Duration (min)" min="0" max="300" style={{ flex: 1 }} />
           </div>
@@ -558,7 +558,7 @@ export default function HomePage() {
       {/* Manage Activities */}
       {activities.length > 0 && (
         <details onToggle={(e) => { if (e.target.open) setOpenTool("manage"); else if (openTool === "manage") setOpenTool(null); }}>
-          <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Manage Activities</summary>
+          <summary>Manage Activities</summary>
           <div style={{ marginBottom: "1rem" }}>
             {weekActs.length === 0 ? (
               <p className="alert alert-info">No activities this week.</p>
@@ -580,8 +580,8 @@ export default function HomePage() {
                       ) : (
                         <span style={{ fontSize: "0.75rem", color: "var(--muted)", padding: "2px 8px" }}>Done</span>
                       )}
-                      <button className="btn" onClick={() => deleteActivity(act.id)} style={{ padding: "2px 8px", fontSize: "0.75rem", color: "#F44336" }}>Del</button>
-                      {isSeries && <button className="btn" onClick={() => deleteSeriesActivity(act.gcal_event_id)} style={{ padding: "2px 8px", fontSize: "0.75rem", color: "#F44336" }}>Del All</button>}
+                      <button className="btn" onClick={() => deleteActivity(act.id)} style={{ padding: "2px 8px", fontSize: "0.75rem", color: "#f43f5e" }}>Del</button>
+                      {isSeries && <button className="btn" onClick={() => deleteSeriesActivity(act.gcal_event_id)} style={{ padding: "2px 8px", fontSize: "0.75rem", color: "#f43f5e" }}>Del All</button>}
                     </div>
                   </div>
                 );
@@ -593,7 +593,7 @@ export default function HomePage() {
 
       {/* Recurring Schedules */}
       <details onToggle={(e) => { if (e.target.open) setOpenTool("recur"); else if (openTool === "recur") setOpenTool(null); }}>
-        <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Recurring Schedules</summary>
+        <summary>Recurring Schedules</summary>
         <div style={{ marginBottom: "1rem" }}>
           {recurTemplates.length > 0 && recurTemplates.map((tpl) => {
             const at = ACTIVITY_TYPES[tpl.activity_type] || ACTIVITY_TYPES.other;
@@ -612,7 +612,7 @@ export default function HomePage() {
                 <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
                   <button className="btn" onClick={() => generateInstances(tpl, 4)} style={{ padding: "2px 8px", fontSize: "0.75rem" }}>+4 wks</button>
                   <button className="btn" onClick={() => generateInstances(tpl, 8)} style={{ padding: "2px 8px", fontSize: "0.75rem" }}>+8 wks</button>
-                  <button className="btn" onClick={() => deleteTemplateAndInstances(tpl)} style={{ padding: "2px 8px", fontSize: "0.75rem", color: "#F44336" }}>Delete</button>
+                  <button className="btn" onClick={() => deleteTemplateAndInstances(tpl)} style={{ padding: "2px 8px", fontSize: "0.75rem", color: "#f43f5e" }}>Delete</button>
                 </div>
               </div>
             );
@@ -620,14 +620,14 @@ export default function HomePage() {
           {recurTemplates.length === 0 && <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "0.5rem" }}>No recurring schedules yet.</p>}
           <form onSubmit={createTemplate} style={{ marginTop: "0.5rem", padding: "8px", background: "var(--bg-secondary)", borderRadius: "6px" }}>
             <p style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem" }}>New Recurring Schedule</p>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+            <div className="row">
               <select value={newTpl.activity_type} onChange={(e) => setNewTpl(p => ({ ...p, activity_type: e.target.value }))} style={{ flex: 1 }}>
                 {Object.entries(ACTIVITY_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
               <input type="time" value={newTpl.time} onChange={(e) => setNewTpl(p => ({ ...p, time: e.target.value }))} style={{ flex: 1 }} />
               <input type="number" value={newTpl.duration} onChange={(e) => setNewTpl(p => ({ ...p, duration: e.target.value }))} placeholder="Min" min="0" max="300" style={{ width: "60px" }} />
             </div>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+            <div className="row">
               <input type="text" value={newTpl.title} onChange={(e) => setNewTpl(p => ({ ...p, title: e.target.value }))} placeholder="Title (optional)" style={{ flex: 1 }} />
               <input type="text" value={newTpl.notes} onChange={(e) => setNewTpl(p => ({ ...p, notes: e.target.value }))} placeholder="Notes (optional)" style={{ flex: 1 }} />
             </div>
@@ -651,7 +651,7 @@ export default function HomePage() {
 
       {/* Sync to phone */}
       <details onToggle={(e) => { if (e.target.open) setOpenTool("sync"); else if (openTool === "sync") setOpenTool(null); }}>
-        <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>Sync to phone</summary>
+        <summary>Sync to phone</summary>
         <div style={{ marginBottom: "1rem" }}>
           <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem" }}>
             Publish your training plan so your phone calendar updates automatically.
@@ -664,7 +664,7 @@ export default function HomePage() {
           <code style={{ display: "block", fontSize: "0.75rem", wordBreak: "break-all", padding: "6px 8px", background: "var(--bg-secondary)", borderRadius: "4px", marginBottom: "4px" }}>
             {process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("https://", "webcal://")}/storage/v1/object/public/ical/training_plan.ics
           </code>
-          <p style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+          <p className="muted">
             Add this URL as a calendar subscription on your phone. It refreshes automatically.
           </p>
         </div>
@@ -672,7 +672,7 @@ export default function HomePage() {
 
       {/* Year in Review */}
       <details onToggle={(e) => { if (e.target.open) setOpenTool("review"); else if (openTool === "review") setOpenTool(null); }}>
-        <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>{thisYear} in Review</summary>
+        <summary>{thisYear} in Review</summary>
         <div style={{ marginBottom: "1rem" }}>
           <div className="metrics-row" style={{ marginBottom: "1rem" }}>
             <div className="metric"><div className="metric-label">Activities</div><div className="metric-value">{yrActs.length}</div></div>
@@ -703,7 +703,7 @@ export default function HomePage() {
 
       {/* iCal Setup */}
       <details>
-        <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: "0.5rem" }}>
+        <summary>
           {icalUrl ? "Change Calendar" : "Connect Google Calendar"}
         </summary>
         <div style={{ marginBottom: "1rem" }}>

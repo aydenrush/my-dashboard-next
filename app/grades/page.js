@@ -125,7 +125,7 @@ export default function GradesPage() {
   return (
     <div>
       <h1 className="page-title">Final Grade Calculator</h1>
-      {status && <p style={{ fontSize: "0.85rem", color: status === "Loading..." ? "var(--muted)" : "var(--error)", marginBottom: "0.75rem" }}>{status}</p>}
+      {status && <p className={`status${status === "Loading..." ? "" : " error"}`}>{status}</p>}
 
       {classes.map((cls, ci) => {
         const { currentPct, earnedWeighted, totalWeight, remainingWeight, neededFor } = calcClass(cls.categories);

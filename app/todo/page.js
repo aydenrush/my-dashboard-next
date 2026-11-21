@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
-const PRIORITY_COLORS = { high: "#F44336", medium: "#FF9800", low: "#4CAF50" };
+const PRIORITY_COLORS = { high: "#f43f5e", medium: "#f59e0b", low: "#10b981" };
 
 export default function TodoPage() {
   const [todos, setTodos] = useState([]);
