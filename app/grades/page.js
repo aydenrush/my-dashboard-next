@@ -98,7 +98,7 @@ export default function GradesPage() {
       <h1 className="page-title">Final Grade Calculator</h1>
 
       {classes.map((cls, ci) => {
-        const { currentPct, earnedWeighted, totalWeight, remainingWeight, neededFor } = calcClass(cls.categories);
+        const { currentPct, remainingWeight, neededFor, remaining } = calcClass(cls.categories);
         const weightSum = cls.categories.reduce((s, c) => s + (parseFloat(c.weight) || 0), 0);
         return (
           <details key={cls.id} open className="card" style={{ marginBottom: "1rem" }}>
@@ -151,7 +151,7 @@ export default function GradesPage() {
               {remainingWeight > 0 && (
                 <div style={{ marginTop: "0.75rem", padding: "0.5rem", background: "var(--sidebar-bg)", borderRadius: 6 }}>
                   <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "0.25rem" }}>
-                    Average you need on the remaining coursework ({cls.categories.filter((c) => !(parseFloat(c.possible) > 0 && !isNaN(parseFloat(c.earned)))).map((c) => c.name).join(", ")} — {remainingWeight}% of grade):
+                    Average you need on <strong>{remaining.join(" + ")}</strong> ({remainingWeight}% of grade):
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: "0.4rem" }}>
                     {GRADE_THRESHOLDS.filter((g) => g.label !== "F").map(({ label }) => {

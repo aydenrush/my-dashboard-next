@@ -401,7 +401,17 @@ export default function HomePage() {
             <div><span className="hub-label">Class</span>{nextClass ? <>{nextClass.name} at {nextClass.time.split(" - ")[0]} · {nextClass.room}</> : <span className="muted">{focusClasses.length ? "Done for today" : "No classes today"}</span>}</div>
             <div><span className="hub-label">Run</span><Link href="/running">{run ? (isRest ? "Rest day" : `${runText}${run.completed ? " ✓" : ""}`) : <span className="muted">Nothing planned</span>}</Link>{runTip && <span className="muted"> · {runTip.replace("Best time to run: ", "best at ")}</span>}</div>
             {pinned.length > 0 && <div><span className="hub-label">Pinned</span><Link href="/brain-dump">{pinned.map((n) => n.content.split("\n")[0]).join(" · ")}</Link></div>}
-            {grades.length > 0 && <div><span className="hub-label">Grades</span><Link href="/grades">{grades.map((g) => `${g.name}: ${g.best.need <= 0 ? `${g.best.label} locked` : `${g.best.label} needs ${Math.ceil(g.best.need)}%`}`).join(" · ")}</Link></div>}
+            {grades.map((g, i) => (
+              <div key={g.name}>
+                <span className="hub-label">{i === 0 ? "Grades" : ""}</span>
+                <Link href="/grades">
+                  <strong>{g.name}</strong>{" "}
+                  {g.best.need <= 0
+                    ? `${g.best.label} locked in`
+                    : <>{g.best.label}: need {Math.ceil(g.best.need)}% {g.best.on.length > 1 ? "average " : ""}on <strong>{g.best.on.join(" + ")}</strong></>}
+                </Link>
+              </div>
+            ))}
           </div>
         );
       })()}
