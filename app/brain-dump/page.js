@@ -91,7 +91,7 @@ const sortNotes = (ns) => [...ns].sort((a, b) => (b.pinned - a.pinned) || b.crea
 export default function BrainDumpPage() {
   const [notes, setNotes] = useState([]);
   const [tags, setTags] = useState([]);
-  const [status, setStatus] = useState("Loading...");
+  const [loaded, setLoaded] = useState(false);
   const [text, setText] = useState("");
   const [filter, setFilter] = useState(null);
   const [query, setQuery] = useState("");
@@ -106,19 +106,19 @@ export default function BrainDumpPage() {
         supabase.from("note_tags").select("*").order("name"),
         supabase.from("notes").select("*"),
       ]);
-      if (e1 || e2) return setStatus(`Couldn't load notes: ${(e1 || e2).message}`);
+      if (e1 || e2) return;
       setTags(t);
       let rows = n;
       // one-time import of notes from the old canvas version (stored in this browser)
       const old = JSON.parse(localStorage.getItem("brain_dump") || "null")?.notes?.filter((x) => x.content?.trim());
       if (!rows.length && old?.length) {
         const { data: ins, error } = await supabase.from("notes").insert(old.map((x) => ({ content: x.content }))).select();
-        if (error) return setStatus(`Couldn't import old notes: ${error.message}`);
+        if (error) return;
         rows = ins;
         localStorage.removeItem("brain_dump");
       }
       setNotes(sortNotes(rows));
-      setStatus("");
+      setLoaded(true);
     })();
   }, []);
 
@@ -126,7 +126,7 @@ export default function BrainDumpPage() {
     e?.preventDefault();
     if (!text.trim()) return;
     const { data, error } = await supabase.from("notes").insert({ content: text.trim(), tag: filter }).select().single();
-    if (error) return setStatus(`Couldn't add note: ${error.message}`);
+    if (error) return;
     setNotes((ns) => sortNotes([data, ...ns]));
     setText("");
   }
@@ -134,14 +134,12 @@ export default function BrainDumpPage() {
   async function saveNote(note, patch) {
     const updated = { ...patch, updated_at: new Date().toISOString() };
     setNotes((ns) => sortNotes(ns.map((n) => (n.id === note.id ? { ...n, ...updated } : n))));
-    const { error } = await supabase.from("notes").update(updated).eq("id", note.id);
-    if (error) setStatus(`Couldn't save note: ${error.message}`);
+    await supabase.from("notes").update(updated).eq("id", note.id);
   }
 
   async function deleteNote(note) {
     setNotes((ns) => ns.filter((n) => n.id !== note.id));
-    const { error } = await supabase.from("notes").delete().eq("id", note.id);
-    if (error) setStatus(`Couldn't delete note: ${error.message}`);
+    await supabase.from("notes").delete().eq("id", note.id);
   }
 
   async function addTag(e) {
@@ -149,7 +147,7 @@ export default function BrainDumpPage() {
     const name = newTag.name.trim();
     if (!name || tags.some((t) => t.name === name)) return setNewTag(null);
     const { error } = await supabase.from("note_tags").insert({ name, color: newTag.color });
-    if (error) return setStatus(`Couldn't add tag: ${error.message}`);
+    if (error) return;
     setTags((ts) => [...ts, { name, color: newTag.color }].sort((a, b) => a.name.localeCompare(b.name)));
     setNewTag(null);
   }
@@ -157,7 +155,7 @@ export default function BrainDumpPage() {
   async function deleteTag(name) {
     if (!confirm(`Delete tag "${name}"? Its notes stay, just untagged.`)) return;
     const { error } = await supabase.from("note_tags").delete().eq("name", name);
-    if (error) return setStatus(`Couldn't delete tag: ${error.message}`);
+    if (error) return;
     setTags((ts) => ts.filter((t) => t.name !== name));
     setNotes((ns) => ns.map((n) => (n.tag === name ? { ...n, tag: null } : n)));
     if (filter === name) setFilter(null);
@@ -177,7 +175,6 @@ export default function BrainDumpPage() {
   return (
     <div>
       <h1 className="page-title">Brain Dump</h1>
-      {status && <p className={`status${status === "Loading..." ? "" : " error"}`}>{status}</p>}
 
       <form onSubmit={addNote} className="bd-add">
         <textarea value={text} rows={2} placeholder={`Dump a thought${filter ? ` into ${filter}` : ""}… (Enter to add, Shift+Enter for a new line)`}
@@ -214,7 +211,7 @@ export default function BrainDumpPage() {
         </span>
       </div>
 
-      {!status && !shown.length && <p className="empty">{notes.length ? "No notes match." : "Nothing here yet. Type above to add your first note."}</p>}
+      {loaded && !shown.length && <p className="empty">{notes.length ? "No notes match." : "Nothing here yet. Type above to add your first note."}</p>}
 
       <div className="bd-grid">
         {shown.map((n) => <NoteCard key={n.id} note={n} tags={tags} onSave={saveNote} onDelete={deleteNote} />)}

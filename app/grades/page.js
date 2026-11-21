@@ -18,7 +18,6 @@ export default function GradesPage() {
   const [classes, setClasses] = useState([]);
   const [addingClass, setAddingClass] = useState(false);
   const [newClassName, setNewClassName] = useState("");
-  const [status, setStatus] = useState("Loading...");
   const dirty = useRef(new Set());
   const started = useRef(false);
 
@@ -28,15 +27,14 @@ export default function GradesPage() {
     started.current = true;
     (async () => {
       const { data, error } = await supabase.from("grade_classes").select("*").order("id");
-      if (error) return setStatus(`Couldn't load grades: ${error.message}`);
-      if (data.length) { setClasses(data); return setStatus(""); }
+      if (error) return;
+      if (data.length) { setClasses(data); return; }
       let seed = INITIAL_CLASSES;
       try { const s = localStorage.getItem("grades_classes"); if (s) seed = JSON.parse(s); } catch {}
       const { data: ins, error: insErr } = await supabase.from("grade_classes").insert(seed.map(({ name, categories }) => ({ name, categories }))).select().order("id");
-      if (insErr) return setStatus(`Couldn't save grades: ${insErr.message}`);
+      if (insErr) return;
       setClasses(ins);
       localStorage.removeItem("grades_classes");
-      setStatus("");
     })();
   }, []);
 
@@ -47,9 +45,8 @@ export default function GradesPage() {
       const ids = [...dirty.current];
       dirty.current.clear();
       for (const c of classes.filter((c) => ids.includes(c.id))) {
-        const { error } = await supabase.from("grade_classes")
+        await supabase.from("grade_classes")
           .update({ categories: c.categories, meetings: c.meetings || [], term_start: c.term_start || null, term_end: c.term_end || null }).eq("id", c.id);
-        if (error) setStatus(`Couldn't save ${c.name}: ${error.message}`);
       }
     }, 600);
     return () => clearTimeout(t);
@@ -90,7 +87,7 @@ export default function GradesPage() {
     if (!newClassName.trim()) return;
     const row = { name: newClassName.trim(), categories: [{ name: "Category 1", weight: 50, earned: "", possible: "" }, { name: "Category 2", weight: 50, earned: "", possible: "" }] };
     const { data, error } = await supabase.from("grade_classes").insert(row).select().single();
-    if (error) return setStatus(`Couldn't add class: ${error.message}`);
+    if (error) return;
     setClasses((prev) => [...prev, data]);
     setNewClassName("");
     setAddingClass(false);
@@ -99,7 +96,6 @@ export default function GradesPage() {
   return (
     <div>
       <h1 className="page-title">Final Grade Calculator</h1>
-      {status && <p className={`status${status === "Loading..." ? "" : " error"}`}>{status}</p>}
 
       {classes.map((cls, ci) => {
         const { currentPct, earnedWeighted, totalWeight, remainingWeight, neededFor } = calcClass(cls.categories);

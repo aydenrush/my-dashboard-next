@@ -293,3 +293,9 @@ details > summary { cursor: pointer; font-weight: 600; margin-bottom: 0.5rem; }
   padding: 8px 12px; font-size: 0.85rem; box-shadow: 0 4px 16px rgba(0,0,0,0.2);
 }
 .db-status button { background: none; border: none; color: var(--muted); cursor: pointer; }
+
+/* thin loading bar at the top while Supabase requests are in flight */
+.db-busy { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 300; overflow: hidden; background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.db-busy::after { content: ""; position: absolute; top: 0; bottom: 0; width: 35%; background: var(--accent); animation: db-busy 1s ease-in-out infinite; }
+@keyframes db-busy { from { left: -35%; } to { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .db-busy::after { animation: none; left: 0; width: 100%; opacity: 0.6; } }
