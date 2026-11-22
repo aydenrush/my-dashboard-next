@@ -19,7 +19,7 @@ export default function WeatherPage() {
     }
   }, []);
 
-  const fetchWeather = useCallback(async (loc) => {
+  const load = useCallback(async (loc) => {
     setLoading(true);
     setError(null);
     try {
@@ -32,8 +32,8 @@ export default function WeatherPage() {
   }, []);
 
   useEffect(() => {
-    if (location) fetchWeather(location);
-  }, [location, fetchWeather]);
+    if (location) load(location);
+  }, [location, load]);
 
   async function handleSetLocation() {
     if (!cityInput.trim()) return;
@@ -80,7 +80,17 @@ export default function WeatherPage() {
     return (
       <div>
         <h1 className="page-title">Weather</h1>
-        <p style={{ color: "var(--muted)" }}>Loading...</p>
+        {error ? (
+          <>
+            <p className="alert alert-error">Couldn&apos;t load the weather: {error}</p>
+            <div className="row" style={{ marginTop: "0.75rem" }}>
+              <button className="btn btn-primary" onClick={() => load(location)}>Try again</button>
+              <button className="btn" onClick={() => { localStorage.removeItem("weather_location"); setLocation(null); setError(null); }}>Change location</button>
+            </div>
+          </>
+        ) : (
+          <p className="muted">Loading...</p>
+        )}
       </div>
     );
   }
@@ -152,7 +162,7 @@ export default function WeatherPage() {
           />
         </div>
         <button className="btn" onClick={handleSetLocation}>Set Location</button>
-        <button className="btn" onClick={() => fetchWeather(location)}>Refresh</button>
+        <button className="btn" onClick={() => load(location)}>Refresh</button>
       </div>
 
       {error && <p className="alert alert-error">{error}</p>}
