@@ -33,6 +33,7 @@ export default function MinecraftPage() {
   }
 
   async function deleteCoord(id) {
+    if (!confirm("Delete this location?")) return;
     await supabase.from("minecraft_coords").delete().eq("id", id);
     load();
   }

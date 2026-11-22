@@ -1,13 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { isoDate } from "@/lib/dates";
 
 const STATUS_LABELS = { reading: "Currently Reading", completed: "Completed", want_to_read: "Want to Read" };
 
-function today() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 function daysBetween(a, b) {
   return Math.round((new Date(b) - new Date(a)) / 86400000);
@@ -50,7 +47,7 @@ export default function BooksPage() {
     const updates = { current_page: newPage };
     if (totalPages && newPage >= totalPages) {
       updates.status = "completed";
-      updates.end_date = today();
+      updates.end_date = isoDate();
       updates.current_page = totalPages;
     }
     await supabase.from("books").update(updates).eq("id", bookId);
@@ -58,14 +55,14 @@ export default function BooksPage() {
   }
 
   async function finishBook(bookId, totalPages) {
-    const updates = { status: "completed", end_date: today() };
+    const updates = { status: "completed", end_date: isoDate() };
     if (totalPages) updates.current_page = totalPages;
     await supabase.from("books").update(updates).eq("id", bookId);
     load();
   }
 
   async function startBook(bookId) {
-    await supabase.from("books").update({ status: "reading", start_date: today(), current_page: 0 }).eq("id", bookId);
+    await supabase.from("books").update({ status: "reading", start_date: isoDate(), current_page: 0 }).eq("id", bookId);
     load();
   }
 
@@ -82,10 +79,10 @@ export default function BooksPage() {
       year_published: newBook.year_published > 0 ? newBook.year_published : null,
       notes: newBook.notes.trim() || null,
     };
-    if (newBook.status === "reading") row.start_date = today();
+    if (newBook.status === "reading") row.start_date = isoDate();
     if (newBook.status === "completed") {
-      row.start_date = today();
-      row.end_date = today();
+      row.start_date = isoDate();
+      row.end_date = isoDate();
       if (newBook.total_pages > 0) row.current_page = newBook.total_pages;
     }
     await supabase.from("books").insert(row);
@@ -94,6 +91,7 @@ export default function BooksPage() {
   }
 
   async function deleteBook(id) {
+    if (!confirm("Delete this book? This can't be undone.")) return;
     await supabase.from("books").delete().eq("id", id);
     load();
   }
@@ -108,6 +106,7 @@ export default function BooksPage() {
   }
 
   async function deleteNote(id) {
+    if (!confirm("Delete this note?")) return;
     await supabase.from("book_notes").delete().eq("id", id);
     load();
   }
@@ -126,7 +125,7 @@ export default function BooksPage() {
             const cur = book.current_page || 0;
             const total = book.total_pages || 0;
             const pct = total > 0 ? cur / total : 0;
-            const days = book.start_date ? daysBetween(book.start_date, today()) : 0;
+            const days = book.start_date ? daysBetween(book.start_date, isoDate()) : 0;
             const pgDay = days > 0 && cur > 0 ? Math.round(cur / days) : 0;
             const bookNotes = notes.filter((n) => n.book_id === book.id);
             const pageVal = pageUpdates[book.id] ?? cur;

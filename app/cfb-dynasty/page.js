@@ -73,6 +73,7 @@ export default function CFBDynastyPage() {
   }
 
   async function deletePick(id) {
+    if (!confirm("Delete this pick?")) return;
     if (!table) return;
     await supabase.from(table).delete().eq("id", id);
     loadPicks();

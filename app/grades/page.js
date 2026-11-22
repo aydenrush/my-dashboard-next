@@ -1,16 +1,7 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { GRADE_THRESHOLDS, letterGrade, gradeColor, calcClass, outcomes } from "@/lib/grades";
-
-const INITIAL_CLASSES = [
-  { name: "CS 25000", categories: [{ name: "Labs", weight: 15, earned: "", possible: "" }, { name: "Homework", weight: 20, earned: "", possible: "" }, { name: "Midterm 1", weight: 15, earned: "", possible: "" }, { name: "Midterm 2", weight: 15, earned: "", possible: "" }, { name: "Final", weight: 35, earned: "", possible: "" }] },
-  { name: "CS 25100", categories: [{ name: "Homework", weight: 25, earned: "", possible: "" }, { name: "Midterm 1", weight: 15, earned: "", possible: "" }, { name: "Midterm 2", weight: 15, earned: "", possible: "" }, { name: "Final", weight: 35, earned: "", possible: "" }, { name: "Participation", weight: 10, earned: "", possible: "" }] },
-  { name: "MA 26500", categories: [{ name: "Homework", weight: 15, earned: "", possible: "" }, { name: "Midterm 1", weight: 15, earned: "", possible: "" }, { name: "Midterm 2", weight: 15, earned: "", possible: "" }, { name: "Midterm 3", weight: 20, earned: "", possible: "" }, { name: "Final", weight: 35, earned: "", possible: "" }] },
-  { name: "POL 23500", categories: [{ name: "Assignments", weight: 40, earned: "", possible: "" }, { name: "Midterm", weight: 25, earned: "", possible: "" }, { name: "Final", weight: 35, earned: "", possible: "" }] },
-  { name: "POL 32700", categories: [{ name: "Discussion Posts", weight: 20, earned: "", possible: "" }, { name: "Papers", weight: 45, earned: "", possible: "" }, { name: "Final Essay", weight: 35, earned: "", possible: "" }] },
-];
-
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -19,38 +10,34 @@ export default function GradesPage() {
   const [addingClass, setAddingClass] = useState(false);
   const [newClassName, setNewClassName] = useState("");
   const dirty = useRef(new Set());
-  const started = useRef(false);
+  const [loaded, setLoaded] = useState(false);
 
-  // load from Supabase; first run seeds from old localStorage data (or the default classes)
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    (async () => {
-      const { data, error } = await supabase.from("grade_classes").select("*").order("id");
-      if (error) return;
-      if (data.length) { setClasses(data); return; }
-      let seed = INITIAL_CLASSES;
-      try { const s = localStorage.getItem("grades_classes"); if (s) seed = JSON.parse(s); } catch {}
-      const { data: ins, error: insErr } = await supabase.from("grade_classes").insert(seed.map(({ name, categories }) => ({ name, categories }))).select().order("id");
-      if (insErr) return;
-      setClasses(ins);
-      localStorage.removeItem("grades_classes");
-    })();
+    supabase.from("grade_classes").select("*").order("id").then(({ data }) => { if (data) { setClasses(data); setLoaded(true); } });
   }, []);
 
-  // save edited classes ~0.6s after typing stops
+  // save edited classes ~0.6s after typing stops, and right away when you leave the page or switch tabs
+  const latest = useRef(classes);
+  latest.current = classes;
+  const flush = useCallback(() => {
+    const ids = [...dirty.current];
+    dirty.current.clear();
+    for (const c of latest.current.filter((c) => ids.includes(c.id))) {
+      supabase.from("grade_classes")
+        .update({ categories: c.categories, meetings: c.meetings || [], term_start: c.term_start || null, term_end: c.term_end || null }).eq("id", c.id)
+        .then(() => {});
+    }
+  }, []);
   useEffect(() => {
     if (!dirty.current.size) return;
-    const t = setTimeout(async () => {
-      const ids = [...dirty.current];
-      dirty.current.clear();
-      for (const c of classes.filter((c) => ids.includes(c.id))) {
-        await supabase.from("grade_classes")
-          .update({ categories: c.categories, meetings: c.meetings || [], term_start: c.term_start || null, term_end: c.term_end || null }).eq("id", c.id);
-      }
-    }, 600);
+    const t = setTimeout(flush, 600);
     return () => clearTimeout(t);
-  }, [classes]);
+  }, [classes, flush]);
+  useEffect(() => {
+    const onHide = () => document.visibilityState === "hidden" && flush();
+    document.addEventListener("visibilitychange", onHide);
+    return () => { document.removeEventListener("visibilitychange", onHide); flush(); };
+  }, [flush]);
 
   function patchClass(ci, fn) {
     setClasses((prev) => prev.map((c, i) => { if (i !== ci) return c; dirty.current.add(c.id); return fn(c); }));
@@ -78,9 +65,21 @@ export default function GradesPage() {
   }
 
   async function removeClass(ci) {
+    if (!confirm(`Delete ${classes[ci].name} and all its scores? This can't be undone.`)) return;
     const cls = classes[ci];
     setClasses((prev) => prev.filter((_, i) => i !== ci));
     await supabase.from("grade_classes").delete().eq("id", cls.id);
+  }
+
+  // end of semester: download a backup of every class, then clear them for the next term
+  async function newTerm() {
+    if (!confirm("Start a new term? This downloads a backup of your classes and scores, then removes them all.")) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(classes, null, 2)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `grades-backup-${new Date().toISOString().slice(0, 7)}.json`; a.click();
+    URL.revokeObjectURL(url);
+    const { error } = await supabase.from("grade_classes").delete().in("id", classes.map((c) => c.id));
+    if (!error) setClasses([]);
   }
 
   async function addClass() {
@@ -95,7 +94,11 @@ export default function GradesPage() {
 
   return (
     <div>
-      <h1 className="page-title">Final Grade Calculator</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1 className="page-title">Final Grade Calculator</h1>
+        {classes.length > 0 && <button className="btn" onClick={newTerm} title="Back up and clear all classes">New term</button>}
+      </div>
+      {loaded && !classes.length && <p className="empty">No classes yet. Add one below, then set its grade categories and meeting times.</p>}
 
       {classes.map((cls, ci) => {
         const { currentPct, remainingWeight, neededFor, remaining } = calcClass(cls.categories);

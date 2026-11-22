@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { fmtHour, weatherCategory, bestRunHour, bestOutdoorHour } from "@/lib/weather";
+import { fmtHour, weatherCategory, bestRunHour, bestOutdoorHour, savedLocation, fetchWeather } from "@/lib/weather";
 
 export default function WeatherPage() {
   const [location, setLocation] = useState(null);
@@ -12,9 +12,8 @@ export default function WeatherPage() {
 
   // load saved location
   useEffect(() => {
-    const saved = localStorage.getItem("weather_location");
-    if (saved) {
-      const loc = JSON.parse(saved);
+    const loc = savedLocation();
+    if (loc) {
       setLocation(loc);
       setCityInput(loc.city);
     }
@@ -24,10 +23,7 @@ export default function WeatherPage() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`/api/weather?lat=${loc.lat}&lon=${loc.lon}&days=3`);
-      if (!resp.ok) throw new Error("Failed to fetch weather");
-      const data = await resp.json();
-      setWeather(data);
+      setWeather(await fetchWeather(loc, 3));
     } catch (e) {
       setError(e.message);
     } finally {

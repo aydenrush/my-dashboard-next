@@ -114,6 +114,7 @@ export default function WardrobePage() {
   }
 
   async function deleteItem(id) {
+    if (!confirm("Delete this item?")) return;
     await supabase.from("wardrobe_items").delete().eq("id", id);
     load();
   }

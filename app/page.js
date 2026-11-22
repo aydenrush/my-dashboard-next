@@ -3,7 +3,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { ACTIVITY_TYPES, PALETTE } from "@/lib/constants";
-import { bestRunMessage } from "@/lib/weather";
+import { bestRunMessage, savedLocation, fetchWeather } from "@/lib/weather";
+import { isoDate, addDays as addDaysIso } from "@/lib/dates";
 import { bestReachable, outcomes } from "@/lib/grades";
 import { planRow, isRestText } from "@/lib/runs";
 
@@ -22,7 +23,6 @@ function classMeetings(gradeClasses) {
   }));
 }
 
-function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function localDate(d) { return typeof d === "string" ? new Date(d + "T12:00:00") : new Date(d); }
 function addDays(d, n) { const r = localDate(d); r.setDate(r.getDate() + n); return r; }
 function getMonday(d) { const r = localDate(d); const day = r.getDay(); r.setDate(r.getDate() - ((day + 6) % 7)); return r; }
@@ -36,6 +36,12 @@ function parseTimeSlot(slot) {
   if (m) { let h = parseInt(m[1]), min = parseInt(m[2]); if (m[3]?.toUpperCase() === "PM" && h < 12) h += 12; if (m[3]?.toUpperCase() === "AM" && h === 12) h = 0; return [h, min]; }
   return [8, 0];
 }
+// start [hour, minute] for an activity; runs with no time default to 9 PM (night runs), same on Home and in the phone feed
+function actStart(a) {
+  if (a.time_slot) return parseTimeSlot(a.time_slot);
+  return a.activity_type === "running" && !isRestText(a.title) ? [21, 0] : [8, 0];
+}
+
 function formatTime(slot) {
   if (!slot) return "";
   const [h, m] = parseTimeSlot(slot);
@@ -80,11 +86,10 @@ export default function HomePage() {
   const [addRecur, setAddRecur] = useState(0);
 
   // recurring templates
-  const [recurTemplates, setRecurTemplates] = useState([]);
   const [newTpl, setNewTpl] = useState({ activity_type: "lifting", title: "", time: "19:00", duration: "", notes: "", days: [], weeks: 8 });
 
 
-  const today = useMemo(() => isoDate(new Date()), []);
+  const today = isoDate(); // per render, so a tab left open overnight rolls over
   const thisYear = new Date().getFullYear();
   const weekStart = useMemo(() => {
     const mon = getMonday(new Date());
@@ -111,14 +116,8 @@ export default function HomePage() {
   useEffect(() => { setAddDate(focusDate); }, [focusDate]);
 
   useEffect(() => {
-    try { const t = localStorage.getItem("recur_templates"); if (t) setRecurTemplates(JSON.parse(t)); } catch {}
-  }, []);
-
-  useEffect(() => {
-    try {
-      const loc = JSON.parse(localStorage.getItem("weather_location") || "null");
-      if (loc) fetch(`/api/weather?lat=${loc.lat}&lon=${loc.lon}&days=1`).then((r) => (r.ok ? r.json() : null)).then(setWeather).catch(() => {});
-    } catch {}
+    const loc = savedLocation();
+    if (loc) fetchWeather(loc).then(setWeather).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -142,6 +141,17 @@ export default function HomePage() {
   // planned runs are activities of type "running"; they get their own row style, so split them out
   const runSchedule = activities.filter((a) => a.activity_type === "running").map(planRow);
   const otherActs = activities.filter((a) => a.activity_type !== "running");
+  // recurring schedules are rebuilt from their activities (grouped by gcal_event_id), so every device sees them
+  const recurTemplates = Object.values(activities.filter((a) => a.gcal_event_id?.startsWith("recur_")).reduce((g, a) => {
+    (g[a.gcal_event_id] ||= []).push(a);
+    return g;
+  }, {})).map((acts) => {
+    const last = acts.reduce((m, a) => (a.date > m.date ? a : m));
+    return {
+      id: last.gcal_event_id, groupId: last.gcal_event_id, activity_type: last.activity_type, title: last.title, notes: last.notes,
+      time: slotToTimeVal(last.time_slot), duration: last.duration_min, days: [...new Set(acts.map((a) => jsWeekday(a.date)))].sort(),
+    };
+  });
   const focusActs = otherActs.filter((a) => a.date === focusDate).sort((a, b) => {
     const [ah, am] = parseTimeSlot(a.time_slot);
     const [bh, bm] = parseTimeSlot(b.time_slot);
@@ -149,17 +159,19 @@ export default function HomePage() {
   });
   const focusRuns = runSchedule.filter((r) => r.date === focusDate);
   const reading = books.filter((b) => b.status === "reading");
-  const focusCal = calEvents.filter((e) => (e.start || "").slice(0, 10) === focusDate);
+  // timed events can be UTC ("...Z"), so take their local day; all-day events are plain dates
+  const focusCal = calEvents.filter((e) => e.start && (e.start.length > 10 ? isoDate(new Date(e.start)) : e.start) === focusDate);
 
   const focusTimeline = [
     ...focusClasses.map((c) => ({ type: "class", sortMin: c.startMin, data: c })),
     ...focusCal.map((e) => ({ type: "cal", sortMin: e.start?.length > 10 ? new Date(e.start).getHours() * 60 + new Date(e.start).getMinutes() : 0, data: e })),
-    ...focusRuns.map((r) => { const [h, m] = r.time_slot ? parseTimeSlot(r.time_slot) : isRestText(r.workout) ? [8, 0] : [21, 0]; return { type: "run", sortMin: h * 60 + m, data: r }; }),
+    ...focusRuns.map((r) => { const [h, m] = actStart(r); return { type: "run", sortMin: h * 60 + m, data: r }; }),
     ...focusActs.map((a) => { const [h, m] = parseTimeSlot(a.time_slot); return { type: "act", sortMin: h * 60 + m, data: a }; }),
   ].sort((a, b) => a.sortMin - b.sortMin);
 
   const completedDates = new Set();
-  activities.filter((a) => a.completed).forEach((a) => completedDates.add(a.date));
+  // rest days are auto-marked done on the Running page, so they don't count toward the streak
+  activities.filter((a) => a.completed && !(a.activity_type === "running" && isRestText(a.title))).forEach((a) => completedDates.add(a.date));
 
   let streak = 0;
   let check = new Date();
@@ -227,11 +239,13 @@ export default function HomePage() {
   }
 
   async function deleteActivity(id) {
+    if (!confirm("Delete this activity?")) return;
     await supabase.from("activities").delete().eq("id", id);
     loadAll();
   }
 
   async function deleteSeriesActivity(groupId) {
+    if (!confirm("Delete every activity in this repeating series?")) return;
     await supabase.from("activities").delete().eq("gcal_event_id", groupId);
     loadAll();
   }
@@ -276,24 +290,21 @@ export default function HomePage() {
     setAddTitle(""); setAddDuration(""); setAddNotes(""); loadAll();
   }
 
-  function saveTemplates(tpls) {
-    setRecurTemplates(tpls);
-    try { localStorage.setItem("recur_templates", JSON.stringify(tpls)); } catch {}
-  }
-
   async function createTemplate(e) {
     e.preventDefault();
     if (newTpl.days.length === 0) return;
     const groupId = `recur_${Date.now()}`;
-    const tpl = { ...newTpl, id: `tpl_${Date.now()}`, groupId, duration: newTpl.duration ? parseInt(newTpl.duration) : null };
-    saveTemplates([...recurTemplates, tpl]);
+    const tpl = { ...newTpl, groupId, duration: newTpl.duration ? parseInt(newTpl.duration) : null };
     await generateInstances(tpl, tpl.weeks);
     setNewTpl({ activity_type: "lifting", title: "", time: "19:00", duration: "", notes: "", days: [], weeks: 8 });
   }
 
+  // adds `weeks` more weeks after the series' last activity (or from this week for a new one)
   async function generateInstances(tpl, weeks) {
     const rows = [];
-    const startMon = getMonday(new Date());
+    const last = activities.filter((a) => a.gcal_event_id === tpl.groupId).reduce((m, a) => (a.date > m ? a.date : m), "");
+    const thisMon = getMonday(new Date());
+    const startMon = last && last >= isoDate(thisMon) ? addDays(getMonday(last), 7) : thisMon;
     for (let w = 0; w < weeks; w++) {
       for (const day of tpl.days) {
         const d = isoDate(addDays(startMon, w * 7 + day));
@@ -314,8 +325,10 @@ export default function HomePage() {
   }
 
   async function deleteTemplateAndInstances(tpl) {
-    saveTemplates(recurTemplates.filter(t => t.id !== tpl.id));
+    if (!confirm("Delete this recurring schedule and its upcoming activities?")) return;
     await supabase.from("activities").delete().eq("gcal_event_id", tpl.groupId).gte("date", today);
+    // keep past ones as history, but unlink them so the schedule drops off the list
+    await supabase.from("activities").update({ gcal_event_id: null }).eq("gcal_event_id", tpl.groupId);
     loadAll();
   }
 
@@ -332,13 +345,15 @@ export default function HomePage() {
       if (act.activity_type === "running" && isRestText(act.title)) return; // rest days aren't calendar events
       const at = ACTIVITY_TYPES[act.activity_type] || ACTIVITY_TYPES.other;
       const summary = act.title ? `${at.label}: ${act.title}` : at.label;
-      const [h, m] = parseTimeSlot(act.time_slot);
+      const [h, m] = actStart(act);
       const dur = act.duration_min || DURATION_MAP[act.activity_type] || 60;
       const d = act.date.replace(/-/g, "");
       const dtstart = `${d}T${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}00`;
+      // an 11:30 PM + 60 min event ends at 12:30 AM the next day, not "24:30"
       const endMin = h * 60 + m + dur;
-      const eh = Math.floor(endMin / 60), em = endMin % 60;
-      const dtend = `${d}T${String(eh).padStart(2, "0")}${String(em).padStart(2, "0")}00`;
+      const endDay = addDaysIso(act.date, Math.floor(endMin / 1440)).replace(/-/g, "");
+      const eh = Math.floor((endMin % 1440) / 60), em = endMin % 60;
+      const dtend = `${endDay}T${String(eh).padStart(2, "0")}${String(em).padStart(2, "0")}00`;
       lines.push("BEGIN:VEVENT", `UID:act-${act.id}@mydashboard`,
         `DTSTART;TZID=${tz}:${dtstart}`, `DTEND;TZID=${tz}:${dtend}`,
         `SUMMARY:${esc(summary)}`);

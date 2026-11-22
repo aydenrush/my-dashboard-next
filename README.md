@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# my-dashboard-next
 
-## Getting Started
+A personal dashboard for planning the day around school, training and everything else. Built with Next.js (App Router, plain JavaScript) and Supabase, deployed on Render.
 
-First, run the development server:
+## What's in it
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+The sidebar is grouped into sections:
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Section | Pages | What they do |
+|---|---|---|
+| **Today** | Home, Weather | Home opens with a "today" card (next class, today's run and the best time to run, pinned notes, likely and best-possible grade per class), then a timeline of the day: classes, Google Calendar events, runs and activities. Below that: the week strip, streak, to-dos, add/manage activities, recurring schedules, the phone calendar feed and year in review. Weather shows the forecast and the best hours to run or be outside. |
+| **Training** | Running | Your training plan, run log, training load (ACWR), and mileage/pace/heart-rate charts. Log runs by hand, from a GPX/TCX file, or by importing Strava's `activities.csv` export. |
+| **School** | Grades | Weighted grade calculator per class: the score you need on what's left for each letter, the best grade still possible, and the likely final grade (remaining exams predicted from your midterm scores). Each class also holds its meeting times, which Home's timeline uses. **New term** backs up and clears all classes. |
+| **Notes** | Brain Dump, Books, Lyric Lab | Brain Dump is a card wall of notes with colored tags, pins, search, checklists and export; to-dos are notes tagged **To Do**. Books is a reading log. Lyric Lab is a rhyme finder and lyric notebook. |
+| **Life** | Wardrobe | Clothes, outfit building and color matching. |
+| **Games** | Madden Franchise, CFB Dynasty, Minecraft | Franchise and dynasty records, and Minecraft coordinates with overworld/nether conversion. |
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+### How the pieces connect
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **One planner:** everything you plan is a row in `activities`. Planned runs are activities of type `running` (imported plans are tagged `run_plan`), and repeating schedules are activities sharing a `recur_…` group id, so they show on every device.
+- **One class list:** classes, grade categories and meeting times all live in `grade_classes`; edit them on Grades.
+- **Phone calendar:** "Publish feed" on Home uploads `training_plan.ics` to Supabase Storage. Subscribe to it once with the `webcal://` link shown there and your phone keeps it updated.
+- **Google Calendar:** paste your calendar's secret iCal address under "Connect Google Calendar" on Home. Repeating events (daily and weekly) are expanded; only `https://calendar.google.com` links are accepted.
+- **Loading and errors:** every Supabase request goes through `lib/supabase.js`, which drives an app-wide loading bar and an error banner (`components/DbStatus.js`). Pages don't need their own.
+- **Deletes ask first** everywhere it would lose data you can't get back.
 
-## Learn More
+## Setup
 
-To learn more about Next.js, take a look at the following resources:
+1. `npm install`
+2. Create `.env.local` with your Supabase project:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+   NEXT_PUBLIC_SUPABASE_KEY=<anon key>
+   ```
+3. In the Supabase SQL editor, run the files in `supabase/` in this order (each is safe to re-run unless noted):
+   1. `grade_classes.sql`
+   2. `class_schedule.sql`
+   3. `notes.sql`
+   4. `migrate_todos.sql`: one time; copies the old `todos` table into Brain Dump. Running it twice duplicates to-dos.
+   5. `migrate_runs.sql`: one time; copies the old `running_schedule` into `activities` (it skips itself if already done).
+   6. `cleanup_old_tables.sql`: optional, once you're happy with the migrated data. Drops `todos` and `running_schedule`.
+4. `npm run dev` and open http://localhost:3000
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tests
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`npm test` runs the checks in `tests/` (plain Node, no extra packages): grade math and predictions, calendar parsing and repeat expansion, run-plan conversion, and the GPX/TCX/Strava readers.
 
-## Deploy on Vercel
+## Code map
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `app/<page>/page.js`: one folder per page; `app/api/*/route.js` for the weather, geocode, iCal and CMU dictionary proxies.
+- `lib/`: shared logic: `dates.js` (local-date helpers; never use `toISOString()` for a date), `grades.js`, `runs.js`, `runFiles.js`, `ical.js`, `weather.js`, `constants.js` (including the one color `PALETTE`).
+- `components/`: `Sidebar.js` (add new pages here) and `DbStatus.js`.
+- `supabase/`: table setup and migrations.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Security note
+
+The app talks to Supabase from the browser with the public (anon) key, and the tables allow that key to read and write. Anyone who has the site's key can read and edit the data. Adding a login is the fix if that ever matters.

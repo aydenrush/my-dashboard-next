@@ -46,6 +46,15 @@ function NoteCard({ note, tags, onSave, onDelete }) {
 
   useEffect(() => { if (editing) { grow(ref.current); ref.current.focus(); } }, [editing]);
   useEffect(() => { if (!editing) setDraft(note.content); }, [note.content, editing]);
+  // closing or hiding the tab mid-edit doesn't blur the box, so save the draft then
+  useEffect(() => {
+    if (!editing) return;
+    const onHide = () => {
+      if (document.visibilityState === "hidden" && draft.trim() && draft !== note.content) onSave(note, { content: draft });
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [editing, draft, note, onSave]);
 
   function finish() {
     setEditing(false);
@@ -72,7 +81,7 @@ function NoteCard({ note, tags, onSave, onDelete }) {
         </select>
         <span className="nd-actions">
           <button className={note.pinned ? "on" : ""} onClick={() => onSave(note, { pinned: !note.pinned })} title={note.pinned ? "Unpin" : "Pin"} aria-label={note.pinned ? "Unpin note" : "Pin note"}>📌</button>
-          <button onClick={() => onDelete(note)} title="Delete" aria-label="Delete note">✕</button>
+          <button onClick={() => confirm("Delete this note?") && onDelete(note)} title="Delete" aria-label="Delete note">✕</button>
         </span>
       </div>
     </div>
@@ -108,16 +117,7 @@ export default function BrainDumpPage() {
       ]);
       if (e1 || e2) return;
       setTags(t);
-      let rows = n;
-      // one-time import of notes from the old canvas version (stored in this browser)
-      const old = JSON.parse(localStorage.getItem("brain_dump") || "null")?.notes?.filter((x) => x.content?.trim());
-      if (!rows.length && old?.length) {
-        const { data: ins, error } = await supabase.from("notes").insert(old.map((x) => ({ content: x.content }))).select();
-        if (error) return;
-        rows = ins;
-        localStorage.removeItem("brain_dump");
-      }
-      setNotes(sortNotes(rows));
+      setNotes(sortNotes(n));
       setLoaded(true);
     })();
   }, []);

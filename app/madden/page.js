@@ -209,6 +209,7 @@ export default function MaddenFranchisePage() {
   }
 
   async function deleteRow(table, id) {
+    if (!confirm("Delete this row? This can't be undone.")) return;
     await supabase.from(table).delete().eq("id", id);
     flash("Deleted.");
     loadData();
