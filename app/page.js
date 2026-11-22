@@ -427,7 +427,7 @@ export default function HomePage() {
                     ? <>final grade <strong>{g.best.label}</strong></>
                     : g.best.need <= 0
                       ? <><strong>{g.best.label}</strong> locked in</>
-                      : <>best possible <strong>{g.best.label}</strong>, needs {Math.ceil(g.best.need)}% {g.best.on.length > 1 ? "average " : ""}on {g.best.on.join(" + ")}</>}
+                      : <>best possible <strong>{g.best.label}</strong>, needs {(Math.ceil(g.best.need * 100) / 100).toFixed(2)}% {g.best.on.length > 1 ? "average " : ""}on {g.best.on.join(" + ")}</>}
                 </Link>
               </div>
             ))}
