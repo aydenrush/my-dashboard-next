@@ -395,7 +395,7 @@ export default function HomePage() {
         const runText = (run?.workout || "").split("\n")[0];
         const isRest = isRestText(runText);
         const runTip = run && !isRest && !run.completed ? bestRunMessage(weather) : null;
-        const grades = gradeClasses.map((g) => ({ name: g.name, best: bestReachable(g.categories), pace: outcomes(g.categories)[1] })).filter((g) => g.best);
+        const grades = gradeClasses.map((g) => ({ name: g.name, best: bestReachable(g.categories), pace: outcomes(g.categories)?.rows[1] })).filter((g) => g.best);
         return (
           <div className="card hub">
             <div><span className="hub-label">Class</span>{nextClass ? <>{nextClass.name} at {nextClass.time.split(" - ")[0]} · {nextClass.room}</> : <span className="muted">{focusClasses.length ? "Done for today" : "No classes today"}</span>}</div>
@@ -406,7 +406,7 @@ export default function HomePage() {
                 <span className="hub-label">{i === 0 ? "Grades" : ""}</span>
                 <Link href="/grades">
                   <strong>{g.name}</strong>{" "}
-                  {g.pace && <>on pace for <strong>{g.pace.letter}</strong> ({g.pace.final.toFixed(0)}%) · </>}
+                  {g.pace && <>likely <strong>{g.pace.letter}</strong> ({g.pace.final.toFixed(0)}%) · </>}
                   {!g.best.on.length
                     ? <>final grade <strong>{g.best.label}</strong></>
                     : g.best.need <= 0

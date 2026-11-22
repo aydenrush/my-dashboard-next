@@ -99,6 +99,7 @@ export default function GradesPage() {
 
       {classes.map((cls, ci) => {
         const { currentPct, remainingWeight, neededFor, remaining } = calcClass(cls.categories);
+        const out = outcomes(cls.categories);
         const weightSum = cls.categories.reduce((s, c) => s + (parseFloat(c.weight) || 0), 0);
         return (
           <details key={cls.id} open className="card" style={{ marginBottom: "1rem" }}>
@@ -167,11 +168,15 @@ export default function GradesPage() {
                   </div>
                 </div>
               )}
-              {outcomes(cls.categories).length > 0 && (
+              {out && (
                 <div style={{ marginTop: "0.5rem" }}>
-                  <div className="muted" style={{ marginBottom: "0.25rem" }}>Likely final grade, based on your {currentPct.toFixed(1)}% so far:</div>
+                  <div className="muted" style={{ marginBottom: "0.25rem" }}>
+                    Likely final grade: remaining exams predicted from your exam average
+                    {out.examAvg !== null ? ` (${out.examAvg.toFixed(1)}%)` : " (no exams graded yet, so your overall %)"},
+                    other work from {out.restAvg !== null ? `your other scores (${out.restAvg.toFixed(1)}%)` : "your overall %"}:
+                  </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "0.4rem" }}>
-                    {outcomes(cls.categories).map((o) => (
+                    {out.rows.map((o) => (
                       <span key={o.name} style={{ fontSize: "0.85rem", padding: "4px 8px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--card-bg)" }}>
                         <span className="muted">{o.name} ({o.avg.toFixed(0)}% avg)</span><br />
                         <strong style={{ color: gradeColor(o.final) }}>{o.letter}</strong> · {o.final.toFixed(1)}%
