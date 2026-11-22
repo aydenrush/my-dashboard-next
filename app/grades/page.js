@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { GRADE_THRESHOLDS, letterGrade, gradeColor, calcClass } from "@/lib/grades";
+import { GRADE_THRESHOLDS, letterGrade, gradeColor, calcClass, outcomes } from "@/lib/grades";
 
 const INITIAL_CLASSES = [
   { name: "CS 25000", categories: [{ name: "Labs", weight: 15, earned: "", possible: "" }, { name: "Homework", weight: 20, earned: "", possible: "" }, { name: "Midterm 1", weight: 15, earned: "", possible: "" }, { name: "Midterm 2", weight: 15, earned: "", possible: "" }, { name: "Final", weight: 35, earned: "", possible: "" }] },
@@ -164,6 +164,19 @@ export default function GradesPage() {
                         </span>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+              {outcomes(cls.categories).length > 0 && (
+                <div style={{ marginTop: "0.5rem" }}>
+                  <div className="muted" style={{ marginBottom: "0.25rem" }}>Likely final grade, based on your {currentPct.toFixed(1)}% so far:</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "0.4rem" }}>
+                    {outcomes(cls.categories).map((o) => (
+                      <span key={o.name} style={{ fontSize: "0.85rem", padding: "4px 8px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--card-bg)" }}>
+                        <span className="muted">{o.name} ({o.avg.toFixed(0)}% avg)</span><br />
+                        <strong style={{ color: gradeColor(o.final) }}>{o.letter}</strong> · {o.final.toFixed(1)}%
+                      </span>
+                    ))}
                   </div>
                 </div>
               )}

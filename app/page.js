@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { ACTIVITY_TYPES, PALETTE } from "@/lib/constants";
 import { bestRunMessage } from "@/lib/weather";
-import { bestReachable } from "@/lib/grades";
+import { bestReachable, outcomes } from "@/lib/grades";
 import { planRow, isRestText } from "@/lib/runs";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -395,7 +395,7 @@ export default function HomePage() {
         const runText = (run?.workout || "").split("\n")[0];
         const isRest = isRestText(runText);
         const runTip = run && !isRest && !run.completed ? bestRunMessage(weather) : null;
-        const grades = gradeClasses.map((g) => ({ name: g.name, best: bestReachable(g.categories) })).filter((g) => g.best);
+        const grades = gradeClasses.map((g) => ({ name: g.name, best: bestReachable(g.categories), pace: outcomes(g.categories)[1] })).filter((g) => g.best);
         return (
           <div className="card hub">
             <div><span className="hub-label">Class</span>{nextClass ? <>{nextClass.name} at {nextClass.time.split(" - ")[0]} · {nextClass.room}</> : <span className="muted">{focusClasses.length ? "Done for today" : "No classes today"}</span>}</div>
@@ -406,9 +406,12 @@ export default function HomePage() {
                 <span className="hub-label">{i === 0 ? "Grades" : ""}</span>
                 <Link href="/grades">
                   <strong>{g.name}</strong>{" "}
-                  {g.best.need <= 0
-                    ? `${g.best.label} locked in`
-                    : <>{g.best.label}: need {Math.ceil(g.best.need)}% {g.best.on.length > 1 ? "average " : ""}on <strong>{g.best.on.join(" + ")}</strong></>}
+                  {g.pace && <>on pace for <strong>{g.pace.letter}</strong> ({g.pace.final.toFixed(0)}%) · </>}
+                  {!g.best.on.length
+                    ? <>final grade <strong>{g.best.label}</strong></>
+                    : g.best.need <= 0
+                      ? <><strong>{g.best.label}</strong> locked in</>
+                      : <>best possible <strong>{g.best.label}</strong>, needs {Math.ceil(g.best.need)}% {g.best.on.length > 1 ? "average " : ""}on {g.best.on.join(" + ")}</>}
                 </Link>
               </div>
             ))}
