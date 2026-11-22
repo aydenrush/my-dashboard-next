@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { askConfirm } from "@/lib/confirm";
 import { isoDate } from "@/lib/dates";
 
 const STATUS_LABELS = { reading: "Currently Reading", completed: "Completed", want_to_read: "Want to Read" };
@@ -91,7 +92,7 @@ export default function BooksPage() {
   }
 
   async function deleteBook(id) {
-    if (!confirm("Delete this book? This can't be undone.")) return;
+    if (!(await askConfirm("Delete this book? This can't be undone."))) return;
     await supabase.from("books").delete().eq("id", id);
     load();
   }
@@ -106,7 +107,7 @@ export default function BooksPage() {
   }
 
   async function deleteNote(id) {
-    if (!confirm("Delete this note?")) return;
+    if (!(await askConfirm("Delete this note?"))) return;
     await supabase.from("book_notes").delete().eq("id", id);
     load();
   }

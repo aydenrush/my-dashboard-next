@@ -304,3 +304,12 @@ details > summary { cursor: pointer; font-weight: 600; margin-bottom: 0.5rem; }
 .db-busy::after { content: ""; position: absolute; top: 0; bottom: 0; width: 35%; background: var(--accent); animation: db-busy 1s ease-in-out infinite; }
 @keyframes db-busy { from { left: -35%; } to { left: 100%; } }
 @media (prefers-reduced-motion: reduce) { .db-busy::after { animation: none; left: 0; width: 100%; opacity: 0.6; } }
+
+/* app confirm dialog (components/ConfirmDialog.js) */
+.confirm-dialog { margin: auto; border: 1px solid var(--border); border-radius: 10px; padding: 0; background: var(--card-bg); color: var(--fg); width: min(360px, calc(100% - 32px)); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+.confirm-dialog::backdrop { background: rgba(0,0,0,0.45); }
+.confirm-body { padding: 1rem 1.1rem; }
+.confirm-body p { font-size: 0.95rem; line-height: 1.4; margin-bottom: 1rem; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.confirm-danger { background: var(--error); border-color: var(--error); color: #fff; }
+.confirm-danger:hover { filter: brightness(1.1); }

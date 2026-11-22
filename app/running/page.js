@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { askConfirm } from "@/lib/confirm";
 import { bestRunMessage, savedLocation, fetchWeather } from "@/lib/weather";
 import { PALETTE } from "@/lib/constants";
 import { isoDate, addDays, mondayOf } from "@/lib/dates";
@@ -255,7 +256,7 @@ export default function RunningPage() {
   }
 
   async function deleteScheduleRow(id) {
-    if (!confirm("Delete this planned run?")) return;
+    if (!(await askConfirm("Delete this planned run?"))) return;
     await supabase.from("activities").delete().eq("id", id);
     load();
   }
@@ -286,7 +287,7 @@ export default function RunningPage() {
   }
 
   async function deleteRunLog(id) {
-    if (!confirm("Delete this run from your log? This can't be undone.")) return;
+    if (!(await askConfirm("Delete this run from your log? This can't be undone."))) return;
     await supabase.from("run_logs").delete().eq("id", id);
     load();
   }

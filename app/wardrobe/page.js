@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { askConfirm } from "@/lib/confirm";
 
 const CATEGORIES = ["Tops", "Bottoms", "Outerwear", "Shoes", "Accessories"];
 const WEATHER_TAGS = ["Hot (85+)", "Warm (70-85)", "Mild (55-70)", "Cool (40-55)", "Cold (<40)"];
@@ -114,7 +115,7 @@ export default function WardrobePage() {
   }
 
   async function deleteItem(id) {
-    if (!confirm("Delete this item?")) return;
+    if (!(await askConfirm("Delete this item?"))) return;
     await supabase.from("wardrobe_items").delete().eq("id", id);
     load();
   }

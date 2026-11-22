@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { askConfirm } from "@/lib/confirm";
 import { GRADE_THRESHOLDS, letterGrade, gradeColor, calcClass, outcomes } from "@/lib/grades";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -65,7 +66,7 @@ export default function GradesPage() {
   }
 
   async function removeClass(ci) {
-    if (!confirm(`Delete ${classes[ci].name} and all its scores? This can't be undone.`)) return;
+    if (!(await askConfirm(`Delete ${classes[ci].name} and all its scores? This can't be undone.`))) return;
     const cls = classes[ci];
     setClasses((prev) => prev.filter((_, i) => i !== ci));
     await supabase.from("grade_classes").delete().eq("id", cls.id);
@@ -73,7 +74,7 @@ export default function GradesPage() {
 
   // end of semester: download a backup of every class, then clear them for the next term
   async function newTerm() {
-    if (!confirm("Start a new term? This downloads a backup of your classes and scores, then removes them all.")) return;
+    if (!(await askConfirm("Start a new term? This downloads a backup of your classes and scores, then removes them all.", { confirmLabel: "Start new term" }))) return;
     const url = URL.createObjectURL(new Blob([JSON.stringify(classes, null, 2)], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url; a.download = `grades-backup-${new Date().toISOString().slice(0, 7)}.json`; a.click();

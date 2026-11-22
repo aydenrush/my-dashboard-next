@@ -1,6 +1,7 @@
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import DbStatus from "@/components/DbStatus";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 export const metadata = {
   title: "Dashboard",
@@ -15,6 +16,7 @@ export default function RootLayout({ children }) {
           <Sidebar />
           <main className="main-content">{children}</main>
           <DbStatus />
+          <ConfirmDialog />
         </div>
       </body>
     </html>

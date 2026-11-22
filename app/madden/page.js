@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
+import { askConfirm } from "@/lib/confirm";
 import {
   SEASON_DISPLAY_COLS, SEASON_COL_NAMES, AWARD_COLS,
   NFL_DIVISIONS, ALL_DIV_TEAMS,
@@ -209,7 +210,7 @@ export default function MaddenFranchisePage() {
   }
 
   async function deleteRow(table, id) {
-    if (!confirm("Delete this row? This can't be undone.")) return;
+    if (!(await askConfirm("Delete this row? This can't be undone."))) return;
     await supabase.from(table).delete().eq("id", id);
     flash("Deleted.");
     loadData();

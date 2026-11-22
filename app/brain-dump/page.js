@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import { askConfirm } from "@/lib/confirm";
 import "./brain-dump.css";
 
 import { PALETTE as COLORS } from "@/lib/constants";
@@ -81,7 +82,7 @@ function NoteCard({ note, tags, onSave, onDelete }) {
         </select>
         <span className="nd-actions">
           <button className={note.pinned ? "on" : ""} onClick={() => onSave(note, { pinned: !note.pinned })} title={note.pinned ? "Unpin" : "Pin"} aria-label={note.pinned ? "Unpin note" : "Pin note"}>📌</button>
-          <button onClick={() => confirm("Delete this note?") && onDelete(note)} title="Delete" aria-label="Delete note">✕</button>
+          <button onClick={() => askConfirm("Delete this note?").then((ok) => ok && onDelete(note))} title="Delete" aria-label="Delete note">✕</button>
         </span>
       </div>
     </div>
@@ -153,7 +154,7 @@ export default function BrainDumpPage() {
   }
 
   async function deleteTag(name) {
-    if (!confirm(`Delete tag "${name}"? Its notes stay, just untagged.`)) return;
+    if (!(await askConfirm(`Delete tag "${name}"? Its notes stay, just untagged.`))) return;
     const { error } = await supabase.from("note_tags").delete().eq("name", name);
     if (error) return;
     setTags((ts) => ts.filter((t) => t.name !== name));

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { askConfirm } from "@/lib/confirm";
 
 const SEED = "7338286372832099621";
 const CHUNKBASE_URL = "https://www.chunkbase.com/apps/seed-map#seed=7338286372832099621&platform=bedrock_26_0&dimension=overworld&x=895&z=-7&zoom=0.927";
@@ -33,7 +34,7 @@ export default function MinecraftPage() {
   }
 
   async function deleteCoord(id) {
-    if (!confirm("Delete this location?")) return;
+    if (!(await askConfirm("Delete this location?"))) return;
     await supabase.from("minecraft_coords").delete().eq("id", id);
     load();
   }

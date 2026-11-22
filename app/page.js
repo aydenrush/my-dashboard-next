@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { askConfirm } from "@/lib/confirm";
 import Link from "next/link";
 import { ACTIVITY_TYPES, PALETTE } from "@/lib/constants";
 import { bestRunMessage, savedLocation, fetchWeather } from "@/lib/weather";
@@ -239,13 +240,13 @@ export default function HomePage() {
   }
 
   async function deleteActivity(id) {
-    if (!confirm("Delete this activity?")) return;
+    if (!(await askConfirm("Delete this activity?"))) return;
     await supabase.from("activities").delete().eq("id", id);
     loadAll();
   }
 
   async function deleteSeriesActivity(groupId) {
-    if (!confirm("Delete every activity in this repeating series?")) return;
+    if (!(await askConfirm("Delete every activity in this repeating series?"))) return;
     await supabase.from("activities").delete().eq("gcal_event_id", groupId);
     loadAll();
   }
@@ -325,7 +326,7 @@ export default function HomePage() {
   }
 
   async function deleteTemplateAndInstances(tpl) {
-    if (!confirm("Delete this recurring schedule and its upcoming activities?")) return;
+    if (!(await askConfirm("Delete this recurring schedule and its upcoming activities?"))) return;
     await supabase.from("activities").delete().eq("gcal_event_id", tpl.groupId).gte("date", today);
     // keep past ones as history, but unlink them so the schedule drops off the list
     await supabase.from("activities").update({ gcal_event_id: null }).eq("gcal_event_id", tpl.groupId);

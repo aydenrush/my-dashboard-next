@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { askConfirm } from "@/lib/confirm";
 import { ROUND_ORDER, ageFromClass } from "@/lib/constants";
 
 export default function CFBDynastyPage() {
@@ -73,7 +74,7 @@ export default function CFBDynastyPage() {
   }
 
   async function deletePick(id) {
-    if (!confirm("Delete this pick?")) return;
+    if (!(await askConfirm("Delete this pick?"))) return;
     if (!table) return;
     await supabase.from(table).delete().eq("id", id);
     loadPicks();
