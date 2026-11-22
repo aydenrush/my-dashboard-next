@@ -422,7 +422,7 @@ export default function HomePage() {
                 <span className="hub-label">{i === 0 ? "Grades" : ""}</span>
                 <Link href="/grades">
                   <strong>{g.name}</strong>{" "}
-                  {g.pace && <>likely <strong>{g.pace.letter}</strong> ({g.pace.final.toFixed(0)}%) · </>}
+                  {g.pace && <>likely <strong>{g.pace.letter}</strong> ({g.pace.final.toFixed(1)}%) · </>}
                   {!g.best.on.length
                     ? <>final grade <strong>{g.best.label}</strong></>
                     : g.best.need <= 0
