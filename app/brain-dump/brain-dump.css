@@ -40,7 +40,8 @@
 @media (hover: none) { .nd-actions { opacity: 1; } }
 .nd-actions button { background: none; border: none; cursor: pointer; font-size: 0.8rem; padding: 2px 4px; color: var(--muted); filter: grayscale(1); opacity: 0.6; }
 .nd-actions button.on { filter: none; opacity: 1; }
-.nd-actions button:hover { opacity: 1; color: var(--error); }
+.nd-actions button:hover { opacity: 1; color: var(--fg); }
+.nd-actions button:last-child:hover { color: var(--error); } /* only delete goes red */
 
 .nd-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
 .nd-dot.on, .nd-dot:hover { border-color: var(--fg); }
