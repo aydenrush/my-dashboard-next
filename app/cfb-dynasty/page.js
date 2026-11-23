@@ -13,7 +13,7 @@ export default function CFBDynastyPage() {
   const [tab, setTab] = useState("roster");
   const [showAdd, setShowAdd] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
-  const [form, setForm] = useState({ school: "", year: 2027, name: "", position: "", class: "", round: "1st", height: "", weight: 200, number: "", notes: "" });
+  const [form, setForm] = useState({ school: "", year: 2027, name: "", position: "", class: "", round: "1st", height: "", weight: "", number: "", notes: "" });
   const [bulkSchool, setBulkSchool] = useState("");
   const [bulkText, setBulkText] = useState("");
   const [filterPos, setFilterPos] = useState("");
@@ -63,10 +63,10 @@ export default function CFBDynastyPage() {
     if (!form.name.trim() || !table) return;
     const calcAge = ageFromClass(form.class);
     await supabase.from(table).insert({
-      school: form.school || selectedSchool, year: form.year, name: form.name.trim(),
+      school: form.school || selectedSchool, year: parseInt(form.year) || null, name: form.name.trim(),
       position: form.position || null, class: form.class || null, round: form.round,
       draft_age: calcAge, height: form.height || null,
-      weight: form.weight > 0 ? form.weight : null, number: form.number || null,
+      weight: parseFloat(form.weight) > 0 ? parseFloat(form.weight) : null, number: form.number || null,
       additional_notes: form.notes || null,
     });
     setForm((f) => ({ ...f, name: "", position: "", class: "", height: "", number: "", notes: "" }));
@@ -281,7 +281,7 @@ export default function CFBDynastyPage() {
             <form onSubmit={addPick}>
               <div className="row">
                 <input type="text" value={form.school || selectedSchool} onChange={(e) => setForm((f) => ({ ...f, school: e.target.value }))} placeholder="School" style={{ flex: 1 }} />
-                <input type="number" value={form.year} onChange={(e) => setForm((f) => ({ ...f, year: Number(e.target.value) }))} style={{ width: "80px" }} />
+                <input type="number" value={form.year} onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))} style={{ width: "80px" }} />
                 <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Player Name" style={{ flex: 2 }} />
               </div>
               <div className="row">
@@ -293,7 +293,7 @@ export default function CFBDynastyPage() {
               </div>
               <div className="row">
                 <input type="text" value={form.height} onChange={(e) => setForm((f) => ({ ...f, height: e.target.value }))} placeholder="Height" style={{ flex: 1 }} />
-                <input type="number" value={form.weight} onChange={(e) => setForm((f) => ({ ...f, weight: Number(e.target.value) }))} style={{ width: "80px" }} />
+                <input type="number" value={form.weight} placeholder="lbs" onChange={(e) => setForm((f) => ({ ...f, weight: e.target.value }))} style={{ width: "80px" }} />
                 <input type="text" value={form.number} onChange={(e) => setForm((f) => ({ ...f, number: e.target.value }))} placeholder="#" style={{ width: "60px" }} />
                 <input type="text" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Notes" style={{ flex: 2 }} />
               </div>

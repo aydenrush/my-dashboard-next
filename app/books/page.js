@@ -135,7 +135,9 @@ export default function BooksPage() {
             const days = book.start_date ? daysBetween(book.start_date, isoDate()) : 0;
             const pgDay = days > 0 && cur > 0 ? Math.round(cur / days) : 0;
             const bookNotes = notes.filter((n) => n.book_id === book.id);
-            const pageVal = pageUpdates[book.id] ?? cur;
+            const pageVal = pageUpdates[book.id] ?? cur; // string while typing, "" allowed
+            const typedPage = pageVal === "" ? null : Number(pageVal);
+            const pageChanged = typedPage !== null && typedPage !== cur;
 
             return (
               <div key={book.id} className="card" style={{ marginBottom: "1rem" }}>
@@ -157,16 +159,16 @@ export default function BooksPage() {
                     <input
                       type="number"
                       value={pageVal}
-                      onChange={(e) => setPageUpdates((p) => ({ ...p, [book.id]: Number(e.target.value) }))}
-                      onKeyDown={(e) => { if (e.key === "Enter" && pageVal !== cur) savePage(book.id, pageVal, total); }}
+                      onChange={(e) => setPageUpdates((p) => ({ ...p, [book.id]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === "Enter" && pageChanged) savePage(book.id, typedPage, total); }}
                       aria-label="Current page (Enter to save)"
                       style={{ width: "80px" }}
                       min={0}
                       max={Math.max(total, 9999)}
                     />
-                    {pageVal !== cur && (
-                      <button className="btn" onClick={() => savePage(book.id, pageVal, total)}>
-                        {pageVal > cur ? `+${pageVal - cur}p` : "Set"}
+                    {pageChanged && (
+                      <button className="btn" onClick={() => savePage(book.id, typedPage, total)}>
+                        {typedPage > cur ? `+${typedPage - cur}p` : "Set"}
                       </button>
                     )}
                     <button className="btn" onClick={() => finishBook(book.id, total)}>Finish</button>

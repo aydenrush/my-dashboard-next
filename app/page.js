@@ -69,7 +69,7 @@ export default function HomePage() {
   const [addNotes, setAddNotes] = useState("");
   const [editId, setEditId] = useState(null);
   const [editGroup, setEditGroup] = useState(null);
-  const [addRecur, setAddRecur] = useState(0);
+  const [addRecur, setAddRecur] = useState(""); // empty = no repeat
 
   // recurring templates
   const [newTpl, setNewTpl] = useState({ activity_type: "lifting", title: "", time: "19:00", duration: "", notes: "", days: [], weeks: 8 });
@@ -234,14 +234,15 @@ export default function HomePage() {
       setEditId(null); setEditGroup(null);
     } else {
       const rows = [];
-      const groupId = addRecur > 0 ? `recur_${Date.now()}` : null;
-      for (let w = 0; w <= addRecur; w++) {
+      const repeat = Math.max(0, parseInt(addRecur) || 0);
+      const groupId = repeat > 0 ? `recur_${Date.now()}` : null;
+      for (let w = 0; w <= repeat; w++) {
         rows.push({ ...row, date: addDays(addDate, w * 7), completed: false, gcal_event_id: groupId });
       }
       await supabase.from("activities").insert(rows);
     }
     if (!editId) localStorage.setItem("last_activity", JSON.stringify({ type: addType, slot: addSlot, duration: addDuration }));
-    setAddTitle(""); setAddNotes(""); setAddRecur(0); loadAll(); queuePublish();
+    setAddTitle(""); setAddNotes(""); setAddRecur(""); loadAll(); queuePublish();
   }
 
   async function deleteActivity(id) {
@@ -301,7 +302,7 @@ export default function HomePage() {
     if (newTpl.days.length === 0) return;
     const groupId = `recur_${Date.now()}`;
     const tpl = { ...newTpl, groupId, duration: newTpl.duration ? parseInt(newTpl.duration) : null };
-    await generateInstances(tpl, tpl.weeks);
+    await generateInstances(tpl, Math.max(1, parseInt(tpl.weeks) || 8)); // empty box = 8 weeks
     setNewTpl({ activity_type: "lifting", title: "", time: "19:00", duration: "", notes: "", days: [], weeks: 8 });
   }
 
@@ -573,7 +574,7 @@ export default function HomePage() {
             {editId && <button type="button" className="btn" onClick={() => { setEditId(null); setEditGroup(null); setAddTitle(""); setAddDuration(""); setAddNotes(""); setAddSlot(""); }}>Cancel</button>}
             {!editId && (
               <label style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px" }}>
-                Repeat weekly <input type="number" value={addRecur} onChange={(e) => setAddRecur(Math.max(0, parseInt(e.target.value) || 0))} min="0" max="52" style={{ width: "50px" }} /> wks
+                Repeat weekly <input type="number" value={addRecur} placeholder="0" onChange={(e) => setAddRecur(e.target.value)} min="0" max="52" style={{ width: "50px" }} /> wks
               </label>
             )}
           </div>
@@ -667,7 +668,7 @@ export default function HomePage() {
             <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
               <button type="submit" className="btn btn-primary" disabled={newTpl.days.length === 0}>Create</button>
               <label style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px" }}>
-                Generate <input type="number" value={newTpl.weeks} onChange={(e) => setNewTpl(p => ({ ...p, weeks: Math.max(1, parseInt(e.target.value) || 1) }))} min="1" max="52" style={{ width: "50px" }} /> wks
+                Generate <input type="number" value={newTpl.weeks} placeholder="8" onChange={(e) => setNewTpl(p => ({ ...p, weeks: e.target.value }))} min="1" max="52" style={{ width: "50px" }} /> wks
               </label>
             </div>
           </form>

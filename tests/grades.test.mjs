@@ -42,3 +42,10 @@ assert.equal(round(outcomes([cat(50, 95, 100, "Labs"), cat(50, "", "", "Labs 2")
 assert.equal(outcomes([cat(100)]), null);
 assert.equal(outcomes([cat(100, 90, 100)]), null);
 console.log("grades lib ok");
+
+// a weight box left empty ("") or typed as text counts as a number, not string concatenation
+const typed = [cat("40", 90, 100, "Homework"), cat("", 50, 100, "Extra"), cat("60", "", "", "Final")];
+const t = calcClass(typed);
+assert.deepEqual([t.totalWeight, t.remainingWeight, t.currentPct], [40, 60, 90]);
+assert.equal(outcomes(typed).rows[1].final.toFixed(2), "90.00");
+console.log("string weights ok");

@@ -677,7 +677,7 @@ export default function MaddenFranchisePage() {
 
                   {/* Year selector + bar chart */}
                   <div style={{ marginTop: "0.5rem" }}>
-                    <select value={selectedWinsYear ?? ""} onChange={(e) => setWinsYear(parseInt(e.target.value))}>
+                    <select value={selectedWinsYear ?? ""} onChange={(e) => setWinsYear(e.target.value === "" ? "" : parseInt(e.target.value))}>
                       {winsYears.map((y) => <option key={y} value={y}>{y}</option>)}
                     </select>
                   </div>
@@ -707,7 +707,7 @@ export default function MaddenFranchisePage() {
 
                   {/* Division Standings */}
                   <h3 style={{ marginTop: "1rem" }}>Division Standings</h3>
-                  <select value={divYear ?? selectedWinsYear ?? ""} onChange={(e) => setDivYear(parseInt(e.target.value))}>
+                  <select value={divYear ?? selectedWinsYear ?? ""} onChange={(e) => setDivYear(e.target.value === "" ? "" : parseInt(e.target.value))}>
                     {winsYears.map((y) => <option key={y} value={y}>{y}</option>)}
                   </select>
                   {(() => {
@@ -765,7 +765,7 @@ export default function MaddenFranchisePage() {
 
               {allpro.length > 0 && (
                 <>
-                  <select value={selectedApYear ?? ""} onChange={(e) => setApYear(parseInt(e.target.value))}>
+                  <select value={selectedApYear ?? ""} onChange={(e) => setApYear(e.target.value === "" ? "" : parseInt(e.target.value))}>
                     {apYears.map((y) => <option key={y} value={y}>{y}</option>)}
                   </select>
 
@@ -1123,7 +1123,7 @@ export default function MaddenFranchisePage() {
               <form onSubmit={submitTeamWins}>
                 <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
                   <input type="text" placeholder="Franchise" value={winsFormFran || selectedFranchise} onChange={(e) => setWinsFormFran(e.target.value)} style={{ flex: 1 }} />
-                  <input type="number" value={winsFormYear} onChange={(e) => setWinsFormYear(parseInt(e.target.value))} style={{ width: "80px" }} />
+                  <input type="number" value={winsFormYear} onChange={(e) => setWinsFormYear(e.target.value === "" ? "" : parseInt(e.target.value))} style={{ width: "80px" }} />
                 </div>
                 <DivisionInputs
                   recs={winsFormRecs}
@@ -1145,7 +1145,7 @@ export default function MaddenFranchisePage() {
               <form onSubmit={submitAllpro}>
                 <div style={{ marginBottom: "0.5rem" }}>
                   <label style={{ fontSize: "0.8rem" }}>Year</label>
-                  <input type="number" value={apFormYear} onChange={(e) => setApFormYear(parseInt(e.target.value))} style={{ width: "80px", marginLeft: "0.5rem" }} />
+                  <input type="number" value={apFormYear} onChange={(e) => setApFormYear(e.target.value === "" ? "" : parseInt(e.target.value))} style={{ width: "80px", marginLeft: "0.5rem" }} />
                 </div>
                 <AllproInputs
                   players={apFormPlayers}
@@ -1161,7 +1161,7 @@ export default function MaddenFranchisePage() {
                 <p className="muted">Tab-separated: Position, Player, Team, OVR</p>
                 <div style={{ marginBottom: "0.5rem" }}>
                   <label style={{ fontSize: "0.8rem" }}>Year</label>
-                  <input type="number" value={bulkApYear} onChange={(e) => setBulkApYear(parseInt(e.target.value))} style={{ width: "80px", marginLeft: "0.5rem" }} />
+                  <input type="number" value={bulkApYear} onChange={(e) => setBulkApYear(e.target.value === "" ? "" : parseInt(e.target.value))} style={{ width: "80px", marginLeft: "0.5rem" }} />
                 </div>
                 <textarea value={bulkApText} onChange={(e) => setBulkApText(e.target.value)} rows={6} style={{ width: "100%", fontFamily: "monospace", fontSize: "0.8rem" }} />
                 <button className="btn btn-primary" onClick={submitBulkAllpro} style={{ marginTop: "0.5rem" }}>Upload</button>

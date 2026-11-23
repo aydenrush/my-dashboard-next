@@ -50,7 +50,7 @@ export default function GradesPage() {
   }
 
   function addCategory(ci) {
-    patchClass(ci, (c) => ({ ...c, categories: [...c.categories, { name: "", weight: 0, earned: "", possible: "" }] }));
+    patchClass(ci, (c) => ({ ...c, categories: [...c.categories, { name: "", weight: "", earned: "", possible: "" }] }));
     setNewCat(`${classes[ci].id}:${classes[ci].categories.length}`); // focus the new name box
   }
 
@@ -142,7 +142,7 @@ export default function GradesPage() {
                     return (
                       <tr key={cati}>
                         <td><input type="text" value={cat.name} autoFocus={newCat === `${cls.id}:${cati}`} placeholder="Name (e.g. Final)" aria-label="Category name" onChange={(ev) => updateCat(ci, cati, "name", ev.target.value)} style={{ width: "100%", background: "transparent", border: "none", color: "var(--fg)", fontSize: "0.9rem" }} /></td>
-                        <td><input type="number" value={cat.weight} onChange={(ev) => updateCat(ci, cati, "weight", parseFloat(ev.target.value) || 0)} style={{ width: "100%" }} /></td>
+                        <td><input type="number" value={cat.weight} placeholder="0" onChange={(ev) => updateCat(ci, cati, "weight", ev.target.value)} style={{ width: "100%" }} /></td>
                         <td><input type="number" value={cat.earned} onChange={(ev) => updateCat(ci, cati, "earned", ev.target.value)} placeholder="—" style={{ width: "100%" }} /></td>
                         <td><input type="number" value={cat.possible} onChange={(ev) => updateCat(ci, cati, "possible", ev.target.value)} placeholder="—" style={{ width: "100%" }} /></td>
                         <td style={{ color: pct !== null ? gradeColor(pct) : "var(--muted)" }}>{pct !== null ? `${pct.toFixed(1)}%` : "—"}</td>
