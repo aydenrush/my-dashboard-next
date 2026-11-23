@@ -7,7 +7,7 @@ import { ACTIVITY_TYPES, PALETTE } from "@/lib/constants";
 import { bestRunMessage, loadLocation, fetchWeather } from "@/lib/weather";
 import { getSetting, setSetting } from "@/lib/settings";
 import { isoDate, addDays, mondayOf, weekdayIndex, DAY_NAMES } from "@/lib/dates";
-import { bestReachable, outcomes } from "@/lib/grades";
+import { bestReachable, outcomes, niceToHave } from "@/lib/grades";
 import { planRow, isRestText } from "@/lib/runs";
 import { buildIcs, parseTimeSlot, actStart } from "@/lib/ics";
 import { publishFeed, queuePublish } from "@/lib/feed";
@@ -382,7 +382,7 @@ export default function HomePage() {
         const runText = (run?.workout || "").split("\n")[0];
         const isRest = isRestText(runText);
         const runTip = run && !isRest && !run.completed ? bestRunMessage(weather) : null;
-        const grades = gradeClasses.map((g) => ({ name: g.name, best: bestReachable(g.categories), pace: outcomes(g.categories)?.rows[1] })).filter((g) => g.best);
+        const grades = gradeClasses.map((g) => ({ name: g.name, best: bestReachable(g.categories), pace: outcomes(g.categories)?.rows[1], nice: niceToHave(g.categories) })).filter((g) => g.best);
         return (
           <div className="card hub">
             <div><span className="hub-label">Class</span>{nextClass ? <>{nextClass.name} at {nextClass.time.split(" - ")[0]} · {nextClass.room}</> : <span className="muted">{focusClasses.length ? "Done for today" : "No classes today"}</span>}</div>
@@ -394,6 +394,7 @@ export default function HomePage() {
                 <Link href="/grades">
                   <strong>{g.name}</strong>{" "}
                   {g.pace && <>likely <strong>{g.pace.letter}</strong> ({g.pace.final.toFixed(2)}%) · </>}
+                  {g.nice && <>would be nice <strong>{g.nice.label}</strong>, needs {(Math.ceil(g.nice.need * 100) / 100).toFixed(2)}% · </>}
                   {!g.best.on.length
                     ? <>final grade <strong>{g.best.label}</strong></>
                     : g.best.need <= 0

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { DAY_NAMES } from "@/lib/dates";
 import { askConfirm } from "@/lib/confirm";
-import { GRADE_THRESHOLDS, letterGrade, gradeColor, calcClass, outcomes } from "@/lib/grades";
+import { GRADE_THRESHOLDS, letterGrade, gradeColor, calcClass, outcomes, niceToHave } from "@/lib/grades";
 
 
 export default function GradesPage() {
@@ -106,6 +106,7 @@ export default function GradesPage() {
       {classes.map((cls, ci) => {
         const { currentPct, remainingWeight, neededFor, remaining } = calcClass(cls.categories);
         const out = outcomes(cls.categories);
+        const nice = niceToHave(cls.categories);
         const weightSum = cls.categories.reduce((s, c) => s + (parseFloat(c.weight) || 0), 0);
         return (
           <details key={cls.id} open className="card" style={{ marginBottom: "1rem" }}>
@@ -188,6 +189,12 @@ export default function GradesPage() {
                         <strong style={{ color: gradeColor(o.final) }}>{o.letter}</strong> · {o.final.toFixed(1)}%
                       </span>
                     ))}
+                    {nice && (
+                      <span style={{ fontSize: "0.85rem", padding: "4px 8px", borderRadius: 4, border: "1px dashed var(--accent)", background: "var(--card-bg)" }}>
+                        <span className="muted">Would be nice</span><br />
+                        <strong>{nice.label}</strong> · needs {(Math.ceil(nice.need * 100) / 100).toFixed(2)}% {nice.on.length > 1 ? "avg " : ""}on {nice.on.join(" + ")}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}

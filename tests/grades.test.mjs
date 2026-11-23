@@ -49,3 +49,23 @@ const t = calcClass(typed);
 assert.deepEqual([t.totalWeight, t.remainingWeight, t.currentPct], [40, 60, 90]);
 assert.equal(outcomes(typed).rows[1].final.toFixed(2), "90.00");
 console.log("string weights ok");
+
+const { niceToHave } = await import("../lib/grades.js");
+// 75% on half, final left: likely C, next up C+ needs 79%, best possible B+ (needs 99%)
+const mid = [cat(50, 75, 100, "Midterm"), cat(50, "", "", "Final")];
+assert.equal(outcomes(mid).rows[1].letter, "C");
+assert.equal(bestReachable(mid).label, "B+");
+assert.deepEqual(niceToHave(mid), { label: "C+", need: 79, on: ["Final"] });
+// next letter up is the best possible -> nothing extra to show
+const close = [cat(50, 85, 100, "Midterm"), cat(50, "", "", "Final")]; // likely B (85), next up B+ (89), best A- (95)
+assert.equal(niceToHave(close).label, "B+");
+const nextIsBest = [cat(50, 90, 100, "Midterm"), cat(50, "", "", "Final")]; // likely A- (90), next up A = best possible (needs 96%)
+assert.equal(outcomes(nextIsBest).rows[1].letter, "A-");
+assert.equal(bestReachable(nextIsBest).label, "A");
+assert.equal(niceToHave(nextIsBest), null);
+const top = [cat(50, 93, 100, "Midterm"), cat(50, "", "", "Final")]; // likely A (93), A+ would need 101%, so best is also A
+assert.equal(niceToHave(top), null);
+// nothing left to grade, or no scores
+assert.equal(niceToHave([cat(100, 90, 100)]), null);
+assert.equal(niceToHave([cat(100)]), null);
+console.log("nice to have ok");
