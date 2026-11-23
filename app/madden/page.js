@@ -202,7 +202,8 @@ export default function MaddenFranchisePage() {
 
   // --- CRUD ---
   async function saveRow(table, id, updates) {
-    await supabase.from(table).update(updates).eq("id", id);
+    const { error } = await supabase.from(table).update(updates).eq("id", id);
+    if (error) return; // keep the row in edit mode; the banner shows why
     setEditRow(null);
     setEditVals({});
     flash("Saved.");
@@ -211,27 +212,31 @@ export default function MaddenFranchisePage() {
 
   async function deleteRow(table, id) {
     if (!(await askConfirm("Delete this row? This can't be undone."))) return;
-    await supabase.from(table).delete().eq("id", id);
+    const { error } = await supabase.from(table).delete().eq("id", id);
+    if (error) return;
     flash("Deleted.");
     loadData();
   }
 
   async function insertSeason(data) {
-    await supabase.from(seasonsTable).insert(data);
+    const { error } = await supabase.from(seasonsTable).insert(data);
+    if (error) return;
     flash("Season added.");
     loadData();
   }
 
   async function insertWins(rows) {
     if (rows.length === 0) return;
-    await supabase.from(winsTable).insert(rows);
+    const { error } = await supabase.from(winsTable).insert(rows);
+    if (error) return;
     flash(`${rows.length} team records added.`);
     loadData();
   }
 
   async function insertAllpro(rows) {
     if (rows.length === 0) return;
-    await supabase.from(allproTable).insert(rows);
+    const { error } = await supabase.from(allproTable).insert(rows);
+    if (error) return;
     flash(`${rows.length} All-Pro selections added.`);
     loadData();
   }
@@ -289,8 +294,9 @@ export default function MaddenFranchisePage() {
     const fran = eosForm.newFran?.trim() || eosForm.franchise || selectedFranchise;
     if (!fran) { flash("Franchise required."); return; }
     const year = parseInt(eosForm.year) || defaultYear;
+    if (seasons.some((s) => s.franchise === fran && s.year === year)) { flash(`${year} is already saved for ${fran}. Edit it in the table instead.`); return; }
 
-    await supabase.from(seasonsTable).insert({
+    const { error } = await supabase.from(seasonsTable).insert({
       franchise: fran, year,
       sb_winner: eosForm.sb_winner || null, sb_mvp: eosForm.sb_mvp || null,
       nfl_mvp: eosForm.nfl_mvp || null, coach_of_year: eosForm.coach_of_year || null,
@@ -298,6 +304,7 @@ export default function MaddenFranchisePage() {
       oroy: eosForm.oroy || null, droy: eosForm.droy || null,
       ninety_nine_club: eosForm.ninety_nine_club || null,
     });
+    if (error) return; // the app-wide banner shows why
 
     const wRows = collectTeamWins(eosForm, fran, year, eosCustom);
     if (wRows.length) await supabase.from(winsTable).insert(wRows);
@@ -346,12 +353,16 @@ export default function MaddenFranchisePage() {
         ninety_nine_club: c[9]?.trim() || null,
       };
     }).filter(Boolean);
-    if (rows.length) {
-      await supabase.from(seasonsTable).insert(rows);
-      flash(`Uploaded ${rows.length} seasons.`);
-      setBulkText("");
-      loadData();
-    }
+    // skip years already saved for this franchise (and repeats inside the paste)
+    const have = new Set(seasons.filter((s) => s.franchise === fran).map((s) => s.year));
+    const fresh = rows.filter((r) => !have.has(r.year) && have.add(r.year));
+    const skipped = rows.length - fresh.length;
+    if (!fresh.length) { flash(skipped ? `All ${skipped} seasons are already saved.` : "No seasons found."); return; }
+    const { error } = await supabase.from(seasonsTable).insert(fresh);
+    if (error) return;
+    flash(`Uploaded ${fresh.length} seasons${skipped ? ` (${skipped} already saved, skipped)` : ""}.`);
+    setBulkText("");
+    loadData();
   }
 
   async function submitTeamWins(e) {

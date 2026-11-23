@@ -5,12 +5,11 @@ import { askConfirm } from "@/lib/confirm";
 import Link from "next/link";
 import { ACTIVITY_TYPES, PALETTE } from "@/lib/constants";
 import { bestRunMessage, savedLocation, fetchWeather } from "@/lib/weather";
-import { isoDate, addDays as addDaysIso } from "@/lib/dates";
+import { isoDate, addDays, mondayOf, weekdayIndex, DAY_NAMES } from "@/lib/dates";
 import { bestReachable, outcomes } from "@/lib/grades";
 import { planRow, isRestText } from "@/lib/runs";
+import { buildIcs, parseTimeSlot, actStart } from "@/lib/ics";
 
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const DURATION_MAP = { lifting: 45, cycling: 60, frisbee_golf: 120, running: 45, other: 60 };
 
 // class meeting times come from Grades (grade_classes.meetings, days 0 = Mon)
 function classMeetings(gradeClasses) {
@@ -24,24 +23,7 @@ function classMeetings(gradeClasses) {
   }));
 }
 
-function localDate(d) { return typeof d === "string" ? new Date(d + "T12:00:00") : new Date(d); }
-function addDays(d, n) { const r = localDate(d); r.setDate(r.getDate() + n); return r; }
-function getMonday(d) { const r = localDate(d); const day = r.getDay(); r.setDate(r.getDate() - ((day + 6) % 7)); return r; }
-function jsWeekday(d) { return (localDate(d).getDay() + 6) % 7; }
 function fmtDay(d) { return new Date(d + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric" }); }
-function parseTimeSlot(slot) {
-  if (!slot) return [8, 0];
-  const presets = { Morning: [8, 0], Midday: [11, 0], Afternoon: [14, 0], Evening: [17, 30] };
-  if (presets[slot]) return presets[slot];
-  const m = slot.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-  if (m) { let h = parseInt(m[1]), min = parseInt(m[2]); if (m[3]?.toUpperCase() === "PM" && h < 12) h += 12; if (m[3]?.toUpperCase() === "AM" && h === 12) h = 0; return [h, min]; }
-  return [8, 0];
-}
-// start [hour, minute] for an activity; runs with no time default to 9 PM (night runs), same on Home and in the phone feed
-function actStart(a) {
-  if (a.time_slot) return parseTimeSlot(a.time_slot);
-  return a.activity_type === "running" && !isRestText(a.title) ? [21, 0] : [8, 0];
-}
 
 function formatTime(slot) {
   if (!slot) return "";
@@ -93,10 +75,9 @@ export default function HomePage() {
   const today = isoDate(); // per render, so a tab left open overnight rolls over
   const thisYear = new Date().getFullYear();
   const weekStart = useMemo(() => {
-    const mon = getMonday(new Date());
-    return addDays(mon, weekOffset * 7);
+    return addDays(mondayOf(isoDate()), weekOffset * 7);
   }, [weekOffset]);
-  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => isoDate(addDays(weekStart, i))), [weekStart]);
+  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
   const loadAll = useCallback(async () => {
     const [{ data: act }, { data: bk }, { data: td }, { data: gc }, { data: pn }] = await Promise.all([
@@ -132,7 +113,7 @@ export default function HomePage() {
     }
   }, []);
 
-  const focusDay = jsWeekday(focusDate);
+  const focusDay = weekdayIndex(focusDate);
   const focusDateObj = new Date(focusDate + "T00:00:00");
   const isToday = focusDate === today;
 
@@ -150,7 +131,7 @@ export default function HomePage() {
     const last = acts.reduce((m, a) => (a.date > m.date ? a : m));
     return {
       id: last.gcal_event_id, groupId: last.gcal_event_id, activity_type: last.activity_type, title: last.title, notes: last.notes,
-      time: slotToTimeVal(last.time_slot), duration: last.duration_min, days: [...new Set(acts.map((a) => jsWeekday(a.date)))].sort(),
+      time: slotToTimeVal(last.time_slot), duration: last.duration_min, days: [...new Set(acts.map((a) => weekdayIndex(a.date)))].sort(),
     };
   });
   const focusActs = otherActs.filter((a) => a.date === focusDate).sort((a, b) => {
@@ -175,9 +156,9 @@ export default function HomePage() {
   activities.filter((a) => a.completed && !(a.activity_type === "running" && isRestText(a.title))).forEach((a) => completedDates.add(a.date));
 
   let streak = 0;
-  let check = new Date();
-  if (!completedDates.has(isoDate(check))) check = addDays(check, -1);
-  while (streak < 365 && completedDates.has(isoDate(check))) { streak++; check = addDays(check, -1); }
+  let check = today;
+  if (!completedDates.has(check)) check = addDays(check, -1);
+  while (streak < 365 && completedDates.has(check)) { streak++; check = addDays(check, -1); }
 
   const weekActs = activities.filter((a) => weekDates.includes(a.date)); // Manage list: everything, runs included
   const weekOther = otherActs.filter((a) => weekDates.includes(a.date));
@@ -232,7 +213,7 @@ export default function HomePage() {
       const rows = [];
       const groupId = addRecur > 0 ? `recur_${Date.now()}` : null;
       for (let w = 0; w <= addRecur; w++) {
-        rows.push({ ...row, date: isoDate(addDays(addDate, w * 7)), completed: false, gcal_event_id: groupId });
+        rows.push({ ...row, date: addDays(addDate, w * 7), completed: false, gcal_event_id: groupId });
       }
       await supabase.from("activities").insert(rows);
     }
@@ -304,11 +285,11 @@ export default function HomePage() {
   async function generateInstances(tpl, weeks) {
     const rows = [];
     const last = activities.filter((a) => a.gcal_event_id === tpl.groupId).reduce((m, a) => (a.date > m ? a.date : m), "");
-    const thisMon = getMonday(new Date());
-    const startMon = last && last >= isoDate(thisMon) ? addDays(getMonday(last), 7) : thisMon;
+    const thisMon = mondayOf(today);
+    const startMon = last && last >= thisMon ? addDays(mondayOf(last), 7) : thisMon;
     for (let w = 0; w < weeks; w++) {
       for (const day of tpl.days) {
-        const d = isoDate(addDays(startMon, w * 7 + day));
+        const d = addDays(startMon, w * 7 + day);
         if (d < today) continue;
         if (activities.some(a => a.gcal_event_id === tpl.groupId && a.date === d)) continue;
         rows.push({
@@ -333,44 +314,11 @@ export default function HomePage() {
     loadAll();
   }
 
-  function buildIcs() {
-    const lines = [
-      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//MyDashboard//Planner//EN",
-      "CALSCALE:GREGORIAN", "X-WR-CALNAME:Training Plan",
-      "X-WR-TIMEZONE:America/Indiana/Indianapolis",
-    ];
-    const tz = "America/Indiana/Indianapolis";
-    const esc = (s) => String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
-
-    activities.forEach((act) => {
-      if (act.activity_type === "running" && isRestText(act.title)) return; // rest days aren't calendar events
-      const at = ACTIVITY_TYPES[act.activity_type] || ACTIVITY_TYPES.other;
-      const summary = act.title ? `${at.label}: ${act.title}` : at.label;
-      const [h, m] = actStart(act);
-      const dur = act.duration_min || DURATION_MAP[act.activity_type] || 60;
-      const d = act.date.replace(/-/g, "");
-      const dtstart = `${d}T${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}00`;
-      // an 11:30 PM + 60 min event ends at 12:30 AM the next day, not "24:30"
-      const endMin = h * 60 + m + dur;
-      const endDay = addDaysIso(act.date, Math.floor(endMin / 1440)).replace(/-/g, "");
-      const eh = Math.floor((endMin % 1440) / 60), em = endMin % 60;
-      const dtend = `${endDay}T${String(eh).padStart(2, "0")}${String(em).padStart(2, "0")}00`;
-      lines.push("BEGIN:VEVENT", `UID:act-${act.id}@mydashboard`,
-        `DTSTART;TZID=${tz}:${dtstart}`, `DTEND;TZID=${tz}:${dtend}`,
-        `SUMMARY:${esc(summary)}`);
-      if (act.notes) lines.push(`DESCRIPTION:${esc(act.notes)}`);
-      lines.push("END:VEVENT");
-    });
-
-    lines.push("END:VCALENDAR");
-    return lines.join("\r\n");
-  }
-
   const [syncMsg, setSyncMsg] = useState("");
 
   async function publishFeed() {
     setSyncMsg("Publishing...");
-    const icsBytes = new TextEncoder().encode(buildIcs());
+    const icsBytes = new TextEncoder().encode(buildIcs(activities));
     const opts = { contentType: "text/calendar", cacheControl: "no-cache", upsert: true };
     const { error } = await supabase.storage.from("ical").upload("training_plan.ics", icsBytes, opts);
     if (error) {
@@ -381,7 +329,7 @@ export default function HomePage() {
   }
 
   function downloadIcs() {
-    const blob = new Blob([buildIcs()], { type: "text/calendar" });
+    const blob = new Blob([buildIcs(activities)], { type: "text/calendar" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = "training_plan.ics"; a.click();
@@ -543,7 +491,7 @@ export default function HomePage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
         <button className="btn" onClick={() => setWeekOffset((w) => w - 1)} style={{ padding: "4px 12px" }}>&lt;</button>
         <span style={{ fontWeight: 600 }}>
-          {addDays(weekStart, 0).toLocaleDateString("en-US", { month: "short", day: "numeric" })} — {addDays(weekStart, 6).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          {new Date(weekStart + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} — {new Date(addDays(weekStart, 6) + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
         </span>
         <button className="btn" onClick={() => setWeekOffset((w) => w + 1)} style={{ padding: "4px 12px" }}>&gt;</button>
       </div>

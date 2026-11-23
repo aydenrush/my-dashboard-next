@@ -4,9 +4,9 @@ import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { bestRunMessage, savedLocation, fetchWeather } from "@/lib/weather";
 import { PALETTE } from "@/lib/constants";
-import { isoDate, addDays, mondayOf } from "@/lib/dates";
+import { isoDate, addDays, mondayOf, DAY_NAMES } from "@/lib/dates";
 import { planRow, workoutFields, planActivity } from "@/lib/runs";
-import { fmtPaceMin, parseGpx, parseStravaCsv, parseTcx, analyzeTcx, analyzeWorkout, refitWorkout } from "@/lib/runFiles";
+import { fmtPaceMin, parseGpx, parseStravaCsv, splitNewRuns, parseTcx, analyzeTcx, analyzeWorkout, refitWorkout } from "@/lib/runFiles";
 
 // --- constants ---
 
@@ -68,7 +68,6 @@ function fmtMD(iso) {
   return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 }
 
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // ============================================================
 
@@ -96,6 +95,7 @@ export default function RunningPage() {
   const [gpxAnalysis, setGpxAnalysis] = useState(null);
   const [gpxType, setGpxType] = useState("easy");
   const [stravaRows, setStravaRows] = useState(null);
+  const [stravaDupes, setStravaDupes] = useState(0);
   const [showGpx, setShowGpx] = useState(false);
   const [showStrava, setShowStrava] = useState(false);
   const [stravaPaste, setStravaPaste] = useState("");
@@ -332,14 +332,14 @@ export default function RunningPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      try { setStravaRows(parseStravaCsv(reader.result)); }
+      try { const { fresh, dupes } = splitNewRuns(parseStravaCsv(reader.result), runLogs); setStravaRows(fresh); setStravaDupes(dupes.length); }
       catch (err) { alert(err.message); }
     };
     reader.readAsText(file);
   }
 
   function handleStravaPaste() {
-    try { setStravaRows(parseStravaCsv(stravaPaste)); }
+    try { const { fresh, dupes } = splitNewRuns(parseStravaCsv(stravaPaste), runLogs); setStravaRows(fresh); setStravaDupes(dupes.length); }
     catch (err) { alert(err.message); }
   }
 
@@ -682,7 +682,7 @@ export default function RunningPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{
                       fontSize: "0.75em", fontWeight: "bold", padding: "2px 8px", borderRadius: "3px",
-                      background: gpxAnalysis.type === "intervals" ? "#f43f5e" : gpxAnalysis.type === "tempo" ? "#f59e0b" : "#10b981",
+                      background: gpxAnalysis.type === "intervals" ? PALETTE.rose : gpxAnalysis.type === "tempo" ? PALETTE.amber : PALETTE.emerald,
                       color: "white",
                     }}>
                       {gpxAnalysis.type === "intervals" ? "INTERVALS" : gpxAnalysis.type === "tempo" ? "TEMPO" : "EASY"}
@@ -798,7 +798,7 @@ export default function RunningPage() {
                             const clampedPace = Math.min(Math.max(p.pace, minP), maxP);
                             const y = ((clampedPace - minP) / range) * 100;
                             const seg = segs.find((s) => p.t >= s.s && p.t <= s.e);
-                            const color = seg?.z === "fast" ? "#f43f5e" : "#10b981";
+                            const color = seg?.z === "fast" ? PALETTE.rose : PALETTE.emerald;
                             return (
                               <div key={i} style={{
                                 position: "absolute",
@@ -1005,7 +1005,7 @@ export default function RunningPage() {
           </div>
           {stravaRows && (
             <div style={{ marginTop: "12px" }}>
-              <p style={{ fontSize: "0.85em" }}>{stravaRows.length} run{stravaRows.length !== 1 ? "s" : ""} found</p>
+              <p style={{ fontSize: "0.85em" }}>{stravaRows.length} new run{stravaRows.length !== 1 ? "s" : ""} found{stravaDupes > 0 ? ` (${stravaDupes} already in your log, skipped)` : ""}</p>
               {stravaRows.length > 0 && (
                 <div style={{ overflowX: "auto", marginTop: "8px" }}>
                   <table style={{ fontSize: "0.8em" }}>
@@ -1066,8 +1066,8 @@ export default function RunningPage() {
                       <div key={i} style={{ display: "flex", gap: "12px", padding: "1px 0" }}>
                         <span style={{ color: "#666", minWidth: "24px" }}>R{i + 1}</span>
                         <span>{(rep.duration / 60).toFixed(1)}m</span>
-                        <span style={{ color: "#3b82f6" }}>{fmtPace(Math.round(rep.pace * 60))}</span>
-                        {rep.hr > 0 && <span style={{ color: "#f43f5e" }}>{Math.round(rep.hr)} bpm</span>}
+                        <span style={{ color: PALETTE.blue }}>{fmtPace(Math.round(rep.pace * 60))}</span>
+                        {rep.hr > 0 && <span style={{ color: PALETTE.rose }}>{Math.round(rep.hr)} bpm</span>}
                         {run.workout_data.recoveries?.[i] != null && i < run.workout_data.reps.length - 1 && (
                           <span style={{ color: "#555" }}>/ {(run.workout_data.recoveries[i] / 60).toFixed(1)}m rest</span>
                         )}
@@ -1121,7 +1121,7 @@ export default function RunningPage() {
       {hasSchedule && (
         <div style={{ background: "#333", borderRadius: "4px", height: "6px", marginTop: "8px" }}>
           <div style={{
-            background: "#10b981", height: "100%", borderRadius: "4px",
+            background: PALETTE.emerald, height: "100%", borderRadius: "4px",
             width: `${progressPct}%`, transition: "width 0.3s",
           }} />
         </div>
@@ -1265,7 +1265,7 @@ export default function RunningPage() {
             </div>
             <div className="metric">
               <div className="metric-label">ACWR</div>
-              <div className="metric-value" style={{ color: acwr > 1.5 ? "#f43f5e" : acwr < 0.8 ? "#f59e0b" : "#10b981" }}>{acwr.toFixed(2)}</div>
+              <div className="metric-value" style={{ color: acwr > 1.5 ? PALETTE.rose : acwr < 0.8 ? PALETTE.amber : PALETTE.emerald }}>{acwr.toFixed(2)}</div>
               <div style={{ fontSize: "0.8em", color: "var(--muted)" }}>{acwrStatus}</div>
             </div>
             <div className="metric">
@@ -1283,7 +1283,7 @@ export default function RunningPage() {
             <div className="metric">
               <div className="metric-label">Easy %</div>
               <div className="metric-value">{easyPct.toFixed(0)}%</div>
-              <div style={{ fontSize: "0.8em", color: easyPct < 70 ? "#f59e0b" : "#10b981" }}>
+              <div style={{ fontSize: "0.8em", color: easyPct < 70 ? PALETTE.amber : PALETTE.emerald }}>
                 {easyPct < 70 ? "aim ~80%" : "good"}
               </div>
             </div>
@@ -1310,12 +1310,12 @@ export default function RunningPage() {
               <h3 style={{ fontSize: "0.9em", marginBottom: "8px" }}>Workout Trends</h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "8px" }}>
                 {trends.map(t => (
-                  <details key={t.type} style={{ background: "var(--card-bg)", borderRadius: "8px", padding: "10px", border: `1px solid ${t.direction === "faster" ? "#10b981" : t.direction === "slower" ? "#f43f5e" : "#555"}33` }}>
+                  <details key={t.type} style={{ background: "var(--card-bg)", borderRadius: "8px", padding: "10px", border: `1px solid ${t.direction === "faster" ? PALETTE.emerald : t.direction === "slower" ? PALETTE.rose : "#555"}33` }}>
                     <summary style={{ cursor: "pointer", listStyle: "none" }}>
                       <div style={{ fontSize: "0.8em", color: TYPE_COLORS[t.type], fontWeight: 600, textTransform: "capitalize", marginBottom: "4px" }}>{TYPE_LABELS[t.type]}</div>
                       <div style={{ fontSize: "1.3em", fontWeight: 700 }}>
                         {t.direction === "faster" ? "↑" : t.direction === "slower" ? "↓" : "→"}{" "}
-                        <span style={{ color: t.direction === "faster" ? "#10b981" : t.direction === "slower" ? "#f43f5e" : "#888" }}>
+                        <span style={{ color: t.direction === "faster" ? PALETTE.emerald : t.direction === "slower" ? PALETTE.rose : "#888" }}>
                           {t.direction === "flat" ? "Steady" : `${t.pct}%`}
                         </span>
                       </div>
@@ -1461,7 +1461,7 @@ function FrequencyChart({ data }) {
           const x = pad.l + (i + 0.5) * (cw / data.length) - bw / 2;
           const h = (d.count / max) * ch;
           return <g key={i}>
-            <rect x={x} y={pad.t + ch - h} width={bw} height={Math.max(h, 1)} rx="2" fill="#3b82f6" opacity="0.7" style={{ cursor: "crosshair" }}
+            <rect x={x} y={pad.t + ch - h} width={bw} height={Math.max(h, 1)} rx="2" fill={PALETTE.blue} opacity="0.7" style={{ cursor: "crosshair" }}
               onMouseMove={e => show(e, `${fmtMD(d.week)}: ${d.count} runs`)} onMouseLeave={hide} />
             {(i === 0 || i === data.length - 1 || i % Math.max(1, Math.floor(data.length / 5)) === 0) && (
               <text x={x + bw / 2} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{d.week.slice(5)}</text>
@@ -1498,13 +1498,13 @@ function PaceChart({ data }) {
             <text x={pad.l - 4} y={yy + 3} textAnchor="end" fill="#888" fontSize="8">{fmtPace(v)}</text>
           </g>;
         })}
-        <path d={avgLine} fill="none" stroke="#f59e0b" strokeWidth="2" opacity="0.8" />
+        <path d={avgLine} fill="none" stroke={PALETTE.amber} strokeWidth="2" opacity="0.8" />
         {data.map((d, i) => (
-          <circle key={i} cx={x(i)} cy={y(d.pace)} r="5" fill="#3b82f6" opacity="0" style={{ cursor: "crosshair" }}
+          <circle key={i} cx={x(i)} cy={y(d.pace)} r="5" fill={PALETTE.blue} opacity="0" style={{ cursor: "crosshair" }}
             onMouseMove={e => show(e, `${fmtMD(d.date)}: ${fmtPace(d.pace)} (avg: ${fmtPace(d.avg7)})`)} onMouseLeave={hide} />
         ))}
         {data.map((d, i) => (
-          <circle key={`v${i}`} cx={x(i)} cy={y(d.pace)} r="3" fill="#3b82f6" opacity="0.7" pointerEvents="none" />
+          <circle key={`v${i}`} cx={x(i)} cy={y(d.pace)} r="3" fill={PALETTE.blue} opacity="0.7" pointerEvents="none" />
         ))}
         {[0, Math.floor(data.length / 2), data.length - 1].map((i) => (
           <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{data[i].date.slice(5)}</text>
@@ -1512,8 +1512,8 @@ function PaceChart({ data }) {
       </svg>
       {el}
       <div style={{ display: "flex", gap: "16px", fontSize: "0.75em", color: "var(--muted)" }}>
-        <span><span style={{ color: "#3b82f6" }}>{"●"}</span> Pace</span>
-        <span><span style={{ color: "#f59e0b" }}>{"—"}</span> 7-run avg</span>
+        <span><span style={{ color: PALETTE.blue }}>{"●"}</span> Pace</span>
+        <span><span style={{ color: PALETTE.amber }}>{"—"}</span> 7-run avg</span>
       </div>
     </div>
   );
@@ -1541,13 +1541,13 @@ function HRChart({ data }) {
             <text x={pad.l - 4} y={yy + 3} textAnchor="end" fill="#888" fontSize="8">{v}</text>
           </g>;
         })}
-        <path d={avgLine} fill="none" stroke="#f43f5e" strokeWidth="2" opacity="0.7" />
+        <path d={avgLine} fill="none" stroke={PALETTE.rose} strokeWidth="2" opacity="0.7" />
         {data.map((d, i) => (
-          <circle key={i} cx={x(i)} cy={y(d.hr)} r="5" fill="#f43f5e" opacity="0" style={{ cursor: "crosshair" }}
+          <circle key={i} cx={x(i)} cy={y(d.hr)} r="5" fill={PALETTE.rose} opacity="0" style={{ cursor: "crosshair" }}
             onMouseMove={e => show(e, `${fmtMD(d.date)}: ${d.hr} bpm (avg: ${d.avg7} bpm)`)} onMouseLeave={hide} />
         ))}
         {data.map((d, i) => (
-          <circle key={`v${i}`} cx={x(i)} cy={y(d.hr)} r="3" fill="#f43f5e" opacity="0.7" pointerEvents="none" />
+          <circle key={`v${i}`} cx={x(i)} cy={y(d.hr)} r="3" fill={PALETTE.rose} opacity="0.7" pointerEvents="none" />
         ))}
         {[0, Math.floor(data.length / 2), data.length - 1].map(i => (
           <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{data[i].date.slice(5)}</text>
@@ -1555,8 +1555,8 @@ function HRChart({ data }) {
       </svg>
       {el}
       <div style={{ display: "flex", gap: "16px", fontSize: "0.75em", color: "var(--muted)" }}>
-        <span><span style={{ color: "#f43f5e" }}>{"●"}</span> Avg HR</span>
-        <span><span style={{ color: "#f43f5e" }}>{"—"}</span> 7-run avg</span>
+        <span><span style={{ color: PALETTE.rose }}>{"●"}</span> Avg HR</span>
+        <span><span style={{ color: PALETTE.rose }}>{"—"}</span> 7-run avg</span>
       </div>
     </div>
   );
@@ -1586,13 +1586,13 @@ function EfficiencyChart({ data }) {
             <text x={pad.l - 4} y={yy + 3} textAnchor="end" fill="#888" fontSize="8">{v.toFixed(1)}</text>
           </g>;
         })}
-        <path d={line} fill="none" stroke="#8b5cf6" strokeWidth="2" opacity="0.8" />
+        <path d={line} fill="none" stroke={PALETTE.violet} strokeWidth="2" opacity="0.8" />
         {data.map((d, i) => (
-          <circle key={i} cx={x(i)} cy={y(d.efficiency)} r="5" fill="#8b5cf6" opacity="0" style={{ cursor: "crosshair" }}
+          <circle key={i} cx={x(i)} cy={y(d.efficiency)} r="5" fill={PALETTE.violet} opacity="0" style={{ cursor: "crosshair" }}
             onMouseMove={e => show(e, `${fmtMD(d.date)}: ${d.efficiency} s/bpm — ${fmtPace(d.pace)} @ ${d.hr}bpm`)} onMouseLeave={hide} />
         ))}
         {data.map((d, i) => (
-          <circle key={`v${i}`} cx={x(i)} cy={y(d.efficiency)} r="3" fill="#8b5cf6" opacity="0.7" pointerEvents="none" />
+          <circle key={`v${i}`} cx={x(i)} cy={y(d.efficiency)} r="3" fill={PALETTE.violet} opacity="0.7" pointerEvents="none" />
         ))}
         {[0, Math.floor(data.length / 2), data.length - 1].map(i => (
           <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fill="#888" fontSize="8">{data[i].date.slice(5)}</text>

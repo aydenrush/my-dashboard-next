@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { askConfirm } from "@/lib/confirm";
+import { PALETTE } from "@/lib/constants";
 
 const STOP_WORDS = new Set([
   "the","a","an","and","or","but","in","on","at","to","for","of","is","it",
@@ -11,7 +13,7 @@ const STOP_WORDS = new Set([
 
 const STATUS_LABELS = { draft: "Draft", in_progress: "In Progress", finished: "Finished" };
 
-const GRADE_COLORS = { S: "#FFD700", A: "#10b981", B: "#3b82f6", C: "#f59e0b", D: "#f43f5e", F: "#9E9E9E" };
+const GRADE_COLORS = { S: PALETTE.violet, A: PALETTE.emerald, B: PALETTE.blue, C: PALETTE.amber, D: PALETTE.rose, F: PALETTE.slate };
 
 // --- Syllable heuristic (no CMU dict) ---
 function countSyllables(word) {
@@ -365,7 +367,6 @@ export default function LyricLabPage() {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showDevices, setShowDevices] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [msg, setMsg] = useState(null);
 
   async function load() {
@@ -530,9 +531,10 @@ export default function LyricLabPage() {
   }
 
   async function deleteLyric(id, title) {
-    await supabase.from("lyrics").delete().eq("id", id);
+    if (!(await askConfirm(`Delete "${title}"? This can't be undone.`))) return;
+    const { error } = await supabase.from("lyrics").delete().eq("id", id);
+    if (error) return;
     if (loadedId === id) { setLoadedId(null); setLoadedTitle(""); }
-    setDeleteConfirm(null);
     flash(`Deleted '${title}'`);
     load();
   }
@@ -601,7 +603,7 @@ export default function LyricLabPage() {
                     {s} syl &mdash; {rhymeBySyl[s].join(" / ")}
                   </p>
                 ))}
-                <pre style={{ background: "#1a1a2e", padding: 8, borderRadius: 4, fontSize: "0.85em", whiteSpace: "pre-wrap" }}>
+                <pre style={{ background: "var(--bg-secondary)", padding: 8, borderRadius: 4, fontSize: "0.85em", whiteSpace: "pre-wrap" }}>
                   {rhymeResults.join(" / ")}
                 </pre>
               </div>
@@ -619,7 +621,7 @@ export default function LyricLabPage() {
               {cmuData.rhymes.length > 0 && (
                 <div style={{ marginTop: 8 }}>
                   <p style={{ fontSize: "0.85em", fontWeight: 600 }}>{cmuData.rhymes.length} phoneme rhymes:</p>
-                  <pre style={{ background: "#1a1a2e", padding: 8, borderRadius: 4, fontSize: "0.85em", whiteSpace: "pre-wrap", maxHeight: 200, overflow: "auto" }}>
+                  <pre style={{ background: "var(--bg-secondary)", padding: 8, borderRadius: 4, fontSize: "0.85em", whiteSpace: "pre-wrap", maxHeight: 200, overflow: "auto" }}>
                     {cmuData.rhymes.join(" / ")}
                   </pre>
                 </div>
@@ -689,7 +691,7 @@ export default function LyricLabPage() {
             <div className="metric">
               <div className="metric-label">Verdict</div>
               <div className="metric-value">
-                <span style={{ color: GRADE_COLORS[analysis.grade] || "#666", fontWeight: 800 }}>
+                <span style={{ color: GRADE_COLORS[analysis.grade] || "var(--muted)", fontWeight: 800 }}>
                   {analysis.grade}
                 </span>
                 <span style={{ fontSize: "0.6em", color: "var(--muted)", marginLeft: 4 }}>
@@ -717,7 +719,7 @@ export default function LyricLabPage() {
               <div className="card" style={{ marginTop: 8 }}>
                 {[...analysis.extras.components].sort((a, b) => a.sc - b.sc).map((c) => {
                   const pct = (c.sc / 10) * 100;
-                  const barClr = pct >= 80 ? "#10b981" : pct >= 50 ? "#f59e0b" : "#f43f5e";
+                  const barClr = pct >= 80 ? PALETTE.emerald : pct >= 50 ? PALETTE.amber : PALETTE.rose;
                   return (
                     <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0" }}>
                       <span style={{ minWidth: 120, fontSize: "0.85em" }}>{c.name} ({(c.weight * 100).toFixed(0)}%)</span>
@@ -734,7 +736,7 @@ export default function LyricLabPage() {
                   </div>
                 )}
                 {(analysis.extras.uniqueMult < 1 || analysis.extras.repeatMult < 1) && (
-                  <div style={{ marginTop: 4, fontSize: "0.82em", color: "#f43f5e" }}>
+                  <div style={{ marginTop: 4, fontSize: "0.82em", color: PALETTE.rose }}>
                     Penalties: {[
                       analysis.extras.uniqueMult < 1 && `Low unique words (${(analysis.extras.uniqueMult * 100).toFixed(0)}%)`,
                       analysis.extras.repeatMult < 1 && `Repeated lines (${(analysis.extras.repeatMult * 100).toFixed(0)}%)`,
@@ -744,7 +746,7 @@ export default function LyricLabPage() {
                 {(() => {
                   const weakest = [...analysis.extras.components].sort((a, b) => a.sc - b.sc)[0];
                   return (
-                    <div style={{ marginTop: 8, padding: 8, background: "#1a1a2e", borderRadius: 6, borderLeft: "3px solid #f43f5e", fontSize: "0.85em" }}>
+                    <div style={{ marginTop: 8, padding: 8, background: "var(--bg-secondary)", borderRadius: 6, borderLeft: `3px solid ${PALETTE.rose}`, fontSize: "0.85em" }}>
                       Biggest opportunity: <strong>{weakest.name}</strong> &mdash; scoring {weakest.sc.toFixed(1)}/10 at {(weakest.weight * 100).toFixed(0)}% weight
                     </div>
                   );
@@ -760,7 +762,7 @@ export default function LyricLabPage() {
               const lbl = analysis.scheme[i] || "-";
               const SCHEME_COLORS = ["#F44336","#2196F3","#4CAF50","#FF9800","#9C27B0","#00BCD4","#FF5722","#8BC34A"];
               const ci = lbl !== "-" ? (lbl.charCodeAt(0) - 65) : -1;
-              const lclr = ci >= 0 ? SCHEME_COLORS[ci % SCHEME_COLORS.length] : "#666";
+              const lclr = ci >= 0 ? SCHEME_COLORS[ci % SCHEME_COLORS.length] : "var(--muted)";
               return (
                 <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "3px 0" }}>
                   <span style={{ color: lclr, fontWeight: 700, minWidth: 18, textAlign: "center" }}>{lbl}</span>
@@ -816,7 +818,7 @@ export default function LyricLabPage() {
                   {analysis.unrhymed.slice(-8).map((word, i) => {
                     const rh = findRhymesDb(word);
                     return rh.length ? (
-                      <pre key={i} style={{ background: "#1a1a2e", padding: 6, borderRadius: 4, fontSize: "0.85em", margin: "4px 0", whiteSpace: "pre-wrap" }}>
+                      <pre key={i} style={{ background: "var(--bg-secondary)", padding: 6, borderRadius: 4, fontSize: "0.85em", margin: "4px 0", whiteSpace: "pre-wrap" }}>
                         {word} &rarr; {rh.slice(0, 10).join(" / ")}
                       </pre>
                     ) : (
@@ -872,19 +874,12 @@ export default function LyricLabPage() {
                 const sn = ct.split("\n").filter((l) => l.trim()).reduce((a, l) => a + lineSyllables(l), 0);
                 const st = STATUS_LABELS[ly.status] || "Draft";
                 return (
-                  <div key={ly.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid #333" }}>
+                  <div key={ly.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
                     <div style={{ flex: 1 }}>
                       <strong>{ly.title}</strong> &mdash; {st} &middot; {bn} bars &middot; {wn} words &middot; {sn} syl
                     </div>
                     <button className="btn" onClick={() => loadLyric(ly)}>Load</button>
-                    {deleteConfirm === ly.id ? (
-                      <span style={{ display: "flex", gap: 4 }}>
-                        <button className="btn" style={{ color: "#f43f5e" }} onClick={() => deleteLyric(ly.id, ly.title)}>Yes</button>
-                        <button className="btn" onClick={() => setDeleteConfirm(null)}>No</button>
-                      </span>
-                    ) : (
-                      <button className="btn" onClick={() => setDeleteConfirm(ly.id)}>Del</button>
-                    )}
+                    <button className="btn" onClick={() => deleteLyric(ly.id, ly.title)}>Del</button>
                   </div>
                 );
               })
@@ -925,7 +920,7 @@ export default function LyricLabPage() {
                   style={{ width: "100%", padding: 8, marginBottom: 8, boxSizing: "border-box" }}
                 />
                 {filteredGroups.map((g) => (
-                  <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: "1px solid #333" }}>
+                  <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: "1px solid var(--border)" }}>
                     <div style={{ flex: 1, fontSize: "0.9em" }}>
                       {g.words.map((w, wi) => (
                         <span key={wi}>

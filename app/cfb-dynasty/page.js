@@ -84,10 +84,11 @@ export default function CFBDynastyPage() {
     if (!bulkText.trim() || !table) return;
     const rows = bulkText.trim().split("\n").map((line) => {
       const c = line.split("\t");
-      let yr = null; try { yr = parseInt(c[0]); } catch {}
-      let wt = null; try { wt = parseFloat((c[6] || "").replace("lbs", "")); } catch {}
-      let age = null; try { age = parseInt(c[4]); } catch {}
-      if (!age) age = ageFromClass(c[3]);
+      // parseInt/parseFloat give NaN (they never throw), so a header row would otherwise become a "Name" pick
+      const yr = parseInt(c[0]);
+      if (isNaN(yr)) return null;
+      const wt = parseFloat((c[6] || "").replace("lbs", "")) || null;
+      const age = parseInt(c[4]) || ageFromClass(c[3]);
       return {
         school: bulkSchool || selectedSchool, year: yr, name: (c[1] || "").trim(),
         position: (c[2] || "").trim() || null, class: (c[3] || "").trim() || null,
@@ -96,9 +97,14 @@ export default function CFBDynastyPage() {
         race: (c[8] || "").trim() || null, round: (c[9] || "").trim() || null,
         additional_notes: (c[10] || "").trim() || null,
       };
-    }).filter((r) => r.name);
-    if (rows.length > 0) {
-      await supabase.from(table).insert(rows);
+    }).filter((r) => r && r.name);
+    // skip picks already saved (same school, year and name), so pasting the same list twice adds nothing
+    const key = (p) => `${p.school}|${p.year}|${(p.name || "").toLowerCase()}`;
+    const have = new Set(picks.map(key));
+    const fresh = rows.filter((r) => !have.has(key(r)) && have.add(key(r)));
+    if (fresh.length > 0) {
+      const { error } = await supabase.from(table).insert(fresh);
+      if (error) return; // keep the pasted text; the banner shows why
       setBulkText("");
       loadPicks();
     }

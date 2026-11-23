@@ -30,3 +30,24 @@ assert.deepEqual(t.splits.map((s) => s.pace_seconds), [480, 480]);
 assert.equal(fmtPaceMin(8.5), "8:30/mi");
 assert.throws(() => parseTcx("<nothing/>"), /No laps/);
 console.log("run files ok");
+
+// real Strava exports have two Distance columns: account units first, meters second
+const { splitNewRuns } = await import("../lib/runFiles.js");
+const twoCols = [
+  'Activity ID,Activity Date,Activity Name,Activity Type,Elapsed Time,Distance,Moving Time,Elevation Gain,Distance',
+  '1,"Oct 2, 2026, 1:00:00 AM",Night run,Run,1800,3.11,1750,20,5004.6',
+].join("\n");
+assert.equal(parseStravaCsv(twoCols)[0].distance_miles, 3.11, "miles account: meters column used, not 3.11 km");
+
+// re-importing the same export skips runs already logged (same date, within 0.05 mi), and dupes inside the file
+const logs = [{ date: "2026-10-01", distance_miles: 3.12 }];
+const incoming = [
+  { date: "2026-10-01", distance_miles: 3.11 },
+  { date: "2026-10-01", distance_miles: 1.5 }, // second run same day: new
+  { date: "2026-10-03", distance_miles: 4 },
+  { date: "2026-10-03", distance_miles: 4.01 },
+];
+const { fresh, dupes } = splitNewRuns(incoming, logs);
+assert.deepEqual(fresh.map((r) => r.distance_miles), [1.5, 4]);
+assert.equal(dupes.length, 2);
+console.log("strava dedupe ok");

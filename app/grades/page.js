@@ -1,10 +1,10 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { DAY_NAMES } from "@/lib/dates";
 import { askConfirm } from "@/lib/confirm";
 import { GRADE_THRESHOLDS, letterGrade, gradeColor, calcClass, outcomes } from "@/lib/grades";
 
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function GradesPage() {
   const [classes, setClasses] = useState([]);
@@ -195,7 +195,7 @@ export default function GradesPage() {
 
               <details style={{ marginTop: "0.75rem" }}>
                 <summary className="muted">
-                  Schedule {(cls.meetings || []).length ? `· ${cls.meetings.map((m) => `${m.label ? m.label + " " : ""}${m.days.map((d) => DAYS[d]).join("/")} ${m.start}`).join(", ")}` : "· online / none"}
+                  Schedule {(cls.meetings || []).length ? `· ${cls.meetings.map((m) => `${m.label ? m.label + " " : ""}${m.days.map((d) => DAY_NAMES[d]).join("/")} ${m.start}`).join(", ")}` : "· online / none"}
                 </summary>
                 <div className="row" style={{ alignItems: "center" }}>
                   <span className="muted">Term</span>
@@ -206,7 +206,7 @@ export default function GradesPage() {
                 {(cls.meetings || []).map((m, mi) => (
                   <div key={mi} className="row" style={{ alignItems: "center" }}>
                     <input value={m.label} onChange={(e) => updateMeeting(ci, mi, "label", e.target.value)} placeholder="Lec/Lab" style={{ width: 70 }} aria-label="Meeting label" />
-                    {DAYS.map((name, d) => (
+                    {DAY_NAMES.map((name, d) => (
                       <button key={d} type="button" className={`btn${m.days.includes(d) ? " btn-primary" : ""}`} style={{ padding: "2px 6px", fontSize: "0.75rem" }} onClick={() => toggleDay(ci, mi, d)} aria-pressed={m.days.includes(d)}>{name}</button>
                     ))}
                     <input type="time" value={m.start} onChange={(e) => updateMeeting(ci, mi, "start", e.target.value)} aria-label="Start time" />
