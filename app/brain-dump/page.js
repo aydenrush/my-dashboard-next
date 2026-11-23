@@ -109,6 +109,9 @@ export default function BrainDumpPage() {
   const [tags, setTags] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [text, setText] = useState("");
+  // the add box keeps an unfinished thought in this browser until you add it
+  useEffect(() => { setText(localStorage.getItem("brain_dump_draft") || ""); }, []);
+  useEffect(() => { if (text) localStorage.setItem("brain_dump_draft", text); else localStorage.removeItem("brain_dump_draft"); }, [text]);
   const [filter, setFilter] = useState(null);
   const [query, setQuery] = useState("");
   const [newTag, setNewTag] = useState(null);

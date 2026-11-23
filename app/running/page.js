@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
-import { bestRunMessage, savedLocation, fetchWeather } from "@/lib/weather";
+import { bestRunMessage, loadLocation, fetchWeather } from "@/lib/weather";
 import { PALETTE } from "@/lib/constants";
 import { isoDate, addDays, mondayOf, DAY_NAMES } from "@/lib/dates";
 import { planRow, workoutFields, planActivity } from "@/lib/runs";
@@ -165,8 +165,7 @@ export default function RunningPage() {
 
   // fetch weather
   useEffect(() => {
-    const loc = savedLocation();
-    if (loc) fetchWeather(loc).then(setWeather).catch(() => {});
+    loadLocation().then((loc) => loc && fetchWeather(loc)).then((w) => w && setWeather(w)).catch(() => {});
   }, []);
 
   useEffect(() => { setMrDate(today); }, [today]);

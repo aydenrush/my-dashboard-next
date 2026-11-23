@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { fmtHour, weatherCategory, bestRunHour, bestOutdoorHour, savedLocation, fetchWeather } from "@/lib/weather";
+import { fmtHour, weatherCategory, bestRunHour, bestOutdoorHour, loadLocation, fetchWeather } from "@/lib/weather";
+import { setSetting } from "@/lib/settings";
 
 export default function WeatherPage() {
   const [location, setLocation] = useState(null);
@@ -9,14 +10,14 @@ export default function WeatherPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [deadline, setDeadline] = useState(22);
+  const [locReady, setLocReady] = useState(false);
 
   // load saved location
   useEffect(() => {
-    const loc = savedLocation();
-    if (loc) {
-      setLocation(loc);
-      setCityInput(loc.city);
-    }
+    loadLocation().then((loc) => {
+      if (loc) { setLocation(loc); setCityInput(loc.city); }
+      setLocReady(true);
+    });
   }, []);
 
   const load = useCallback(async (loc) => {
@@ -45,13 +46,15 @@ export default function WeatherPage() {
       }
       const loc = await resp.json();
       setLocation(loc);
-      localStorage.setItem("weather_location", JSON.stringify(loc));
+      setSetting("weather_location", loc);
     } catch (e) {
       setError(e.message);
     }
   }
 
   const nowHour = new Date().getHours();
+
+  if (!locReady) return <div><h1 className="page-title">Weather</h1><p className="muted">Loading...</p></div>;
 
   if (!location) {
     return (
@@ -85,7 +88,7 @@ export default function WeatherPage() {
             <p className="alert alert-error">Couldn&apos;t load the weather: {error}</p>
             <div className="row" style={{ marginTop: "0.75rem" }}>
               <button className="btn btn-primary" onClick={() => load(location)}>Try again</button>
-              <button className="btn" onClick={() => { localStorage.removeItem("weather_location"); setLocation(null); setError(null); }}>Change location</button>
+              <button className="btn" onClick={() => { setSetting("weather_location", null); setLocation(null); setError(null); }}>Change location</button>
             </div>
           </>
         ) : (

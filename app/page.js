@@ -4,7 +4,8 @@ import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import Link from "next/link";
 import { ACTIVITY_TYPES, PALETTE } from "@/lib/constants";
-import { bestRunMessage, savedLocation, fetchWeather } from "@/lib/weather";
+import { bestRunMessage, loadLocation, fetchWeather } from "@/lib/weather";
+import { getSetting, setSetting } from "@/lib/settings";
 import { isoDate, addDays, mondayOf, weekdayIndex, DAY_NAMES } from "@/lib/dates";
 import { bestReachable, outcomes } from "@/lib/grades";
 import { planRow, isRestText } from "@/lib/runs";
@@ -98,19 +99,18 @@ export default function HomePage() {
   useEffect(() => { setAddDate(focusDate); }, [focusDate]);
 
   useEffect(() => {
-    const loc = savedLocation();
-    if (loc) fetchWeather(loc).then(setWeather).catch(() => {});
+    loadLocation().then((loc) => loc && fetchWeather(loc)).then((w) => w && setWeather(w)).catch(() => {});
   }, []);
 
   useEffect(() => {
-    const saved = localStorage.getItem("ical_url");
-    if (saved) {
+    getSetting("ical_url").then((saved) => {
+      if (!saved) return;
       setIcalUrl(saved);
       fetch(`/api/ical?url=${encodeURIComponent(saved)}`)
         .then((r) => r.ok ? r.json() : [])
         .then((events) => setCalEvents(events || []))
         .catch(() => {});
-    }
+    });
   }, []);
 
   const focusDay = weekdayIndex(focusDate);
@@ -141,8 +141,11 @@ export default function HomePage() {
   });
   const focusRuns = runSchedule.filter((r) => r.date === focusDate);
   const reading = books.filter((b) => b.status === "reading");
-  // timed events can be UTC ("...Z"), so take their local day; all-day events are plain dates
-  const focusCal = calEvents.filter((e) => e.start && (e.start.length > 10 ? isoDate(new Date(e.start)) : e.start) === focusDate);
+  // timed events can be UTC ("...Z"), so take their local day. All-day events are plain dates and can span
+  // several days: they run up to, but not including, their end date.
+  const focusCal = calEvents.filter((e) => e.start && (e.start.length > 10
+    ? isoDate(new Date(e.start)) === focusDate
+    : focusDate >= e.start && focusDate < (e.end && e.end.length === 10 && e.end > e.start ? e.end : addDays(e.start, 1))));
 
   const focusTimeline = [
     ...focusClasses.map((c) => ({ type: "class", sortMin: c.startMin, data: c })),
@@ -714,13 +717,13 @@ export default function HomePage() {
               placeholder="https://calendar.google.com/calendar/ical/..." style={{ flex: 1, fontSize: "0.8rem" }} />
             <button className="btn btn-primary" onClick={() => {
               if (icalUrl.trim()) {
-                localStorage.setItem("ical_url", icalUrl.trim());
+                setSetting("ical_url", icalUrl.trim());
                 fetch(`/api/ical?url=${encodeURIComponent(icalUrl.trim())}`)
                   .then((r) => r.ok ? r.json() : [])
                   .then((events) => setCalEvents(events || []))
                   .catch(() => {});
               } else {
-                localStorage.removeItem("ical_url");
+                setSetting("ical_url", null);
                 setCalEvents([]);
               }
             }}>Save</button>
