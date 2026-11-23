@@ -55,6 +55,12 @@ export default function BooksPage() {
     load();
   }
 
+  // save a typed page number (Enter or the +Np button) and clear the pending edit
+  function savePage(bookId, page, total) {
+    updatePage(bookId, page, total);
+    setPageUpdates((p) => { const n = { ...p }; delete n[bookId]; return n; });
+  }
+
   async function finishBook(bookId, totalPages) {
     const updates = { status: "completed", end_date: isoDate() };
     if (totalPages) updates.current_page = totalPages;
@@ -152,12 +158,14 @@ export default function BooksPage() {
                       type="number"
                       value={pageVal}
                       onChange={(e) => setPageUpdates((p) => ({ ...p, [book.id]: Number(e.target.value) }))}
+                      onKeyDown={(e) => { if (e.key === "Enter" && pageVal !== cur) savePage(book.id, pageVal, total); }}
+                      aria-label="Current page (Enter to save)"
                       style={{ width: "80px" }}
                       min={0}
                       max={Math.max(total, 9999)}
                     />
                     {pageVal !== cur && (
-                      <button className="btn" onClick={() => { updatePage(book.id, pageVal, total); setPageUpdates((p) => { const n = { ...p }; delete n[book.id]; return n; }); }}>
+                      <button className="btn" onClick={() => savePage(book.id, pageVal, total)}>
                         {pageVal > cur ? `+${pageVal - cur}p` : "Set"}
                       </button>
                     )}

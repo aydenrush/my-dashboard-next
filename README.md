@@ -19,9 +19,10 @@ The sidebar is grouped into sections:
 
 - **One planner:** everything you plan is a row in `activities`. Planned runs are activities of type `running` (imported plans are tagged `run_plan`), and repeating schedules are activities sharing a `recur_…` group id, so they show on every device.
 - **One class list:** classes, grade categories and meeting times all live in `grade_classes`; edit them on Grades.
-- **Phone calendar:** "Publish feed" on Home uploads `training_plan.ics` to Supabase Storage. Subscribe to it once with the `webcal://` link shown there and your phone keeps it updated.
+- **Phone calendar:** every change to an activity or run re-uploads `training_plan.ics` to Supabase Storage automatically (`lib/feed.js`; "Publish now" on Home forces it). Subscribe once with the `webcal://` link shown there and your phone keeps it updated.
 - **Google Calendar:** paste your calendar's secret iCal address under "Connect Google Calendar" on Home. Repeating events (daily and weekly) are expanded; only `https://calendar.google.com` links are accepted.
 - **Loading and errors:** every Supabase request goes through `lib/supabase.js`, which drives an app-wide loading bar and an error banner (`components/DbStatus.js`). Pages don't need their own.
+- **Fewest clicks:** non-destructive actions skip extra steps: add a to-do from Home's "+ to-do" box, tick off To Do notes with ✓, "Log it" on Running opens the log form already set to today's workout, notes and pages save on Enter or when you click away, and Home's Add Activity remembers your last type, time and length.
 - **Deletes ask first** everywhere it would lose data you can't get back, in the app's own dialog.
 - **Settings follow you:** your weather location and Google Calendar link are saved in a Supabase `settings` table (and cached in the browser), so a new device picks them up.
 - **Install on your phone:** open the site, then Share → Add to Home Screen (iPhone) or ⋮ → Install app (Android). It opens full screen with its own icon.

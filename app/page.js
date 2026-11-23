@@ -10,6 +10,7 @@ import { isoDate, addDays, mondayOf, weekdayIndex, DAY_NAMES } from "@/lib/dates
 import { bestReachable, outcomes } from "@/lib/grades";
 import { planRow, isRestText } from "@/lib/runs";
 import { buildIcs, parseTimeSlot, actStart } from "@/lib/ics";
+import { publishFeed, queuePublish } from "@/lib/feed";
 
 
 // class meeting times come from Grades (grade_classes.meetings, days 0 = Mon)
@@ -60,6 +61,7 @@ export default function HomePage() {
 
   // add activity form
   const [addType, setAddType] = useState("running");
+  const [newTodo, setNewTodo] = useState("");
   const [addDate, setAddDate] = useState("");
   const [addSlot, setAddSlot] = useState("");
   const [addTitle, setAddTitle] = useState("");
@@ -97,6 +99,12 @@ export default function HomePage() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
   useEffect(() => { setAddDate(focusDate); }, [focusDate]);
+  useEffect(() => {
+    try {
+      const last = JSON.parse(localStorage.getItem("last_activity") || "null");
+      if (last) { setAddType(last.type); setAddSlot(last.slot || ""); setAddDuration(last.duration || ""); }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     loadLocation().then((loc) => loc && fetchWeather(loc)).then((w) => w && setWeather(w)).catch(() => {});
@@ -187,17 +195,29 @@ export default function HomePage() {
 
   async function toggleActivity(id, current) {
     await supabase.from("activities").update({ completed: !current }).eq("id", id);
-    loadAll();
+    loadAll(); queuePublish();
   }
 
   async function toggleRun(id, current) {
     await supabase.from("activities").update({ completed: !current }).eq("id", id);
+    loadAll(); queuePublish();
+  }
+
+  // quick add from Home: a note tagged "To Do" (the tag is created the first time if needed)
+  async function addTodo(e) {
+    e.preventDefault();
+    const content = newTodo.trim();
+    if (!content) return;
+    await supabase.from("note_tags").upsert({ name: "To Do", color: "rose" }, { onConflict: "name", ignoreDuplicates: true });
+    const { error } = await supabase.from("notes").insert({ content, tag: "To Do" });
+    if (error) return;
+    setNewTodo("");
     loadAll();
   }
 
   async function completeTodo(id) {
     await supabase.from("notes").delete().eq("id", id);
-    loadAll();
+    loadAll(); queuePublish();
   }
 
   async function addActivity(e) {
@@ -220,19 +240,20 @@ export default function HomePage() {
       }
       await supabase.from("activities").insert(rows);
     }
-    setAddTitle(""); setAddDuration(""); setAddNotes(""); setAddRecur(0); loadAll();
+    if (!editId) localStorage.setItem("last_activity", JSON.stringify({ type: addType, slot: addSlot, duration: addDuration }));
+    setAddTitle(""); setAddNotes(""); setAddRecur(0); loadAll(); queuePublish();
   }
 
   async function deleteActivity(id) {
     if (!(await askConfirm("Delete this activity?"))) return;
     await supabase.from("activities").delete().eq("id", id);
-    loadAll();
+    loadAll(); queuePublish();
   }
 
   async function deleteSeriesActivity(groupId) {
     if (!(await askConfirm("Delete every activity in this repeating series?"))) return;
     await supabase.from("activities").delete().eq("gcal_event_id", groupId);
-    loadAll();
+    loadAll(); queuePublish();
   }
 
   async function editSeriesActivity(act) {
@@ -258,7 +279,7 @@ export default function HomePage() {
     };
     await supabase.from("activities").update(row).eq("gcal_event_id", editGroup);
     setEditId(null); setEditGroup(null);
-    setAddTitle(""); setAddDuration(""); setAddNotes(""); loadAll();
+    setAddTitle(""); setAddDuration(""); setAddNotes(""); loadAll(); queuePublish();
   }
 
   async function updateFutureSeries() {
@@ -272,7 +293,7 @@ export default function HomePage() {
     };
     await supabase.from("activities").update(row).eq("gcal_event_id", editGroup).gte("date", addDate);
     setEditId(null); setEditGroup(null);
-    setAddTitle(""); setAddDuration(""); setAddNotes(""); loadAll();
+    setAddTitle(""); setAddDuration(""); setAddNotes(""); loadAll(); queuePublish();
   }
 
   async function createTemplate(e) {
@@ -304,7 +325,7 @@ export default function HomePage() {
     }
     if (rows.length > 0) {
       await supabase.from("activities").insert(rows);
-      loadAll();
+      loadAll(); queuePublish();
     }
     return rows.length;
   }
@@ -314,16 +335,14 @@ export default function HomePage() {
     await supabase.from("activities").delete().eq("gcal_event_id", tpl.groupId).gte("date", today);
     // keep past ones as history, but unlink them so the schedule drops off the list
     await supabase.from("activities").update({ gcal_event_id: null }).eq("gcal_event_id", tpl.groupId);
-    loadAll();
+    loadAll(); queuePublish();
   }
 
   const [syncMsg, setSyncMsg] = useState("");
 
-  async function publishFeed() {
+  async function publishNow() {
     setSyncMsg("Publishing...");
-    const icsBytes = new TextEncoder().encode(buildIcs(activities));
-    const opts = { contentType: "text/calendar", cacheControl: "no-cache", upsert: true };
-    const { error } = await supabase.storage.from("ical").upload("training_plan.ics", icsBytes, opts);
+    const { error } = await publishFeed();
     if (error) {
       setSyncMsg("Error: " + error.message);
     } else {
@@ -472,7 +491,7 @@ export default function HomePage() {
       )}
 
       {/* Active To-Dos */}
-      {isToday && todos.length > 0 && (
+      {isToday && (
         <div style={{ marginTop: "0.75rem" }}>
           <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "4px" }}><Link href="/brain-dump">To Do</Link></p>
           {todos.slice(0, 5).map((t) => {
@@ -485,6 +504,10 @@ export default function HomePage() {
             );
           })}
           {todos.length > 5 && <p style={{ fontSize: "0.75rem", color: "var(--muted)" }}><Link href="/brain-dump">+{todos.length - 5} more</Link></p>}
+          <form onSubmit={addTodo} style={{ marginTop: "4px" }}>
+            <input value={newTodo} onChange={(e) => setNewTodo(e.target.value)} placeholder="+ to-do (Enter to add)" aria-label="New to-do"
+              style={{ width: "100%", maxWidth: 360, fontSize: "0.85rem", padding: "3px 8px" }} />
+          </form>
         </div>
       )}
 
@@ -656,10 +679,10 @@ export default function HomePage() {
         <summary>Sync to phone</summary>
         <div style={{ marginBottom: "1rem" }}>
           <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem" }}>
-            Publish your training plan so your phone calendar updates automatically.
+            Your plan publishes to your phone automatically whenever you change it. Use Publish now to force an update.
           </p>
           <div style={{ display: "flex", gap: "8px", marginBottom: "0.5rem" }}>
-            <button className="btn btn-primary" onClick={publishFeed}>Publish feed</button>
+            <button className="btn btn-primary" onClick={publishNow}>Publish now</button>
             <button className="btn" onClick={downloadIcs}>Download .ics</button>
           </div>
           {syncMsg && <p style={{ fontSize: "0.85rem", color: syncMsg.startsWith("Error") ? "var(--error)" : "var(--success)", marginBottom: "0.5rem" }}>{syncMsg}</p>}

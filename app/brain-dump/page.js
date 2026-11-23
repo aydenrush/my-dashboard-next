@@ -86,6 +86,7 @@ function NoteCard({ note, tags, onSave, onDelete }) {
           {tags.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
         </select>
         <span className="nd-actions">
+          {note.tag === "To Do" && <button className="on" onClick={() => onDelete(note)} title="Done (removes the to-do)" aria-label="Mark to-do done">✓</button>}
           <button className={copied ? "on" : ""} onClick={copy} title={copied ? "Copied" : "Copy text"} aria-label="Copy note text">{copied ? "✓" : "⧉"}</button>
           <button className={note.pinned ? "on" : ""} onClick={() => onSave(note, { pinned: !note.pinned })} title={note.pinned ? "Unpin" : "Pin"} aria-label={note.pinned ? "Unpin note" : "Pin note"}>📌</button>
           <button onClick={() => askConfirm("Delete this note?").then((ok) => ok && onDelete(note))} title="Delete" aria-label="Delete note">✕</button>

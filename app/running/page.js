@@ -1,11 +1,12 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { bestRunMessage, loadLocation, fetchWeather } from "@/lib/weather";
 import { PALETTE } from "@/lib/constants";
 import { isoDate, addDays, mondayOf, DAY_NAMES } from "@/lib/dates";
 import { planRow, workoutFields, planActivity } from "@/lib/runs";
+import { queuePublish } from "@/lib/feed";
 import { fmtPaceMin, parseGpx, parseStravaCsv, splitNewRuns, parseTcx, analyzeTcx, analyzeWorkout, refitWorkout } from "@/lib/runFiles";
 
 // --- constants ---
@@ -112,6 +113,7 @@ export default function RunningPage() {
   const [editWorkout, setEditWorkout] = useState("");
   // edit run notes
   const [editingRunId, setEditingRunId] = useState(null);
+  const notesCancelled = useRef(false);
   const [editRunNotes, setEditRunNotes] = useState("");
 
   const today = isoDate();
@@ -135,7 +137,7 @@ export default function RunningPage() {
     if (pastRest.length) {
       Promise.all(pastRest.map((r) =>
         supabase.from("activities").update({ completed: true }).eq("id", r.id)
-      )).then(load);
+      )).then(() => { load(); queuePublish(); });
     }
   }, [schedule.length, today]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -147,20 +149,30 @@ export default function RunningPage() {
     if (toComplete.length) {
       Promise.all(toComplete.map(r =>
         supabase.from("activities").update({ completed: true }).eq("id", r.id)
-      )).then(load);
+      )).then(() => { load(); queuePublish(); });
     }
   }, [schedule.length, runLogs.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function updateRunNotes(id) {
+    if ((runLogs.find((r) => r.id === id)?.notes || "") === editRunNotes.trim()) { setEditingRunId(null); return; }
     await supabase.from("run_logs").update({ notes: editRunNotes.trim() || null }).eq("id", id);
     setEditingRunId(null);
-    load();
+    load(); queuePublish();
   }
 
   const RUN_TYPES = ["easy", "long", "tempo", "speed", "hills"];
+
+  // open the log form for today, with the type already set to today's planned workout
+  function openLog() {
+    const planned = schedule.find((r) => r.date === isoDate())?._type;
+    setMrDate(isoDate());
+    setMrType(RUN_TYPES.includes(planned) ? planned : "easy");
+    setShowLogForm(true); setShowGpx(false); setShowStrava(false);
+    setTimeout(() => document.getElementById("log-run-form")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+  }
   async function setRunType(id, type) {
     await supabase.from("run_logs").update({ workout_type: type }).eq("id", id);
-    load();
+    load(); queuePublish();
   }
 
   // fetch weather
@@ -245,19 +257,19 @@ export default function RunningPage() {
 
   async function markComplete(id) {
     await supabase.from("activities").update({ completed: true }).eq("id", id);
-    load();
+    load(); queuePublish();
   }
 
   async function saveEdit(id) {
     await supabase.from("activities").update(workoutFields(editWorkout)).eq("id", id);
     setEditingId(null);
-    load();
+    load(); queuePublish();
   }
 
   async function deleteScheduleRow(id) {
     if (!(await askConfirm("Delete this planned run?"))) return;
     await supabase.from("activities").delete().eq("id", id);
-    load();
+    load(); queuePublish();
   }
 
   async function logRun(e) {
@@ -282,13 +294,13 @@ export default function RunningPage() {
     }
     setMrDist(""); setMrMins(""); setMrSecs(""); setMrNotes(""); setMrType("easy");
     setShowLogForm(false);
-    load();
+    load(); queuePublish();
   }
 
   async function deleteRunLog(id) {
     if (!(await askConfirm("Delete this run from your log? This can't be undone."))) return;
     await supabase.from("run_logs").delete().eq("id", id);
-    load();
+    load(); queuePublish();
   }
 
   function handleGpxFile(e) {
@@ -323,7 +335,7 @@ export default function RunningPage() {
     const match = schedule.find((r) => r.date === row.date && !r.completed);
     if (match) await supabase.from("activities").update({ completed: true }).eq("id", match.id);
     setGpxPreview(null); setGpxAnalysis(null); setShowGpx(false); setShowCorrection(false);
-    load();
+    load(); queuePublish();
   }
 
   function handleStravaFile(e) {
@@ -373,7 +385,7 @@ export default function RunningPage() {
     }
     await supabase.from("activities").insert(rows);
     setPasteText(""); setShowAddSchedule(false);
-    load();
+    load(); queuePublish();
   }
 
   // --- weekly mileage for chart ---
@@ -534,8 +546,10 @@ export default function RunningPage() {
           <h3 style={{ margin: "4px 0" }}>Today&apos;s Workout</h3>
           <p style={{ whiteSpace: "pre-line", margin: 0 }}>{todayRow.workout}</p>
           {!todayRow.completed ? (
-            <button className="btn btn-primary" style={{ marginTop: "8px" }}
-              onClick={() => markComplete(todayRow.id)}>Mark Complete</button>
+            <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+              {todayRow._type !== "rest" && <button className="btn btn-primary" onClick={openLog}>Log it</button>}
+              <button className="btn" onClick={() => markComplete(todayRow.id)}>Mark Complete</button>
+            </div>
           ) : (
             <div className="alert alert-success" style={{ marginTop: "8px" }}>Completed!</div>
           )}
@@ -591,7 +605,7 @@ export default function RunningPage() {
       {/* ===== QUICK ACTIONS ===== */}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
         <button className={`btn${showLogForm ? " btn-primary" : ""}`}
-          onClick={() => { setShowLogForm(!showLogForm); setShowGpx(false); setShowStrava(false); }}>
+          onClick={() => (showLogForm ? setShowLogForm(false) : openLog())}>
           {showLogForm ? "Cancel" : "Log a Run"}
         </button>
         <button className={`btn${showGpx ? " btn-primary" : ""}`}
@@ -606,7 +620,7 @@ export default function RunningPage() {
 
       {/* --- Manual Log Form --- */}
       {showLogForm && (
-        <form onSubmit={logRun} className="card" style={{ marginBottom: "16px" }}>
+        <form id="log-run-form" onSubmit={logRun} className="card" style={{ marginBottom: "16px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
             <div>
               <label className="metric-label">Date</label>
@@ -1078,12 +1092,10 @@ export default function RunningPage() {
               {editingRunId === run.id ? (
                 <div style={{ display: "flex", gap: "6px", marginTop: "2px" }}>
                   <input type="text" value={editRunNotes} onChange={(e) => setEditRunNotes(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") updateRunNotes(run.id); if (e.key === "Escape") setEditingRunId(null); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { notesCancelled.current = true; setEditingRunId(null); } }}
+                    onBlur={() => { if (!notesCancelled.current) updateRunNotes(run.id); notesCancelled.current = false; }}
+                    placeholder="Notes (saves when you click away, Esc cancels)"
                     autoFocus style={{ flex: 1, fontSize: "0.85em" }} />
-                  <button className="btn btn-primary" style={{ fontSize: "0.75em", padding: "2px 8px" }}
-                    onClick={() => updateRunNotes(run.id)}>Save</button>
-                  <button className="btn" style={{ fontSize: "0.75em", padding: "2px 8px" }}
-                    onClick={() => setEditingRunId(null)}>Cancel</button>
                 </div>
               ) : (
                 <p style={{ fontSize: "0.85em", color: "var(--muted)", margin: "2px 0 0", cursor: "pointer" }}
