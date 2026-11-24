@@ -13,7 +13,14 @@ function Chip({ color, children }) {
 }
 
 const cap = (t) => t[0].toUpperCase() + t.slice(1);
-const yes = (ok) => <span style={{ color: ok ? PALETTE.emerald : PALETTE.rose }}>{ok ? "✓" : "✗"}</span>;
+const yes = (ok, near) => <span style={{ color: ok ? PALETTE.emerald : near ? PALETTE.amber : PALETTE.rose }} title={ok ? "qualifies" : near ? "borderline" : "doesn't qualify"}>{ok ? "✓" : near ? "≈" : "✗"}</span>;
+const VERDICT = {
+  keep: { label: "KEEP", color: PALETTE.emerald },
+  backup: { label: "Backup", color: PALETTE.blue },
+  borderline: { label: "Borderline", color: PALETTE.amber },
+  transfer: { label: "Transfer", color: PALETTE.slate },
+};
+const ORDER = ["keep", "backup", "borderline", "transfer"];
 
 // the "Why?" breakdown under a result: every form and league it was judged on, and why each did or didn't count
 function Why({ entry, idx }) {
@@ -22,12 +29,11 @@ function Why({ entry, idx }) {
   return (
     <div style={{ fontSize: "0.82rem", marginTop: 6 }}>
       <div style={{ fontWeight: 600, marginTop: 4 }}>Raids</div>
-      {w.raidAtk === null ? <div className="muted">Dynamax/Gigantamax: judged for Max Battles instead.</div>
-        : <div className="muted">Attack {entry.ivs[0]} {yes(w.raidAtk)} {w.raidAtk ? "meets" : "misses"} your 15-Attack rule. Counts if a form is top {w.rules.raidTop} in some type.</div>}
+      <div className="muted">Attack {entry.ivs[0]} {yes(w.raidAtk)} {w.raidAtk ? "meets" : "misses"} your 15-Attack rule. Counts if a form is top {w.rules.raidTop} in some type (≈ = top 30).</div>
       {w.raid.length === 0 && <div className="muted">No raid data for this family.</div>}
       {w.raid.map((r) => (
         <div key={r.form}>
-          {yes(r.counts)} <strong>{r.form}</strong>: {r.types.map((t, i) => (
+          {yes(r.counts, r.near)} <strong>{r.form}</strong>: {r.types.map((t, i) => (
             <span key={t.type} className={i ? "muted" : ""}>{i ? " · " : ""}#{t.rank} {cap(t.type)} ({t.pct}% of the #1){i === 0 ? `, ${t.moves}${t.elite ? " (legacy/elite move)" : ""}` : ""}</span>
           ))}
         </div>
@@ -39,7 +45,7 @@ function Why({ entry, idx }) {
         <tbody>
           {["gl", "ul", "ml"].flatMap((lg) => w.pvp[lg].map((r) => (
             <tr key={lg + r.form}>
-              <td style={td}>{yes(r.ok)}</td>
+              <td style={td}>{yes(r.ok, r.near)}</td>
               <td style={td}>{ROLE_LABEL[lg]}</td>
               <td style={td}>{r.form}</td>
               <td style={td}>{r.speciesRank ? `#${r.speciesRank}` : "unranked"} {!r.meta && <span className="muted">(needs top {lg === "ml" ? w.rules.mlTop : w.rules.pvpTop})</span>}</td>
@@ -86,7 +92,7 @@ export default function PokemonGoPage() {
     const { entries, errors } = parseBatch(text, idx);
     setErrors(errors);
     const res = decideBatch(entries, idx, boxEntries);
-    setResults([...res.filter((r) => r.keep), ...res.filter((r) => !r.keep)]);
+    setResults(ORDER.flatMap((v) => res.filter((r) => r.verdict === v)));
     setMsg("");
   }
 
@@ -114,7 +120,7 @@ export default function PokemonGoPage() {
   }
 
   const keepers = results?.filter((r) => r.keep) || [];
-  const transfers = results?.filter((r) => !r.keep) || [];
+  const transfers = results?.filter((r) => r.verdict === "transfer") || [];
 
   return (
     <div>
@@ -142,9 +148,9 @@ export default function PokemonGoPage() {
         <div style={{ marginTop: "1rem" }}>
           {results.length === 0 && <p className="empty">Nothing recognized.</p>}
           {results.map((r, i) => (
-            <div key={i} className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${r.keep ? PALETTE.emerald : PALETTE.slate}` }}>
+            <div key={i} className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}` }}>
               <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-                <strong style={{ color: r.keep ? PALETTE.emerald : "var(--muted)" }}>{r.keep ? "KEEP" : "Transfer"}</strong>
+                <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
                 <strong>{r.entry.species.name}</strong>
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
                 <span className="muted">{FLAG_ORDER.filter((f) => r.entry.flags[f]).join(" · ")}</span>
@@ -155,6 +161,16 @@ export default function PokemonGoPage() {
                   <span style={{ color: ROLE_COLOR[c.role] }}>{ROLE_LABEL[c.role]}:</span> {c.detail}. <span className="muted">{c.invest}.</span>
                   {c.evo && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? ` (${c.evo.candy} candy, all at once)` : ""}.</span>}
                   {c.note && <span style={{ color: PALETTE.amber }}> {c.note}.</span>}
+                </div>
+              ))}
+              {r.backup.map((c) => (
+                <div key={c.role} style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                  <span style={{ color: PALETTE.blue }}>Backup for {ROLE_LABEL[c.role]}</span> behind {c.behind}: {c.detail}. <span className="muted">Hold untouched; promote it if the keeper goes.</span>
+                </div>
+              ))}
+              {r.borderline.map((c) => (
+                <div key={c.role} style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                  <span style={{ color: PALETTE.amber }}>Borderline for {ROLE_LABEL[c.role]}:</span> {c.detail}. <span className="muted">Your call; hold untouched if unsure.</span>
                 </div>
               ))}
               {r.reasons.length > 0 && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.reasons.join(" · ")}</div>}
