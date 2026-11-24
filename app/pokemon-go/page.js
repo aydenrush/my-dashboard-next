@@ -149,7 +149,8 @@ function QuickEntry({ idx, onAdd, edit, onCancel }) {
           )}
         </div>
         {["Atk", "Def", "HP"].map((label, i) => (
-          <input key={label} ref={refs[i]} inputMode="numeric" value={ivs[i]} onChange={(e) => setIv(i, e.target.value)} placeholder={label} aria-label={`${label} IV`}
+          <input key={label} ref={refs[i]} inputMode="numeric" value={ivs[i]} onChange={(e) => setIv(i, e.target.value)} enterKeyHint={i === 2 ? "done" : "next"}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); i === 2 ? add() : refs[i + 1].current?.focus(); } }} placeholder={label} aria-label={`${label} IV`}
             style={{ ...field, width: 56, textAlign: "center" }} />
         ))}
         <button type="submit" className="btn btn-primary">{edit ? "Save" : "Add"}</button>
