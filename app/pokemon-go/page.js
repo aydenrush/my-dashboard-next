@@ -263,6 +263,15 @@ export default function PokemonGoPage() {
     setMsg("Transfer list copied.");
   }
 
+  // box tags are worked out live from the whole box (saved roles go stale when another box row changes).
+  // A saved Hold has no live job, so it keeps its saved hold tag.
+  const boxTags = useMemo(() => {
+    if (!idx || !boxEntries.length) return new Map();
+    const res = decideBatch([], idx, boxEntries, { includeBox: true });
+    return new Map(res.map((r) => [r.entry.id, [...r.roles.map(jobKey), ...r.backup.map((c) => `backup:${jobKey(c)}`), ...r.borderline.map((c) => `near:${c.role}`)]]));
+  }, [idx, boxEntries]);
+  const tagsFor = (b) => { const live = boxTags.get(b.id) || []; return live.length ? live : b.roles.filter((r) => r.startsWith("hold:")); };
+
   // the box row being edited, in the batch-row shape the form reads (memoized: the form reloads when this changes)
   const boxEdit = useMemo(() => {
     const b = box.find((x) => x.id === editingBox);
@@ -456,7 +465,8 @@ export default function PokemonGoPage() {
           <div key={b.id} className="row" style={{ alignItems: "center", marginBottom: 4 }}>
             <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
             <span className="muted">{flagNames(b.flags)}</span>
-            {b.roles.map((r) => <Chip key={r} color={r.startsWith("near:") ? PALETTE.amber : r.startsWith("hold:") || r.startsWith("backup:") ? PALETTE.blue : ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
+            {tagsFor(b).length === 0 && <span className="muted" style={{ fontSize: "0.8rem" }}>no job now (a better one in your box took it)</span>}
+            {tagsFor(b).map((r) => <Chip key={r} color={r.startsWith("near:") ? PALETTE.amber : r.startsWith("hold:") || r.startsWith("backup:") ? PALETTE.blue : ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
             <button className="btn" onClick={() => { setEditingBox(b.id); setEditing(null); }} aria-label={`Edit ${b.species.name} in box`}
               style={{ padding: "1px 8px", fontSize: "0.75rem", borderColor: editingBox === b.id ? "var(--accent)" : undefined }}>Edit</button>
             <button className="btn" onClick={() => removeFromBox(b)} aria-label={`Remove ${b.species.name} from box`} style={{ padding: "1px 8px", fontSize: "0.75rem" }}>✕</button>

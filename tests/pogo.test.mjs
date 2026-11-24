@@ -267,3 +267,9 @@ const condData = { ...data, species: data.species.map((s) => (s.id === "garchomp
 const condIdx = indexSpecies(condData);
 const condRaid = decideBatch(parseBatch("15/15/15 gible", condIdx).entries, condIdx)[0].roles.find((c) => c.role === "raid");
 assert.ok(condRaid.evo.items.includes("Dragon Scale") && condRaid.evo.items.includes("night only"));
+
+// box view (includeBox): box trophies and the box's best raider get their roles; a worse box copy gets none
+const boxView = decideBatch([], idx, parseBatch("15/15/15 alolan ninetales, 15/15/15 gible, 15/13/13 gible", idx).entries, { includeBox: true });
+assert.ok(boxView[0].roles.some((c) => c.role === "trophy"));
+assert.ok(boxView[1].roles.some((c) => c.role === "raid"));
+assert.ok(!boxView[2].roles.some((c) => c.role === "raid"));
