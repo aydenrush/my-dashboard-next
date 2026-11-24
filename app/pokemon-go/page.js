@@ -192,6 +192,7 @@ export default function PokemonGoPage() {
   const [errors, setErrors] = useState([]);
   const [msg, setMsg] = useState("");
   const [editing, setEditing] = useState(null); // index of the batch row loaded into the form
+  const [editingBox, setEditingBox] = useState(null); // or the id of the box row loaded into it
 
   useEffect(() => {
     fetch("/pogo-data.json").then((r) => r.json()).then((d) => setIdx(indexSpecies(d))).catch(() => setMsg("Couldn't load the Pokémon data file."));
@@ -259,10 +260,31 @@ export default function PokemonGoPage() {
     setMsg("Transfer list copied.");
   }
 
+  // the box row being edited, in the batch-row shape the form reads (memoized: the form reloads when this changes)
+  const boxEdit = useMemo(() => {
+    const b = box.find((x) => x.id === editingBox);
+    return b ? { id: b.species_id, ivs: [b.atk, b.def, b.hp], flags: b.flags } : null;
+  }, [box, editingBox]);
+
+  // save an edited box row in place; its jobs are worked out again against the rest of the box
+  async function saveBoxEdit(e) {
+    const entry = { id: editingBox, species: e.species, ivs: e.ivs, flags: e.flags };
+    const res = decideBatch([], idx, boxEntries.map((b) => (b.id === editingBox ? entry : b)), { includeBox: true });
+    const r = res.find((x) => x.entry === entry);
+    const { error } = await supabase.from("pogo_box").update({
+      species_id: e.species.id, atk: e.ivs[0], def: e.ivs[1], hp: e.ivs[2], flags: flagsToList(e.flags),
+      roles: r ? [...r.roles.map(jobKey), ...r.hold.map((g) => `hold:${g.job}`)] : [],
+    }).eq("id", editingBox);
+    if (error) return;
+    setEditingBox(null);
+    setMsg(`Updated ${e.species.name} in your box.`);
+    loadBox();
+  }
+
   async function removeFromBox(b) {
     if (!(await askConfirm(`Remove ${b.species.name} ${b.ivs.join("/")} from your box?`, { confirmLabel: "Remove" }))) return;
     const { error } = await supabase.from("pogo_box").delete().eq("id", b.id);
-    if (!error) setBox((bx) => bx.filter((x) => x.id !== b.id));
+    if (!error) { setBox((bx) => bx.filter((x) => x.id !== b.id)); if (editingBox === b.id) setEditingBox(null); }
   }
 
   const keepers = results?.filter((r) => r.keep || r.verdict === "hold") || [];
@@ -288,8 +310,9 @@ export default function PokemonGoPage() {
   return (
     <div>
       <h1 className="page-title">Pokémon GO</h1>
-      {!idx ? <p className="muted">{msg || "Loading Pokémon data…"}</p> : <QuickEntry idx={idx} edit={editing === null ? null : batch[editing]} onCancel={() => setEditing(null)}
+      {!idx ? <p className="muted">{msg || "Loading Pokémon data…"}</p> : <QuickEntry idx={idx} edit={editing === null ? boxEdit : batch[editing]} onCancel={() => { setEditing(null); setEditingBox(null); }}
         onAdd={(e) => {
+          if (editingBox) return saveBoxEdit(e);
           if (editing === null) return addRows([e]);
           setBatch((b) => b.map((r, j) => (j === editing ? { id: e.species.id, ivs: e.ivs, flags: flagsToList(e.flags) } : r)));
           setEditing(null);
@@ -308,7 +331,7 @@ export default function PokemonGoPage() {
           <div className="row">
             {batch.map((r, i) => (
               <span key={i} style={{ display: "inline-flex", gap: 6, alignItems: "center", border: `1px solid ${editing === i ? "var(--accent)" : "var(--border)"}`, borderRadius: 999, padding: "2px 4px 2px 10px", fontSize: "0.82rem" }}>
-                <button type="button" onClick={() => setEditing(i)} title="Edit" style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer" }}>
+                <button type="button" onClick={() => { setEditing(i); setEditingBox(null); }} title="Edit" style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer" }}>
                   {idx.byId[r.id]?.name} {r.ivs.join("/")} <span className="muted">{ivPct(r.ivs)}</span>{r.flags.length ? <span className="muted"> {flagNames(listToFlags(r.flags), ", ")}</span> : null}
                 </button>
                 <button type="button" onClick={() => { setBatch((b) => b.filter((_, j) => j !== i)); setEditing(null); }} aria-label="Remove from batch" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>✕</button>
@@ -367,7 +390,7 @@ export default function PokemonGoPage() {
               <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
                 <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
                 {r.entry.i != null && (
-                  <button type="button" className="btn" onClick={() => setEditing(r.entry.i)} aria-label={`Edit ${r.entry.species.name}`}
+                  <button type="button" className="btn" onClick={() => { setEditing(r.entry.i); setEditingBox(null); }} aria-label={`Edit ${r.entry.species.name}`}
                     style={{ order: 99, marginLeft: "auto", padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Edit</button>
                 )}
                 <strong>{r.entry.species.name}</strong>
@@ -428,6 +451,8 @@ export default function PokemonGoPage() {
             <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
             <span className="muted">{flagNames(b.flags)}</span>
             {b.roles.map((r) => <Chip key={r} color={r.startsWith("hold:") ? PALETTE.blue : ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
+            <button className="btn" onClick={() => { setEditingBox(b.id); setEditing(null); }} aria-label={`Edit ${b.species.name} in box`}
+              style={{ padding: "1px 8px", fontSize: "0.75rem", borderColor: editingBox === b.id ? "var(--accent)" : undefined }}>Edit</button>
             <button className="btn" onClick={() => removeFromBox(b)} aria-label={`Remove ${b.species.name} from box`} style={{ padding: "1px 8px", fontSize: "0.75rem" }}>✕</button>
           </div>
         ))}
