@@ -17,7 +17,8 @@ const yes = (ok, near) => <span style={{ color: ok ? PALETTE.emerald : near ? PA
 // "raid" + type -> "Raids · Dragon"; also reads saved box roles like "raid:dragon"
 const jobKey = (c) => c.role + (c.rtype ? `:${c.rtype}` : "");
 // saved holds are "hold:raid:grass" -> "Hold · Raids · Grass"
-const jobLabel = (key) => { if (key.startsWith("hold:")) return `Hold · ${jobLabel(key.slice(5))}`; const [role, type] = key.split(":"); return ROLE_LABEL[role] + (type ? ` · ${cap(type)}` : ""); };
+const PREFIX = { "hold:": "Hold", "backup:": "Backup", "near:": "Borderline" };
+const jobLabel = (key) => { const p = Object.keys(PREFIX).find((x) => key.startsWith(x)); if (p) return `${PREFIX[p]} · ${jobLabel(key.slice(p.length))}`; const [role, type] = key.split(":"); return ROLE_LABEL[role] + (type ? ` · ${cap(type)}` : ""); };
 const VERDICT = {
   keep: { label: "KEEP", color: PALETTE.emerald },
   backup: { label: "Backup", color: PALETTE.blue },
@@ -234,21 +235,23 @@ export default function PokemonGoPage() {
     if (!errors.length) setPaste("");
   }
 
-  async function saveKeepers() {
-    const rows = results.filter((r) => r.keep || r.verdict === "hold").map((r) => ({
-      species_id: r.entry.species.id, atk: r.entry.ivs[0], def: r.entry.ivs[1], hp: r.entry.ivs[2],
-      flags: flagsToList(r.entry.flags), roles: [...r.roles.map(jobKey), ...r.hold.map((g) => `hold:${g.job}`)],
+  // save results to the box (keepers and holds via the batch button; a borderline or backup one via its own button)
+  async function saveToBox(list) {
+    const rows = list.map((r) => ({
+      species_id: r.entry.species.id, atk: r.entry.ivs[0], def: r.entry.ivs[1], hp: r.entry.ivs[2], flags: flagsToList(r.entry.flags),
+      roles: [...r.roles.map(jobKey), ...r.hold.map((g) => `hold:${g.job}`), ...r.backup.map((c) => `backup:${jobKey(c)}`), ...r.borderline.map((c) => `near:${c.role}`)],
     }));
     if (!rows.length) return;
     const { error } = await supabase.from("pogo_box").insert(rows);
     if (error) return;
-    // saved keepers leave the batch (one batch row per saved row), so a second click can't save them twice
-    const key = (id, ivs, flags) => `${id}|${ivs.join("/")}|${[...flags].sort().join(",")}`;
-    const left = rows.map((r) => key(r.species_id, [r.atk, r.def, r.hp], r.flags));
-    setBatch((b) => b.filter((r) => { const i = left.indexOf(key(r.id, r.ivs, r.flags)); if (i < 0) return true; left.splice(i, 1); return false; }));
-    setMsg(`Saved ${rows.length} keeper${rows.length > 1 ? "s" : ""} to your box.`);
+    // saved ones leave the batch, so they can't be saved twice
+    const gone = new Set(list.map((r) => r.entry.i));
+    setBatch((b) => b.filter((_, j) => !gone.has(j)));
+    setEditing(null);
+    setMsg(`Saved ${rows.length} to your box.`);
     loadBox();
   }
+  const saveKeepers = () => saveToBox(results.filter((r) => r.keep || r.verdict === "hold"));
 
   async function copyTrades() {
     await navigator.clipboard.writeText(tradeList(results));
@@ -389,9 +392,12 @@ export default function PokemonGoPage() {
             <div className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}` }}>
               <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
                 <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
+                {r.entry.i != null && (r.verdict === "borderline" || r.verdict === "backup") && (
+                  <button type="button" className="btn" onClick={() => saveToBox([r])} style={{ order: 98, marginLeft: "auto", padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Save to box</button>
+                )}
                 {r.entry.i != null && (
                   <button type="button" className="btn" onClick={() => { setEditing(r.entry.i); setEditingBox(null); }} aria-label={`Edit ${r.entry.species.name}`}
-                    style={{ order: 99, marginLeft: "auto", padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Edit</button>
+                    style={{ order: 99, marginLeft: r.verdict === "borderline" || r.verdict === "backup" ? 0 : "auto", padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Edit</button>
                 )}
                 <strong>{r.entry.species.name}</strong>
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
@@ -450,7 +456,7 @@ export default function PokemonGoPage() {
           <div key={b.id} className="row" style={{ alignItems: "center", marginBottom: 4 }}>
             <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
             <span className="muted">{flagNames(b.flags)}</span>
-            {b.roles.map((r) => <Chip key={r} color={r.startsWith("hold:") ? PALETTE.blue : ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
+            {b.roles.map((r) => <Chip key={r} color={r.startsWith("near:") ? PALETTE.amber : r.startsWith("hold:") || r.startsWith("backup:") ? PALETTE.blue : ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
             <button className="btn" onClick={() => { setEditingBox(b.id); setEditing(null); }} aria-label={`Edit ${b.species.name} in box`}
               style={{ padding: "1px 8px", fontSize: "0.75rem", borderColor: editingBox === b.id ? "var(--accent)" : undefined }}>Edit</button>
             <button className="btn" onClick={() => removeFromBox(b)} aria-label={`Remove ${b.species.name} from box`} style={{ padding: "1px 8px", fontSize: "0.75rem" }}>✕</button>
