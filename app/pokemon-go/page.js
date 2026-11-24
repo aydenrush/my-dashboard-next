@@ -216,7 +216,8 @@ export default function PokemonGoPage() {
   })) : []), [idx, box]);
 
   // results update live as the batch changes
-  const entries = useMemo(() => (idx ? batch.filter((r) => idx.byId[r.id]).map((r) => ({ species: idx.byId[r.id], ivs: r.ivs, flags: listToFlags(r.flags) })) : []), [idx, batch]);
+  // i = the batch row it came from, so a result card can open that row for editing
+  const entries = useMemo(() => (idx ? batch.map((r, i) => ({ i, species: idx.byId[r.id], ivs: r.ivs, flags: listToFlags(r.flags) })).filter((e) => e.species) : []), [idx, batch]);
   const results = useMemo(() => {
     if (!idx || !batch.length) return null;
     const res = decideBatch(entries, idx, boxEntries);
@@ -365,6 +366,10 @@ export default function PokemonGoPage() {
             <div className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}` }}>
               <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
                 <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
+                {r.entry.i != null && (
+                  <button type="button" className="btn" onClick={() => setEditing(r.entry.i)} aria-label={`Edit ${r.entry.species.name}`}
+                    style={{ order: 99, marginLeft: "auto", padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Edit</button>
+                )}
                 <strong>{r.entry.species.name}</strong>
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
                 <span className="muted">{ivPct(r.entry.ivs)}</span>
