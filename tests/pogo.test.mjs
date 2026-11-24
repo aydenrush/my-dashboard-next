@@ -12,6 +12,7 @@ const data = {
     sp("garchomp", "Garchomp", { family: "G", parent: "gabite", atk: 261, def: 193, hp: 239, candy: 100, candyPurified: 90, gl: 400, ul: 300, ml: 30, raid: { type: "ground", rank: 15, pct: 80, fast: "MUD_SHOT", charged: "EARTH_POWER", elite: true } }),
     sp("garchomp_shadow", "Garchomp (Shadow)", { family: "G", tags: ["shadow"], atk: 261, def: 193, hp: 239, raid: { type: "ground", rank: 6, pct: 90, fast: "MUD_SHOT", charged: "EARTHQUAKE", elite: false } }),
     sp("garchomp_mega", "Garchomp (Mega)", { family: "G", tags: ["mega"], atk: 339, def: 222, hp: 239, raid: { type: "dragon", rank: 2, pct: 95, fast: "DRAGON_TAIL", charged: "OUTRAGE", elite: false } }),
+    sp("celebi", "Celebi", { tags: ["mythical"] }),
     sp("azumarill", "Azumarill", { family: "A", atk: 112, def: 152, hp: 225, gl: 5, ul: 60 }),
     sp("ninetales_alolan", "Ninetales (Alolan)", { family: "N" }),
     sp("rhyperior", "Rhyperior", { family: "R", atk: 241, def: 190, hp: 251, ml: 59, raid: { type: "rock", rank: 11, pct: 82, fast: "SMACK_DOWN", charged: "ROCK_WRECKER", elite: true } }),
@@ -183,3 +184,8 @@ const cos = decideBatch(parseBatch("1/1/1 costume2 alolan ninetales, 5/5/5 costu
 assert.deepEqual(cos.map((r) => r.verdict), ["trade", "keep", "keep", "keep"]);
 assert.equal(cos[0].trade[0].kind, "costume 2");
 assert.deepEqual(listToFlags(flagsToList({ costume: 2, shiny: true })), { costume: 2, shiny: true });
+
+// mythicals: one per family is always kept, whatever the IVs; a second one is judged normally, never trade bait
+const myth = decideBatch(parseBatch("1/2/3 celebi, 0/0/0 celebi", idx).entries, idx);
+assert.deepEqual(myth.map((r) => r.verdict), ["keep", "transfer"]);
+assert.match(myth[0].roles[0].detail, /mythical/);
