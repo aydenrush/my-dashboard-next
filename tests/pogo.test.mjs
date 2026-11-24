@@ -51,7 +51,7 @@ const hundoGible = by("15/15/15", "gible");
 const runnerUp = by("15/14/14", "gible");
 assert.equal(runnerUp.verdict, "backup");
 assert.deepEqual(runnerUp.backup.map((b) => [b.role, b.rtype || "", b.behind]).sort(), [
-  ["ml", "", "Gible 15/15/15 purified"], ["raid", "dragon", "Gible 15/15/15 purified"], ["raid", "ground", "Gible 15/12/15 shadow"],
+  ["ml", "", "Gible 15/15/15 purified"], ["raid", "dragon", "Gible 15/15/15 purified"], // regular Garchomp (#15 Ground) is outside the top 12 now
 ]);
 assert.doesNotMatch(transferList(res), /Gible 15\/14\/14/);
 assert.ok(hundoGible.keep);
@@ -77,8 +77,20 @@ assert.equal(vsBox[0].verdict, "backup");
 assert.equal(vsBox[0].backup[0].behind, "your box's Gible 15/15/15");
 
 // Dynamax needs 15 Attack; Gigantamax doesn't
+// ...and a Dynamax only counts if the species is a real raid attacker (Alolan Ninetales here isn't); G-Max always counts
 const mx = decideBatch(parseBatch("13/10/14 dynamax alolan ninetales, 15/12/13 dynamax alolan ninetales, 10/10/10 gigantamax alolan ninetales", idx).entries, idx);
-assert.deepEqual(mx.map((r) => r.verdict), ["transfer", "backup", "keep"]);
+assert.deepEqual(mx.map((r) => r.verdict), ["transfer", "transfer", "keep"]);
+const realMax = decideBatch(parseBatch("15/12/13 dynamax rhyperior", idx).entries, idx)[0]; // Rhyperior is #11 Rock
+assert.ok(realMax.roles.some((c) => c.role === "max"));
+
+// Lucky wins ties for raids (half Stardust) and says so; trade hint for PvP species with bad IVs
+const lk = decideBatch(parseBatch("15/14/14 rhyperior, 15/13/13 lucky rhyperior", idx).entries, idx);
+const lkRaid = lk.find((r) => r.entry.flags.lucky).roles.find((c) => c.role === "raid");
+assert.ok(lkRaid && lkRaid.invest.includes("Lucky: half Stardust"));
+const badAzu = decideBatch(parseBatch("15/0/0 azumarill", idx).entries, idx)[0];
+assert.equal(badAzu.verdict, "transfer");
+assert.ok(badAzu.reasons.join(" ").includes("trade it to re-roll the IVs"));
+assert.ok(!decideBatch(parseBatch("15/0/0 shadow azumarill", idx).entries, idx)[0].reasons.join(" ").includes("trade")); // shadows can't be traded
 
 assert.match(transferList(res), /Gabite 14\/14\/6 shadow/);
 console.log("pogo ok");
@@ -114,8 +126,8 @@ console.log("borderline ok");
 
 // regional forms share a family but attack with different types, so both can be kept for raids
 const ninetalesData = { ...data, species: [...data.species.filter((x) => x.family !== "N"),
-  sp("ninetales", "Ninetales", { family: "V", raid: { type: "fire", rank: 18, pct: 70, fast: "FIRE_SPIN", charged: "OVERHEAT", elite: false } }),
-  sp("ninetales_alolan", "Ninetales (Alolan)", { family: "V", raid: { type: "ice", rank: 19, pct: 69, fast: "POWDER_SNOW", charged: "BLIZZARD", elite: false } }),
+  sp("ninetales", "Ninetales", { family: "V", raid: { type: "fire", rank: 8, pct: 70, fast: "FIRE_SPIN", charged: "OVERHEAT", elite: false } }),
+  sp("ninetales_alolan", "Ninetales (Alolan)", { family: "V", raid: { type: "ice", rank: 9, pct: 69, fast: "POWDER_SNOW", charged: "BLIZZARD", elite: false } }),
 ] };
 const nIdx = indexSpecies(ninetalesData);
 const nine = decideBatch(parseBatch("15/10/10 ninetales, 15/11/11 alolan ninetales", nIdx).entries, nIdx);

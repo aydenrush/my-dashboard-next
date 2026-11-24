@@ -15,7 +15,7 @@ const get = async (url) => {
 };
 
 const STAB = 1.2, SE = 1.6, SHADOW_ATK = 1.2, SHADOW_DEF = 5 / 6;
-const RAID_TOP = 20; // a species "matters" in raids if it is in the top 20 of its best attacking type
+const RAID_TOP = 12; // for the log line only; the cutoffs live in lib/pogo.js RULES
 
 async function main() {
   const [pv, gl, ul, ml, game] = await Promise.all([

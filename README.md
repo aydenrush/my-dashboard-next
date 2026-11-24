@@ -48,7 +48,7 @@ The sidebar is grouped into sections:
 
 ## Pokémon GO data
 
-`npm run pogo-data` (also run by `npm run build`) rebuilds `public/pogo-data.json` from [PvPoke](https://github.com/pvpoke/pvpoke) (MIT: species, moves, PvP rankings) and [PokeMiners' game master](https://github.com/PokeMiners/game_masters) (raid move stats, evolution candy, CP multipliers). If a download fails, the existing file is kept. Rules live in `lib/pogo.js`: 15 Attack for raids (top 20 of a type), top-100 IV rank for Great/Ultra League picks (PvPoke top 75), 15/14+/14+ for Master League picks (top 40), Gigantamax over Dynamax for Max Battles, and hundo/98%/shiny/costume/background as trophies.
+`npm run pogo-data` (also run by `npm run build`) rebuilds `public/pogo-data.json` from [PvPoke](https://github.com/pvpoke/pvpoke) (MIT: species, moves, PvP rankings) and [PokeMiners' game master](https://github.com/PokeMiners/game_masters) (raid move stats, evolution candy, CP multipliers). If a download fails, the existing file is kept. Rules live in `lib/pogo.js` (`RULES` / `BORDER`): 15 Attack for raids (top 12 of an attacking type, top 5 worth XL Candy), top-75 IV rank for Great/Ultra League picks (PvPoke top 60), 15/14+/14+ for Master League picks (top 30), Gigantamax always and Dynamax only for real attackers (15 Attack, top 20 of a type) for Max Battles, hundo/98%/shiny/costume/background as trophies. Mighty and Lucky win ties for jobs you invest in; Backup = passes but a better one holds the job; Borderline = misses one rule by a little.
 
 ## Tests
 

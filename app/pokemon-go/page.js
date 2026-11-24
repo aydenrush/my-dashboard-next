@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { PALETTE } from "@/lib/constants";
-import { indexSpecies, parseBatch, decideBatch, transferList, explain, ROLE_LABEL } from "@/lib/pogo";
+import { indexSpecies, parseBatch, decideBatch, transferList, explain, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, trophy: PALETTE.slate };
 const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax"];
@@ -32,7 +32,7 @@ function Why({ entry, idx }) {
   return (
     <div style={{ fontSize: "0.82rem", marginTop: 6 }}>
       <div style={{ fontWeight: 600, marginTop: 4 }}>Raids</div>
-      <div className="muted">Attack {entry.ivs[0]} {yes(w.raidAtk)} {w.raidAtk ? "meets" : "misses"} your 15-Attack rule. Counts if a form is top {w.rules.raidTop} in some type (≈ = top 30).</div>
+      <div className="muted">Attack {entry.ivs[0]} {yes(w.raidAtk)} {w.raidAtk ? "meets" : "misses"} your 15-Attack rule. Counts if a form is top {w.rules.raidTop} in some type (≈ = top {BORDER.raidTop}).</div>
       {w.raid.length === 0 && <div className="muted">No raid data for this family.</div>}
       {w.raid.map((r) => (
         <div key={r.form}>
@@ -162,7 +162,7 @@ export default function PokemonGoPage() {
               {r.roles.map((c) => (
                 <div key={jobKey(c)} style={{ fontSize: "0.85rem", marginTop: 4 }}>
                   <span style={{ color: ROLE_COLOR[c.role] }}>{jobLabel(jobKey(c))}:</span> {c.detail}. <span className="muted">{c.invest}.</span>
-                  {c.evo && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? ` (${c.evo.candy} candy, all at once)` : ""}.</span>}
+                  {c.evo && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? `; don't evolve until you have all ${c.evo.candy} candy (one go)` : ""}.</span>}
                   {c.note && <span style={{ color: PALETTE.amber }}> {c.note}.</span>}
                 </div>
               ))}
@@ -196,7 +196,7 @@ export default function PokemonGoPage() {
         ))}
       </details>
 
-      {idx && <p className="muted" style={{ marginTop: "1rem" }}>Data: PvPoke rankings from {idx.data.pvpokeTimestamp?.slice(0, 10)}, built {idx.data.built?.slice(0, 10)}. Raid picks = top {idx.data.raidTop} in an attacking type (estimate, not a full sim).</p>}
+      {idx && <p className="muted" style={{ marginTop: "1rem" }}>Data: PvPoke rankings from {idx.data.pvpokeTimestamp?.slice(0, 10)}, built {idx.data.built?.slice(0, 10)}. Raid picks = top {RULES.raidTop} in an attacking type (top {RULES.raidXl} = worth XL); PvP = species top {RULES.pvpTop} + IVs top {RULES.ivTop}; Master League = top {RULES.mlTop}. Raid ranks are an estimate, not a full sim.</p>}
     </div>
   );
 }
