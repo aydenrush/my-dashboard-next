@@ -196,6 +196,9 @@ export default function PokemonGoPage() {
   const [msg, setMsg] = useState("");
   const [editing, setEditing] = useState(null); // index of the batch row loaded into the form
   const [editingBox, setEditingBox] = useState(null); // or the id of the box row loaded into it
+  const [boxQ, setBoxQ] = useState(""); // box search / filter / sort
+  const [boxFilter, setBoxFilter] = useState("all");
+  const [boxSort, setBoxSort] = useState("newest");
 
   useEffect(() => {
     fetch("/pogo-data.json").then((r) => r.json()).then((d) => setIdx(indexSpecies(d))).catch(() => setMsg("Couldn't load the Pokémon data file."));
@@ -288,6 +291,34 @@ export default function PokemonGoPage() {
     if (!error) setBox((bx) => bx.map((x) => (x.id === b.id ? { ...x, roles } : x)));
   }
   const tagsFor = (b) => { const live = boxTags.get(b.id) || []; return live.length ? live : b.roles.filter((r) => r.startsWith("hold:")); };
+
+  // the box list after search, filter and sort
+  const BOX_FILTERS = {
+    all: ["All", () => true],
+    job: ["Has a job", (b) => tagsFor(b).some((t) => !t.startsWith("hold:"))],
+    nojob: ["No job now", (b) => tagsFor(b).length === 0],
+    hold: ["Hold", (b) => tagsFor(b).some((t) => t.startsWith("hold:"))],
+    done: ["Done", (b) => b.roles.includes("done")],
+    raid: ["Raids", (b) => tagsFor(b).some((t) => t.startsWith("raid"))],
+    pvp: ["PvP", (b) => tagsFor(b).some((t) => /^(gl|ul|ml)/.test(t))],
+    max: ["Max", (b) => tagsFor(b).some((t) => t.startsWith("max"))],
+    gym: ["Gym", (b) => tagsFor(b).includes("gym")],
+    shiny: ["Shiny", (b) => b.flags.shiny],
+    shadow: ["Shadow", (b) => b.flags.shadow],
+  };
+  const boxList = useMemo(() => {
+    const q = boxQ.trim().toLowerCase();
+    const rank = new Map(boxProjects.map((x, i) => [x.result.entry.id, i]));
+    const sum = (b) => b.ivs.reduce((x, y) => x + y, 0);
+    const sorts = {
+      newest: (x, y) => boxEntries.indexOf(y) - boxEntries.indexOf(x),
+      name: (x, y) => x.species.name.localeCompare(y.species.name),
+      iv: (x, y) => sum(y) - sum(x),
+      atk: (x, y) => y.ivs[0] - x.ivs[0] || sum(y) - sum(x),
+      project: (x, y) => (rank.get(x.id) ?? 1e9) - (rank.get(y.id) ?? 1e9),
+    };
+    return boxEntries.filter((b) => (!q || b.species.name.toLowerCase().includes(q)) && BOX_FILTERS[boxFilter][1](b)).sort(sorts[boxSort]);
+  }, [boxEntries, boxQ, boxFilter, boxSort, boxProjects, boxTags]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the box row being edited, in the batch-row shape the form reads (memoized: the form reloads when this changes)
   const boxEdit = useMemo(() => {
@@ -497,7 +528,20 @@ export default function PokemonGoPage() {
           </div>
         )}
         {boxEntries.length === 0 && <p className="empty">Keepers you save show up here, and new batches are compared against them.</p>}
-        {boxEntries.map((b) => (
+        {boxEntries.length > 0 && (
+          <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
+            <input value={boxQ} onChange={(e) => setBoxQ(e.target.value)} placeholder="Search your box" aria-label="Search your box" style={{ padding: "6px 8px", font: "inherit", flex: "1 1 160px", minWidth: 0 }} />
+            <select value={boxFilter} onChange={(e) => setBoxFilter(e.target.value)} aria-label="Filter box">
+              {Object.entries(BOX_FILTERS).map(([k, [label]]) => <option key={k} value={k}>{label}</option>)}
+            </select>
+            <select value={boxSort} onChange={(e) => setBoxSort(e.target.value)} aria-label="Sort box">
+              <option value="newest">Newest</option><option value="project">Best project</option><option value="iv">IV %</option><option value="atk">Attack</option><option value="name">Name</option>
+            </select>
+            {boxList.length !== boxEntries.length && <span className="muted">{boxList.length} of {boxEntries.length}</span>}
+          </div>
+        )}
+        {boxEntries.length > 0 && boxList.length === 0 && <p className="empty">Nothing matches.</p>}
+        {boxList.map((b) => (
           <div key={b.id} className="row" style={{ alignItems: "center", marginBottom: 4 }}>
             <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
             <span className="muted">{flagNames(b.flags)}</span>
