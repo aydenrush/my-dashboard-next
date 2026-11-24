@@ -44,7 +44,7 @@ function Why({ entry, idx }) {
   return (
     <div style={{ fontSize: "0.82rem", marginTop: 6 }}>
       <div style={{ fontWeight: 600, marginTop: 4 }}>Raids</div>
-      <div className="muted">Attack {entry.ivs[0]} {yes(w.raidAtk)} {w.raidAtk ? "meets" : "misses"} your 15-Attack rule. Counts if a form is top {w.rules.raidTop} in some type (≈ = top {BORDER.raidTop}).</div>
+      <div className="muted">Attack {entry.ivs[0]} {yes(w.raidAtk)} {w.raidAtk ? "meets" : "misses"} your {w.minAtk}-Attack rule{entry.flags.mighty ? " (13 for a Mighty: it is already level 40+)" : ""}. Counts if a form is top {w.rules.raidTop} in some type (≈ = top {BORDER.raidTop}).</div>
       {w.raid.length === 0 && <div className="muted">No raid data for this family.</div>}
       {w.raid.map((r) => (
         <div key={r.form}>

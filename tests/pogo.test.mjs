@@ -273,3 +273,8 @@ const boxView = decideBatch([], idx, parseBatch("15/15/15 alolan ninetales, 15/1
 assert.ok(boxView[0].roles.some((c) => c.role === "trophy"));
 assert.ok(boxView[1].roles.some((c) => c.role === "raid"));
 assert.ok(!boxView[2].roles.some((c) => c.role === "raid"));
+
+// Mighty: already level 40+, so 13 Attack is enough for raids (a non-Mighty still needs 15)
+assert.ok(decideBatch(parseBatch("13/10/10 mighty rhyperior", idx).entries, idx)[0].roles.some((c) => c.role === "raid"));
+assert.ok(!decideBatch(parseBatch("13/10/10 rhyperior", idx).entries, idx)[0].roles.some((c) => c.role === "raid"));
+assert.ok(!decideBatch(parseBatch("12/10/10 mighty rhyperior", idx).entries, idx)[0].roles.some((c) => c.role === "raid"));
