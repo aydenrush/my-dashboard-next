@@ -46,15 +46,26 @@ async function main() {
     };
   }
 
-  // evolution candy: child pokemonId -> { candy, purified }
+  // evolution candy (+ item): child id -> { candy, purified, item }. Keyed by the form too ("aegislash_shield"),
+  // since PvPoke ids use forms where the game master's evolution name doesn't.
+  const ITEM_NAMES = { ITEM_GEN4_EVOLUTION_STONE: "Sinnoh Stone", ITEM_GEN5_EVOLUTION_STONE: "Unova Stone", ITEM_OTHER_EVOLUTION_STONE_A: "Gimmighoul Coins" };
+  const title = (x) => x.toLowerCase().split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+  // "ITEM_METAL_COAT" -> "Metal Coat", lure "ITEM_TROY_DISK_MAGNETIC" -> "Magnetic Lure"
+  // game-master names that don't match what the game shows
+  const FIX = { "Kings Rock": "King's Rock", "Up Grade": "Upgrade", Beans: "Zygarde Cells", "Other Evolution Stone Maple A": "Sweet Apple", "Other Evolution Stone Maple B": "Tart Apple", "Other Evolution Stone Maple C": "Syrupy Apple" };
+  const itemName = (id, cost) => {
+    const name = ITEM_NAMES[id] || (/TROY_DISK_/.test(id) ? `${title(id.replace(/^ITEM_TROY_DISK_/, ""))} Lure` : title(id.replace(/^ITEM_/, "")));
+    return (cost ? `${cost} ` : "") + (FIX[name] || name);
+  };
   const candy = {};
   for (const e of game) {
     const ps = e.data?.pokemonSettings;
     if (!ps?.evolutionBranch || !/^V\d+_POKEMON_[A-Z0-9_]+$/.test(e.templateId)) continue;
     for (const b of ps.evolutionBranch) {
-      if (!b.evolution || !b.candyCost) continue;
-      const key = b.evolution.toLowerCase();
-      candy[key] ??= { candy: b.candyCost, purified: b.candyCostPurified || b.candyCost };
+      const item = b.evolutionItemRequirement || b.lureItemRequirement;
+      if (!b.evolution || (!b.candyCost && !item)) continue;
+      const v = { candy: b.candyCost || 0, purified: b.candyCostPurified || b.candyCost || 0, item: item ? itemName(item, b.evolutionItemRequirementCost) : null };
+      for (const key of [b.evolution, b.form?.replace(/_NORMAL$/, "")].filter(Boolean)) candy[key.toLowerCase()] ??= v;
     }
   }
 
@@ -140,6 +151,7 @@ async function main() {
       maxTank: tankRank[p.speciesId] || null, // bulk rank among everything that can Dynamax
       candy: candy[p.speciesId]?.candy ?? candy[base]?.candy ?? null,
       candyPurified: candy[p.speciesId]?.purified ?? candy[base]?.purified ?? null,
+      evoItem: candy[p.speciesId]?.item ?? candy[base]?.item ?? null, // e.g. "Metal Coat" to evolve into this
     };
   });
 

@@ -77,6 +77,8 @@ function Why({ entry, idx }) {
 
 const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", lucky: "Lucky", shiny: "Shiny", costume: "Costume", background: "Background", dynamax: "Dynamax", gigantamax: "G-Max", oneoff: "One-off", legacy: "Legacy move", xxl: "XXL", old: "Old catch", keep: "Keep anyway" };
 // 13/14/15 -> "93%" (the in-game appraisal percentage)
+// what one evolution step costs: "100 candy", "50 candy + Metal Coat", "999 Gimmighoul Coins"; "?" when the data doesn't say
+const evoCost = (t) => [t.candy ? `${t.candy} candy` : t.candy == null ? "? candy" : null, t.evoItem].filter(Boolean).join(" + ");
 const ivPct = (ivs) => `${Math.round(ivs.reduce((x, y) => x + y, 0) / 0.45)}%`;
 const VARIANT = ["costume", "background"]; // these carry a number: which costume/background it is
 // { costume: 2, shiny: true } -> "Shiny · Costume 2"
@@ -342,7 +344,7 @@ export default function PokemonGoPage() {
                       {x.result.fromBox && <span className="muted"> (in your box)</span>}{x.backup && <span className="muted"> (backup)</span>}
                       {" "}<Chip color={ROLE_COLOR[j.role]}>{jobLabel(jobKey(j))}</Chip>
                       {x.jobs.slice(1).map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}
-                      <span className="muted">{x.backup ? "Only if the keeper above goes." : `${j.evo ? `Evolve to ${j.evo.to}${j.evo.candy ? ` (${j.evo.candy} candy)` : ""}, then ` : ""}${j.invest[0].toLowerCase() + j.invest.slice(1)}.`}</span>
+                      <span className="muted">{x.backup ? "Only if the keeper above goes." : `${j.evo ? `Evolve to ${j.evo.to}${j.evo.candy ? ` (${j.evo.candy} candy${j.evo.items?.length ? ` + ${j.evo.items.join(" + ")}` : ""})` : ""}, then ` : ""}${j.invest[0].toLowerCase() + j.invest.slice(1)}.`}</span>
                     </li>
                   );
                 })}
@@ -374,7 +376,7 @@ export default function PokemonGoPage() {
               {r.roles.map((c) => (
                 <div key={jobKey(c)} style={{ fontSize: "0.85rem", marginTop: 4 }}>
                   <span style={{ color: ROLE_COLOR[c.role] }}>{jobLabel(jobKey(c))}:</span> {c.detail}. <span className="muted">{c.invest}.</span>
-                  {c.evo && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? `; don't evolve until you have all ${c.evo.candy} candy (one go)` : ""}.</span>}
+                  {c.evo && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? `; don't evolve until you have all ${c.evo.candy} candy (one go)` : ""}{c.evo.items?.length ? `; needs ${c.evo.items.join(" + ")}` : ""}.</span>}
                   {c.note && <span style={{ color: PALETTE.amber }}> {c.note}.</span>}
                 </div>
               ))}
@@ -401,7 +403,7 @@ export default function PokemonGoPage() {
                 </div>
               ))}
               {r.reasons.length > 0 && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.reasons.join(" · ")}</div>}
-              {dexHint.has(r) && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>Dex: if {dexHint.get(r).map((t) => t.name).join(" or ")} {dexHint.get(r).length > 1 ? "aren't" : "isn't"} registered yet, evolve this one to {dexHint.get(r).at(-1).name} first ({dexHint.get(r).map((t) => t.candy || 0).join(" + ")} candy), then transfer.</div>}
+              {dexHint.has(r) && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>Dex: if {dexHint.get(r).map((t) => t.name).join(" or ")} {dexHint.get(r).length > 1 ? "aren't" : "isn't"} registered yet, evolve this one to {dexHint.get(r).at(-1).name} first ({dexHint.get(r).map(evoCost).join(", then ")}), then transfer.</div>}
               <details style={{ marginTop: 4 }}><summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Why?</summary><Why entry={r.entry} idx={idx} /></details>
             </div>
             </Fragment>
