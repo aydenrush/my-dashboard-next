@@ -89,6 +89,33 @@ const VARIANT = ["costume", "background"]; // these carry a number: which costum
 // { costume: 2, shiny: true } -> "Shiny · Costume 2"
 const flagNames = (flags, sep = " · ") => FLAG_ORDER.filter((f) => flags[f]).map((f) => FLAG_LABEL[f] + (flags[f] === true ? "" : ` ${flags[f]}`)).join(sep);
 
+// one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
+function ProjectCard({ n, x, onDone }) {
+  const e = x.result.entry, j = x.jobs[0];
+  return (
+    <div className="card" style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 12px", marginBottom: 6 }}>
+      <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--muted)", minWidth: 24, textAlign: "right", lineHeight: 1.2 }}>{n}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div>
+          <strong>{e.species.name}</strong><Types s={e.species} /> <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: 6 }}>{e.ivs.join("/")}</span> <span className="muted">{ivPct(e.ivs)}</span>
+          {flagNames(e.flags) && <span className="muted"> · {flagNames(e.flags, ", ")}</span>}
+          {x.result.fromBox && <span className="muted"> · in your box</span>}
+        </div>
+        <div style={{ marginTop: 4 }}>{x.jobs.map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}</div>
+        {x.backup ? <div style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Backup:</span> only if the one above goes</div> : <>
+          {j.evo && (
+            <div style={{ fontSize: "0.85rem", marginTop: 6 }}>
+              <span className="muted">Evolve:</span> {j.evo.to}{j.evo.candy ? ` · ${j.evo.candy} candy` : ""}{j.evo.items?.length ? ` · ${j.evo.items.join(", ")}` : ""}
+            </div>
+          )}
+          <div style={{ fontSize: "0.85rem", marginTop: j.evo ? 2 : 6 }}><span className="muted">Power up:</span> {j.invest}</div>
+        </>}
+      </div>
+      {onDone && <button type="button" className="btn" onClick={onDone} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Done</button>}
+    </div>
+  );
+}
+
 // quick entry: name (suggested as you type), three IV boxes that jump ahead as you type, tap-to-toggle flags.
 // Enter adds to the batch and keeps the name, so a run of the same Pokémon is just IVs + Enter.
 function QuickEntry({ idx, onAdd, edit, onCancel }) {
@@ -404,26 +431,13 @@ export default function PokemonGoPage() {
       {errors.length > 0 && <p className="status error">{errors.join(" · ")}</p>}
 
       {projectList.length > 0 && (
-        <details open className="card" style={{ marginTop: "1rem", padding: "10px 12px" }}>
+        <details open style={{ marginTop: "1rem" }}>
           <summary>Projects: what to power up first</summary>
           <p className="muted" style={{ fontSize: "0.82rem", marginTop: 0 }}>Per family, best investment first (your box included). Already done #1? Look at the next one.</p>
           {projectList.map((p) => (
-            <div key={p.family} style={{ marginBottom: 8 }}>
-              <strong>{p.items[0].jobs[0].target.name.replace(/ \(.*\)$/, "")} line</strong>
-              <ol style={{ margin: "4px 0 0", paddingLeft: 22, fontSize: "0.85rem" }}>
-                {p.items.map((x, i) => {
-                  const e = x.result.entry, j = x.jobs[0];
-                  return (
-                    <li key={i} style={{ marginBottom: 2 }}>
-                      <strong>{e.species.name}</strong><Types s={e.species} /> <strong>{e.ivs.join("/")}</strong> <span className="muted">{ivPct(e.ivs)}</span>{flagNames(e.flags) && <span className="muted"> {flagNames(e.flags, ", ")}</span>}
-                      {x.result.fromBox && <span className="muted"> (in your box)</span>}{x.backup && <span className="muted"> (backup)</span>}
-                      {" "}<Chip color={ROLE_COLOR[j.role]}>{jobLabel(jobKey(j))}</Chip>
-                      {x.jobs.slice(1).map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}
-                      <span className="muted">{x.backup ? "Only if the keeper above goes." : todo(j)}</span>
-                    </li>
-                  );
-                })}
-              </ol>
+            <div key={p.family} style={{ marginBottom: 10 }}>
+              <div style={{ fontWeight: 600, margin: "4px 0 6px" }}>{p.items[0].jobs[0].target.name.replace(/ \(.*\)$/, "")} line</div>
+              {p.items.map((x, i) => <ProjectCard key={i} n={i + 1} x={x} />)}
             </div>
           ))}
         </details>
@@ -508,25 +522,9 @@ export default function PokemonGoPage() {
         {boxProjects.some((x) => !x.result.entry.roles.includes("done")) && (
           <div style={{ margin: "8px 0 16px" }}>
             <div style={{ marginBottom: 6 }}><strong>Top projects</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>best investment first; tap Done once it's powered up</span></div>
-            {boxProjects.filter((x) => !x.result.entry.roles.includes("done")).slice(0, 10).map((x, i) => {
-              const e = x.result.entry, j = x.jobs[0];
-              return (
-                <div key={e.id} className="card" style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 12px", marginBottom: 6 }}>
-                  <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--muted)", minWidth: 24, textAlign: "right", lineHeight: 1.2 }}>{i + 1}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div><strong>{e.species.name}</strong><Types s={e.species} /> <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: 6 }}>{e.ivs.join("/")}</span> <span className="muted">{ivPct(e.ivs)}</span></div>
-                    <div style={{ marginTop: 4 }}>{x.jobs.map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}</div>
-                    {j.evo && (
-                      <div style={{ fontSize: "0.85rem", marginTop: 6 }}>
-                        <span className="muted">Evolve:</span> {j.evo.to}{j.evo.candy ? ` · ${j.evo.candy} candy` : ""}{j.evo.items?.length ? ` · ${j.evo.items.join(", ")}` : ""}
-                      </div>
-                    )}
-                    <div style={{ fontSize: "0.85rem", marginTop: j.evo ? 2 : 6 }}><span className="muted">Power up:</span> {j.invest}</div>
-                  </div>
-                  <button type="button" className="btn" onClick={() => toggleDone(e)} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Done</button>
-                </div>
-              );
-            })}
+            {boxProjects.filter((x) => !x.result.entry.roles.includes("done")).slice(0, 10).map((x, i) => (
+              <ProjectCard key={x.result.entry.id} n={i + 1} x={x} onDone={() => toggleDone(x.result.entry)} />
+            ))}
           </div>
         )}
         {boxEntries.length === 0 && <p className="empty">Keepers you save show up here, and new batches are compared against them.</p>}
