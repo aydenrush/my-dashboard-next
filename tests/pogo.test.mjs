@@ -218,3 +218,7 @@ assert.ok(mb[1].roles.some((c) => c.role === "max" && c.rtype === "rock"));
 assert.ok(!mb[0].roles.some((c) => c.role === "max" && c.rtype === "rock")); // behind the G-Max
 assert.ok(mb[2].roles.some((c) => c.role === "max" && c.rtype === "tank"));
 assert.ok(!mb[3].roles.some((c) => c.role === "max")); // not caught as Dynamax
+
+// 14 Attack on a top-5 raid line is borderline, not a transfer (Mega Garchomp is #2 Dragon in the fixture)
+const g14 = decideBatch(parseBatch("14/15/15 gible", idx).entries, idx)[0];
+assert.ok(g14.borderline.some((c) => c.role === "raid" && c.detail.includes("14 Attack")));
