@@ -6,7 +6,7 @@ create table if not exists pogo_box (
   atk smallint not null check (atk between 0 and 15),
   def smallint not null check (def between 0 and 15),
   hp smallint not null check (hp between 0 and 15),
-  flags text[] not null default '{}', -- shadow, purified, lucky, shiny, costume, background, dynamax, gigantamax
+  flags text[] not null default '{}', -- shadow, purified, lucky, shiny, costume[:n], background[:n], dynamax, gigantamax, oneoff
   roles text[] not null default '{}', -- raid, max, gl, ul, ml, trophy (what it won when saved)
   created_at timestamptz not null default now()
 );

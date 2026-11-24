@@ -189,3 +189,5 @@ assert.deepEqual(listToFlags(flagsToList({ costume: 2, shiny: true })), { costum
 const myth = decideBatch(parseBatch("1/2/3 celebi, 0/0/0 celebi", idx).entries, idx);
 assert.deepEqual(myth.map((r) => r.verdict), ["keep", "transfer"]);
 assert.match(myth[0].roles[0].detail, /mythical/);
+// One-off flag (a research legendary): kept whatever the IVs, like a mythical
+assert.equal(decideBatch(parseBatch("0/1/2 gible oneoff", idx).entries, idx)[0].verdict, "keep");

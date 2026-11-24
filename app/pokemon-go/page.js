@@ -6,7 +6,7 @@ import { PALETTE } from "@/lib/constants";
 import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, trophy: PALETTE.slate };
-const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax"];
+const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax", "oneoff"];
 
 function Chip({ color, children }) {
   return <span style={{ display: "inline-block", fontSize: "0.72rem", padding: "1px 7px", borderRadius: 999, border: `1px solid ${color}`, color, marginRight: 4 }}>{children}</span>;
@@ -72,7 +72,7 @@ function Why({ entry, idx }) {
   );
 }
 
-const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", lucky: "Lucky", shiny: "Shiny", costume: "Costume", background: "Background", dynamax: "Dynamax", gigantamax: "G-Max" };
+const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", lucky: "Lucky", shiny: "Shiny", costume: "Costume", background: "Background", dynamax: "Dynamax", gigantamax: "G-Max", oneoff: "One-off" };
 const VARIANT = ["costume", "background"]; // these carry a number: which costume/background it is
 // { costume: 2, shiny: true } -> "Shiny · Costume 2"
 const flagNames = (flags, sep = " · ") => FLAG_ORDER.filter((f) => flags[f]).map((f) => FLAG_LABEL[f] + (flags[f] === true ? "" : ` ${flags[f]}`)).join(sep);
