@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/pogo-data.mjs && next build",
     "start": "next start",
-    "test": "node --test tests/"
+    "test": "node --test tests/",
+    "pogo-data": "node scripts/pogo-data.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

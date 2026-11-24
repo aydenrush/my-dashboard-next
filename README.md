@@ -13,7 +13,7 @@ The sidebar is grouped into sections:
 | **School** | Grades | Weighted grade calculator per class: the score you need on what's left for each letter, the best grade still possible, and the likely final grade (remaining exams predicted from your midterm scores). Each class also holds its meeting times, which Home's timeline uses. **New term** backs up and clears all classes. |
 | **Notes** | Brain Dump, Books, Lyric Lab | Brain Dump is a card wall of notes with colored tags, pins, search, checklists and export; to-dos are notes tagged **To Do**. Books is a reading log. Lyric Lab is a rhyme finder and lyric notebook. |
 | **Life** | Wardrobe | Clothes, outfit building and color matching. |
-| **Games** | Madden Franchise, CFB Dynasty, Minecraft | Franchise and dynasty records, and Minecraft coordinates with overworld/nether conversion. |
+| **Games** | Pokémon GO, Madden Franchise, CFB Dynasty, Minecraft | Pokémon GO: paste one or a batch (`14/14/6 shadow gabite`, `phantump 8/15/15 purified, 14/10/15`) and get Keep/Transfer with the best one per job (Raids, Max Battles, Great/Ultra/Master League, Trophy), power-up limits, evolution candy, and comparison against your saved box. Plus franchise/dynasty records and Minecraft coordinates. |
 
 ### How the pieces connect
 
@@ -42,12 +42,17 @@ The sidebar is grouped into sections:
    4. `migrate_todos.sql`: one time; copies the old `todos` table into Brain Dump. Running it twice duplicates to-dos.
    5. `migrate_runs.sql`: one time; copies the old `running_schedule` into `activities` (it skips itself if already done).
    6. `settings.sql`
-   7. `cleanup_old_tables.sql`: optional, once you're happy with the migrated data. Drops `todos` and `running_schedule`.
+   7. `pogo_box.sql`
+   8. `cleanup_old_tables.sql`: optional, once you're happy with the migrated data. Drops `todos` and `running_schedule`.
 4. `npm run dev` and open http://localhost:3000
+
+## Pokémon GO data
+
+`npm run pogo-data` (also run by `npm run build`) rebuilds `public/pogo-data.json` from [PvPoke](https://github.com/pvpoke/pvpoke) (MIT: species, moves, PvP rankings) and [PokeMiners' game master](https://github.com/PokeMiners/game_masters) (raid move stats, evolution candy, CP multipliers). If a download fails, the existing file is kept. Rules live in `lib/pogo.js`: 15 Attack for raids (top 20 of a type), top-100 IV rank for Great/Ultra League picks (PvPoke top 75), 15/14+/14+ for Master League picks (top 40), Gigantamax over Dynamax for Max Battles, and hundo/98%/shiny/costume/background as trophies.
 
 ## Tests
 
-`npm test` runs the checks in `tests/` (plain Node, no extra packages): grade math and predictions, calendar parsing and repeat expansion, the phone calendar feed, date helpers, run-plan conversion, the TCX/Strava readers (including duplicate skipping), and the confirm dialog.
+`npm test` runs the checks in `tests/` (plain Node, no extra packages): grade math and predictions, calendar parsing and repeat expansion, the phone calendar feed, date helpers, run-plan conversion, the TCX/Strava readers (including duplicate skipping), and the confirm dialog, and the Pokémon GO engine (parsing, IV ranks, batch picks).
 
 ## Code map
 

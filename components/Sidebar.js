@@ -9,7 +9,7 @@ const sections = [
   ["School", [["/grades", "Grades"]]],
   ["Notes", [["/brain-dump", "Brain Dump"],["/books", "Books"], ["/lyric-lab", "Lyric Lab"]]],
   ["Life", [["/wardrobe", "Wardrobe"]]],
-  ["Games", [["/madden", "Madden Franchise"], ["/cfb-dynasty", "CFB Dynasty"], ["/minecraft", "Minecraft"]]],
+  ["Games", [["/pokemon-go", "Pokémon GO"], ["/madden", "Madden Franchise"], ["/cfb-dynasty", "CFB Dynasty"], ["/minecraft", "Minecraft"]]],
 ];
 
 export default function Sidebar() {
