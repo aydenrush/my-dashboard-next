@@ -176,3 +176,10 @@ const troBox = decideBatch(parseBatch("15/15/15 alolan ninetales", idx).entries,
 assert.equal(troBox[0].verdict, "trade");
 assert.equal(troBox[0].trade[0].behind, "your box's Ninetales (Alolan) 15/15/15");
 console.log("trophy dupes ok");
+
+// numbered costumes/backgrounds: same number = duplicate (trade bait), different numbers both kept
+const { flagsToList, listToFlags } = await import("../lib/pogo.js");
+const cos = decideBatch(parseBatch("1/1/1 costume2 alolan ninetales, 5/5/5 costume2 alolan ninetales, 2/2/2 costume3 alolan ninetales, 3/3/3 bg1 alolan ninetales", idx).entries, idx);
+assert.deepEqual(cos.map((r) => r.verdict), ["trade", "keep", "keep", "keep"]);
+assert.equal(cos[0].trade[0].kind, "costume 2");
+assert.deepEqual(listToFlags(flagsToList({ costume: 2, shiny: true })), { costume: 2, shiny: true });

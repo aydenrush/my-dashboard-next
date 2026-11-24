@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { PALETTE } from "@/lib/constants";
-import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
+import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, trophy: PALETTE.slate };
 const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax"];
@@ -73,16 +73,26 @@ function Why({ entry, idx }) {
 }
 
 const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", lucky: "Lucky", shiny: "Shiny", costume: "Costume", background: "Background", dynamax: "Dynamax", gigantamax: "G-Max" };
+const VARIANT = ["costume", "background"]; // these carry a number: which costume/background it is
+// { costume: 2, shiny: true } -> "Shiny · Costume 2"
+const flagNames = (flags, sep = " · ") => FLAG_ORDER.filter((f) => flags[f]).map((f) => FLAG_LABEL[f] + (flags[f] === true ? "" : ` ${flags[f]}`)).join(sep);
 
 // quick entry: name (suggested as you type), three IV boxes that jump ahead as you type, tap-to-toggle flags.
 // Enter adds to the batch and keeps the name, so a run of the same Pokémon is just IVs + Enter.
-function QuickEntry({ idx, onAdd }) {
+function QuickEntry({ idx, onAdd, edit, onCancel }) {
   const [name, setName] = useState("");
   const [ivs, setIvs] = useState(["", "", ""]); // strings: empty stays empty
   const [flags, setFlags] = useState({});
   const [err, setErr] = useState("");
   const refs = [useRef(null), useRef(null), useRef(null)];
   const names = useMemo(() => pickableNames(idx), [idx]);
+
+  // editing a batch row: load it into the form
+  useEffect(() => {
+    if (!edit) return;
+    setName(idx.byId[edit.id]?.name || ""); setIvs(edit.ivs.map(String)); setFlags(listToFlags(edit.flags)); setErr("");
+    refs[0].current?.focus();
+  }, [edit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setIv(i, v) {
     if (!/^\d{0,2}$/.test(v) || Number(v) > 15) return;
@@ -112,14 +122,23 @@ function QuickEntry({ idx, onAdd }) {
           <input key={label} ref={refs[i]} inputMode="numeric" value={ivs[i]} onChange={(e) => setIv(i, e.target.value)} placeholder={label} aria-label={`${label} IV`}
             style={{ ...field, width: 56, textAlign: "center" }} />
         ))}
-        <button type="submit" className="btn btn-primary">Add</button>
+        <button type="submit" className="btn btn-primary">{edit ? "Save" : "Add"}</button>
+        {edit && <button type="button" className="btn" onClick={() => { setIvs(["", "", ""]); setFlags({}); setErr(""); onCancel(); }}>Cancel</button>}
       </div>
       <div className="row" style={{ marginBottom: 0 }}>
         {FLAG_ORDER.map((f) => (
-          <button key={f} type="button" aria-pressed={!!flags[f]} onClick={() => setFlags((p) => ({ ...p, [f]: !p[f] }))}
-            className={`btn${flags[f] ? " btn-primary" : ""}`} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>
-            {FLAG_LABEL[f]}
-          </button>
+          <span key={f} style={{ display: "inline-flex", gap: 2 }}>
+            <button type="button" aria-pressed={!!flags[f]} onClick={() => setFlags((p) => ({ ...p, [f]: p[f] ? false : VARIANT.includes(f) ? 1 : true }))}
+              className={`btn${flags[f] ? " btn-primary" : ""}`} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>
+              {FLAG_LABEL[f]}
+            </button>
+            {VARIANT.includes(f) && flags[f] && (
+              <select value={flags[f] === true ? "" : flags[f]} onChange={(e) => setFlags((p) => ({ ...p, [f]: Number(e.target.value) || true }))} aria-label={`Which ${f}`} style={{ fontSize: "0.8rem" }}>
+                {flags[f] === true && <option value="">?</option>}
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            )}
+          </span>
         ))}
       </div>
       {err && <p className="status error" style={{ marginTop: 6, marginBottom: 0 }}>{err}</p>}
@@ -134,6 +153,7 @@ export default function PokemonGoPage() {
   const [paste, setPaste] = useState("");
   const [errors, setErrors] = useState([]);
   const [msg, setMsg] = useState("");
+  const [editing, setEditing] = useState(null); // index of the batch row loaded into the form
 
   useEffect(() => {
     fetch("/pogo-data.json").then((r) => r.json()).then((d) => setIdx(indexSpecies(d))).catch(() => setMsg("Couldn't load the Pokémon data file."));
@@ -149,18 +169,18 @@ export default function PokemonGoPage() {
 
   const addRows = (entries) => {
     setMsg("");
-    setBatch((b) => [...b, ...entries.map((e) => ({ id: e.species.id, ivs: e.ivs, flags: Object.keys(e.flags).filter((f) => e.flags[f]) }))]);
+    setBatch((b) => [...b, ...entries.map((e) => ({ id: e.species.id, ivs: e.ivs, flags: flagsToList(e.flags) }))]);
   };
 
   // saved box rows -> entries the engine understands
   const boxEntries = useMemo(() => (idx ? box.filter((b) => idx.byId[b.species_id]).map((b) => ({
-    id: b.id, species: idx.byId[b.species_id], ivs: [b.atk, b.def, b.hp], flags: Object.fromEntries(b.flags.map((f) => [f, true])), roles: b.roles,
+    id: b.id, species: idx.byId[b.species_id], ivs: [b.atk, b.def, b.hp], flags: listToFlags(b.flags), roles: b.roles,
   })) : []), [idx, box]);
 
   // results update live as the batch changes
   const results = useMemo(() => {
     if (!idx || !batch.length) return null;
-    const entries = batch.filter((r) => idx.byId[r.id]).map((r) => ({ species: idx.byId[r.id], ivs: r.ivs, flags: Object.fromEntries(r.flags.map((f) => [f, true])) }));
+    const entries = batch.filter((r) => idx.byId[r.id]).map((r) => ({ species: idx.byId[r.id], ivs: r.ivs, flags: listToFlags(r.flags) }));
     const res = decideBatch(entries, idx, boxEntries);
     return ORDER.flatMap((v) => res.filter((r) => r.verdict === v));
   }, [idx, batch, boxEntries]);
@@ -175,7 +195,7 @@ export default function PokemonGoPage() {
   async function saveKeepers() {
     const rows = results.filter((r) => r.keep).map((r) => ({
       species_id: r.entry.species.id, atk: r.entry.ivs[0], def: r.entry.ivs[1], hp: r.entry.ivs[2],
-      flags: Object.keys(r.entry.flags), roles: r.roles.map(jobKey),
+      flags: flagsToList(r.entry.flags), roles: r.roles.map(jobKey),
     }));
     if (!rows.length) return;
     const { error } = await supabase.from("pogo_box").insert(rows);
@@ -211,7 +231,12 @@ export default function PokemonGoPage() {
   return (
     <div>
       <h1 className="page-title">Pokémon GO</h1>
-      {!idx ? <p className="muted">{msg || "Loading Pokémon data…"}</p> : <QuickEntry idx={idx} onAdd={(e) => addRows([e])} />}
+      {!idx ? <p className="muted">{msg || "Loading Pokémon data…"}</p> : <QuickEntry idx={idx} edit={editing === null ? null : batch[editing]} onCancel={() => setEditing(null)}
+        onAdd={(e) => {
+          if (editing === null) return addRows([e]);
+          setBatch((b) => b.map((r, j) => (j === editing ? { id: e.species.id, ivs: e.ivs, flags: flagsToList(e.flags) } : r)));
+          setEditing(null);
+        }} />}
 
       {idx && batch.length > 0 && (
         <div style={{ marginTop: 10 }}>
@@ -220,14 +245,16 @@ export default function PokemonGoPage() {
             {keepers.length > 0 && <button type="button" className="btn" onClick={saveKeepers}>Save {keepers.length} keeper{keepers.length > 1 ? "s" : ""} to box</button>}
             {tradeBait.length > 0 && <button type="button" className="btn" onClick={copyTrades}>Copy trade list</button>}
             {transfers.length > 0 && <button type="button" className="btn" onClick={copyTransfers}>Copy transfer list</button>}
-            <button type="button" className="btn" onClick={() => setBatch([])}>Clear batch</button>
+            <button type="button" className="btn" onClick={() => { setBatch([]); setEditing(null); }}>Clear batch</button>
             {msg && <span className="muted">{msg}</span>}
           </div>
           <div className="row">
             {batch.map((r, i) => (
-              <span key={i} style={{ display: "inline-flex", gap: 6, alignItems: "center", border: "1px solid var(--border)", borderRadius: 999, padding: "2px 4px 2px 10px", fontSize: "0.82rem" }}>
-                {idx.byId[r.id]?.name} {r.ivs.join("/")}{r.flags.length ? <span className="muted">{r.flags.map((f) => FLAG_LABEL[f]).join(", ")}</span> : null}
-                <button type="button" onClick={() => setBatch((b) => b.filter((_, j) => j !== i))} aria-label="Remove from batch" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>✕</button>
+              <span key={i} style={{ display: "inline-flex", gap: 6, alignItems: "center", border: `1px solid ${editing === i ? "var(--accent)" : "var(--border)"}`, borderRadius: 999, padding: "2px 4px 2px 10px", fontSize: "0.82rem" }}>
+                <button type="button" onClick={() => setEditing(i)} title="Edit" style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer" }}>
+                  {idx.byId[r.id]?.name} {r.ivs.join("/")}{r.flags.length ? <span className="muted"> {flagNames(listToFlags(r.flags), ", ")}</span> : null}
+                </button>
+                <button type="button" onClick={() => { setBatch((b) => b.filter((_, j) => j !== i)); setEditing(null); }} aria-label="Remove from batch" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>✕</button>
               </span>
             ))}
           </div>
@@ -258,7 +285,7 @@ export default function PokemonGoPage() {
                 <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
                 <strong>{r.entry.species.name}</strong>
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
-                <span className="muted">{FLAG_ORDER.filter((f) => r.entry.flags[f]).map((f) => FLAG_LABEL[f]).join(" · ")}</span>
+                <span className="muted">{flagNames(r.entry.flags)}</span>
                 {r.roles.map((c) => <Chip key={jobKey(c)} color={ROLE_COLOR[c.role]}>{jobLabel(jobKey(c))}</Chip>)}
               </div>
               {r.roles.map((c) => (
@@ -297,7 +324,7 @@ export default function PokemonGoPage() {
         {boxEntries.map((b) => (
           <div key={b.id} className="row" style={{ alignItems: "center", marginBottom: 4 }}>
             <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong> {b.ivs.join("/")}</span>
-            <span className="muted">{FLAG_ORDER.filter((f) => b.flags[f]).map((f) => FLAG_LABEL[f]).join(" · ")}</span>
+            <span className="muted">{flagNames(b.flags)}</span>
             {b.roles.map((r) => <Chip key={r} color={ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
             <button className="btn" onClick={() => removeFromBox(b)} aria-label={`Remove ${b.species.name} from box`} style={{ padding: "1px 8px", fontSize: "0.75rem" }}>✕</button>
           </div>
