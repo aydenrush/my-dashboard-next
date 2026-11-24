@@ -269,8 +269,11 @@ export default function PokemonGoPage() {
   };
   const dexHint = new Map(); // result -> stages it would register
   const best = {};
+  // stages you obviously have (in the batch or box) are registered already: stop the path at the last one you don't
+  const owned = new Set([...(results || []), ...boxEntries.map((entry) => ({ entry }))].map((r) => r.entry.species.id));
   for (const r of transfers) {
-    const path = pathToFinal(r.entry.species);
+    const full = pathToFinal(r.entry.species);
+    const path = full.slice(0, full.findLastIndex((t) => !owned.has(t.id)) + 1);
     const cur = best[r.entry.species.family];
     if (path.length && (!cur || path.length < cur.path.length)) best[r.entry.species.family] = { r, path };
   }
