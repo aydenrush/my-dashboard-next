@@ -245,3 +245,12 @@ assert.ok(!fullTeam.roles.some((c) => c.role === "gym"));
 assert.match(decideBatch(parseBatch("0/15/15 snorlax, 0/15/12 snorlax", idx).entries, idx)[1].reasons.join(" "), /HP 12/);
 // a 98% with no job is just a transfer; a hundo is still a trophy
 assert.deepEqual(decideBatch(parseBatch("15/15/14 alolan ninetales, 15/15/15 alolan ninetales", idx).entries, idx).map((r) => r.verdict), ["transfer", "keep"]);
+
+// a held placeholder saved in the box: a worse new one is a transfer, a better one replaces it (and says so)
+const heldBox = parseBatch("15/0/0 azumarill", idx).entries;
+const worse = decideBatch(parseBatch("0/15/15 azumarill, 15/0/0 azumarill", idx).entries, idx, heldBox)[1];
+assert.equal(worse.verdict, "transfer");
+assert.match(worse.speciesNote, /Your box's Azumarill 15\/0\/0 is already the placeholder/);
+const better = decideBatch(parseBatch("0/15/15 azumarill, 13/2/2 azumarill", idx).entries, idx, heldBox)[1];
+assert.equal(better.verdict, "hold");
+assert.equal(better.hold[0].replaces, "Azumarill 15/0/0");

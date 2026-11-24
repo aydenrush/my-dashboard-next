@@ -16,7 +16,8 @@ const cap = (t) => t[0].toUpperCase() + t.slice(1);
 const yes = (ok, near) => <span style={{ color: ok ? PALETTE.emerald : near ? PALETTE.amber : PALETTE.rose }} title={ok ? "qualifies" : near ? "borderline" : "doesn't qualify"}>{ok ? "✓" : near ? "≈" : "✗"}</span>;
 // "raid" + type -> "Raids · Dragon"; also reads saved box roles like "raid:dragon"
 const jobKey = (c) => c.role + (c.rtype ? `:${c.rtype}` : "");
-const jobLabel = (key) => { const [role, type] = key.split(":"); return ROLE_LABEL[role] + (type ? ` · ${cap(type)}` : ""); };
+// saved holds are "hold:raid:grass" -> "Hold · Raids · Grass"
+const jobLabel = (key) => { if (key.startsWith("hold:")) return `Hold · ${jobLabel(key.slice(5))}`; const [role, type] = key.split(":"); return ROLE_LABEL[role] + (type ? ` · ${cap(type)}` : ""); };
 const VERDICT = {
   keep: { label: "KEEP", color: PALETTE.emerald },
   backup: { label: "Backup", color: PALETTE.blue },
@@ -230,9 +231,9 @@ export default function PokemonGoPage() {
   }
 
   async function saveKeepers() {
-    const rows = results.filter((r) => r.keep).map((r) => ({
+    const rows = results.filter((r) => r.keep || r.verdict === "hold").map((r) => ({
       species_id: r.entry.species.id, atk: r.entry.ivs[0], def: r.entry.ivs[1], hp: r.entry.ivs[2],
-      flags: flagsToList(r.entry.flags), roles: r.roles.map(jobKey),
+      flags: flagsToList(r.entry.flags), roles: [...r.roles.map(jobKey), ...r.hold.map((g) => `hold:${g.job}`)],
     }));
     if (!rows.length) return;
     const { error } = await supabase.from("pogo_box").insert(rows);
@@ -261,7 +262,7 @@ export default function PokemonGoPage() {
     if (!error) setBox((bx) => bx.filter((x) => x.id !== b.id));
   }
 
-  const keepers = results?.filter((r) => r.keep) || [];
+  const keepers = results?.filter((r) => r.keep || r.verdict === "hold") || [];
   const transfers = results?.filter((r) => r.verdict === "transfer") || [];
   const tradeBait = results?.filter((r) => r.verdict === "trade") || [];
   // one Dex evolve hint per family: on the most-evolved transfer that can still evolve, all the way to the final stage
@@ -297,7 +298,7 @@ export default function PokemonGoPage() {
         <div style={{ marginTop: 10 }}>
           <div className="row" style={{ alignItems: "center" }}>
             <strong>Batch ({batch.length})</strong>
-            {keepers.length > 0 && <button type="button" className="btn" onClick={saveKeepers}>Save {keepers.length} keeper{keepers.length > 1 ? "s" : ""} to box</button>}
+            {keepers.length > 0 && <button type="button" className="btn" onClick={saveKeepers}>Save {keepers.length} to box</button>}
             {tradeBait.length > 0 && <button type="button" className="btn" onClick={copyTrades}>Copy trade list</button>}
             {transfers.length > 0 && <button type="button" className="btn" onClick={copyTransfers}>Copy transfer list</button>}
             <button type="button" className="btn" onClick={() => { setBatch([]); setEditing(null); }}>Clear batch</button>
@@ -390,6 +391,7 @@ export default function PokemonGoPage() {
               {r.hold.map((g) => (
                 <div key={g.job} style={{ fontSize: "0.85rem", marginTop: 4 }}>
                   <span style={{ color: PALETTE.blue }}>Good species for {g.label}</span> ({g.what}), but it needs {g.needs}. <span className="muted">Nothing better yet: hold it untouched (no candy or Stardust) and transfer it once a better one turns up.</span>
+                  {g.replaces && <span style={{ color: PALETTE.amber }}> Better than your box's {g.replaces}: transfer that one and remove it from your box.</span>}
                 </div>
               ))}
               {r.speciesNote && <div style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.speciesNote}</div>}
@@ -414,7 +416,7 @@ export default function PokemonGoPage() {
           <div key={b.id} className="row" style={{ alignItems: "center", marginBottom: 4 }}>
             <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
             <span className="muted">{flagNames(b.flags)}</span>
-            {b.roles.map((r) => <Chip key={r} color={ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
+            {b.roles.map((r) => <Chip key={r} color={r.startsWith("hold:") ? PALETTE.blue : ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
             <button className="btn" onClick={() => removeFromBox(b)} aria-label={`Remove ${b.species.name} from box`} style={{ padding: "1px 8px", fontSize: "0.75rem" }}>✕</button>
           </div>
         ))}
