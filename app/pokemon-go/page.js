@@ -252,6 +252,12 @@ export default function PokemonGoPage() {
     loadBox();
   }
   const saveKeepers = () => saveToBox(results.filter((r) => r.keep || r.verdict === "hold"));
+  // everything, including ones the rules say to trade or transfer: asks first, since that breaks zero-waste
+  async function saveAll() {
+    const extra = results.filter((r) => !r.keep && r.verdict !== "hold").length;
+    if (extra && !(await askConfirm(`Save all ${results.length} to your box? ${extra} of them aren't keepers (borderline, backup, trade bait or transfer).`, { confirmLabel: "Save all" }))) return;
+    saveToBox(results);
+  }
 
   async function copyTrades() {
     await navigator.clipboard.writeText(tradeList(results));
@@ -334,7 +340,8 @@ export default function PokemonGoPage() {
         <div style={{ marginTop: 10 }}>
           <div className="row" style={{ alignItems: "center" }}>
             <strong>Batch ({batch.length})</strong>
-            {keepers.length > 0 && <button type="button" className="btn" onClick={saveKeepers}>Save {keepers.length} to box</button>}
+            {keepers.length > 0 && <button type="button" className="btn" onClick={saveKeepers}>Save {keepers.length} keeper{keepers.length > 1 ? "s" : ""}</button>}
+            {results?.length > keepers.length && <button type="button" className="btn" onClick={saveAll}>Save all {results.length}</button>}
             {tradeBait.length > 0 && <button type="button" className="btn" onClick={copyTrades}>Copy trade list</button>}
             {transfers.length > 0 && <button type="button" className="btn" onClick={copyTransfers}>Copy transfer list</button>}
             <button type="button" className="btn" onClick={() => { setBatch([]); setEditing(null); }}>Clear batch</button>
@@ -401,12 +408,12 @@ export default function PokemonGoPage() {
             <div className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}` }}>
               <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
                 <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
-                {r.entry.i != null && (r.verdict === "borderline" || r.verdict === "backup") && (
+                {r.entry.i != null && (
                   <button type="button" className="btn" onClick={() => saveToBox([r])} style={{ order: 98, marginLeft: "auto", padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Save to box</button>
                 )}
                 {r.entry.i != null && (
                   <button type="button" className="btn" onClick={() => { setEditing(r.entry.i); setEditingBox(null); }} aria-label={`Edit ${r.entry.species.name}`}
-                    style={{ order: 99, marginLeft: r.verdict === "borderline" || r.verdict === "backup" ? 0 : "auto", padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Edit</button>
+                    style={{ order: 99, marginLeft: 0, padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Edit</button>
                 )}
                 <strong>{r.entry.species.name}</strong>
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
