@@ -147,7 +147,10 @@ export default function PokemonGoPage() {
     if (data) setBox(data);
   }
 
-  const addRows = (entries) => setBatch((b) => [...b, ...entries.map((e) => ({ id: e.species.id, ivs: e.ivs, flags: Object.keys(e.flags).filter((f) => e.flags[f]) }))]);
+  const addRows = (entries) => {
+    setMsg("");
+    setBatch((b) => [...b, ...entries.map((e) => ({ id: e.species.id, ivs: e.ivs, flags: Object.keys(e.flags).filter((f) => e.flags[f]) }))]);
+  };
 
   // saved box rows -> entries the engine understands
   const boxEntries = useMemo(() => (idx ? box.filter((b) => idx.byId[b.species_id]).map((b) => ({
@@ -177,6 +180,10 @@ export default function PokemonGoPage() {
     if (!rows.length) return;
     const { error } = await supabase.from("pogo_box").insert(rows);
     if (error) return;
+    // saved keepers leave the batch (one batch row per saved row), so a second click can't save them twice
+    const key = (id, ivs, flags) => `${id}|${ivs.join("/")}|${[...flags].sort().join(",")}`;
+    const left = rows.map((r) => key(r.species_id, [r.atk, r.def, r.hp], r.flags));
+    setBatch((b) => b.filter((r) => { const i = left.indexOf(key(r.id, r.ivs, r.flags)); if (i < 0) return true; left.splice(i, 1); return false; }));
     setMsg(`Saved ${rows.length} keeper${rows.length > 1 ? "s" : ""} to your box.`);
     loadBox();
   }
@@ -251,7 +258,7 @@ export default function PokemonGoPage() {
                 <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
                 <strong>{r.entry.species.name}</strong>
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
-                <span className="muted">{FLAG_ORDER.filter((f) => r.entry.flags[f]).join(" · ")}</span>
+                <span className="muted">{FLAG_ORDER.filter((f) => r.entry.flags[f]).map((f) => FLAG_LABEL[f]).join(" · ")}</span>
                 {r.roles.map((c) => <Chip key={jobKey(c)} color={ROLE_COLOR[c.role]}>{jobLabel(jobKey(c))}</Chip>)}
               </div>
               {r.roles.map((c) => (
@@ -290,7 +297,7 @@ export default function PokemonGoPage() {
         {boxEntries.map((b) => (
           <div key={b.id} className="row" style={{ alignItems: "center", marginBottom: 4 }}>
             <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong> {b.ivs.join("/")}</span>
-            <span className="muted">{FLAG_ORDER.filter((f) => b.flags[f]).join(" · ")}</span>
+            <span className="muted">{FLAG_ORDER.filter((f) => b.flags[f]).map((f) => FLAG_LABEL[f]).join(" · ")}</span>
             {b.roles.map((r) => <Chip key={r} color={ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
             <button className="btn" onClick={() => removeFromBox(b)} aria-label={`Remove ${b.species.name} from box`} style={{ padding: "1px 8px", fontSize: "0.75rem" }}>✕</button>
           </div>
