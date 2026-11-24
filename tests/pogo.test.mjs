@@ -70,11 +70,14 @@ assert.ok(by("0/15/15", "azumarill").roles.some((c) => c.role === "gl"));
 assert.ok(by("15/15/15", "azumarill").roles.every((c) => c.role !== "gl"));
 assert.ok(by("15/15/15", "ninetales_alolan").roles.some((c) => c.role === "trophy"));
 
-// saved box: a better one already saved makes the new one a backup behind it
+// saved box: your box keeper is the anchor, so a worse new one is a Transfer (zero-waste), with that reason
 const box = parseBatch("15/15/15 gible", idx).entries;
 const vsBox = decideBatch(parseBatch("15/14/14 gible", idx).entries, idx, box);
-assert.equal(vsBox[0].verdict, "backup");
-assert.equal(vsBox[0].backup[0].behind, "your box's Gible 15/15/15");
+assert.equal(vsBox[0].verdict, "transfer");
+assert.equal(vsBox[0].reasons[0], "Raids · Dragon: your box already has Gible 15/15/15");
+assert.match(transferList(vsBox), /Gible 15\/14\/14/);
+// inside one batch (nothing saved yet) the runner-up is still a Backup
+assert.equal(decideBatch(parseBatch("15/15/15 gible, 15/14/14 gible", idx).entries, idx)[1].verdict, "backup");
 
 // Dynamax needs 15 Attack; Gigantamax doesn't
 // ...and a Dynamax only counts if the species is a real raid attacker (Alolan Ninetales here isn't); G-Max always counts
