@@ -72,3 +72,18 @@ assert.match(vsBox[0].reasons[0], /your box already has Gible 15\/15\/15/);
 
 assert.match(transferList(res), /Gabite 14\/14\/6 shadow/);
 console.log("pogo ok");
+
+// "Why?" breakdown: forms ranked best-first, every league row, CP under the cap
+const { explain } = await import("../lib/pogo.js");
+const why = explain(parseBatch("15/14/14 gible", idx).entries[0], idx);
+assert.deepEqual(why.raid.map((r) => r.form), ["Garchomp (Mega)", "Garchomp"]); // Mega #2 dragon before regular #15 ground
+assert.equal(why.raid[0].types[0].moves, "Dragon Tail + Outrage");
+assert.equal(why.raidAtk, true);
+const shadowWhy = explain(parseBatch("14/14/6 shadow gabite", idx).entries[0], idx);
+assert.deepEqual(shadowWhy.raid.map((r) => r.form), ["Garchomp (Shadow)"]); // shadows can't Mega Evolve
+assert.equal(shadowWhy.raidAtk, false);
+const azuWhy = explain(parseBatch("0/15/15 azumarill", idx).entries[0], idx);
+const glRow = azuWhy.pvp.gl[0];
+assert.ok(glRow.ok && glRow.meta && glRow.cp <= 1500);
+assert.equal(azuWhy.pvp.ml[0].ok, false); // not a Master League pick
+console.log("explain ok");

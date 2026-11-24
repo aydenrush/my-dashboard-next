@@ -102,10 +102,11 @@ async function main() {
 
   const species = scored.map(({ p, raid }) => {
     // best attacking type for this species = its best rank across types
-    let best = null;
-    for (const [T, tr] of Object.entries(typeRank[p.speciesId] || {})) {
-      if (!best || tr.rank < best.rank) best = { type: T, ...tr, fast: raid[T].fast, charged: raid[T].charged, elite: raid[T].elite };
-    }
+    // its 3 best attacking types (best first), each with rank, % of the type's #1, and the moveset used
+    const raidTypes = Object.entries(typeRank[p.speciesId] || {})
+      .map(([T, tr]) => ({ type: T, ...tr, fast: raid[T].fast, charged: raid[T].charged, elite: raid[T].elite }))
+      .sort((x, y) => x.rank - y.rank).slice(0, 3);
+    const best = raidTypes[0] || null;
     const base = p.speciesId.replace(/_(shadow|mega.*|alolan|galarian|hisuian|paldean).*$/, "");
     return {
       id: p.speciesId, name: p.speciesName, dex: p.dex, types: p.types,
@@ -114,6 +115,7 @@ async function main() {
       evolutions: p.family?.evolutions || [], elite: p.eliteMoves || [],
       gl: ranks.gl[p.speciesId] || null, ul: ranks.ul[p.speciesId] || null, ml: ranks.ml[p.speciesId] || null,
       raid: best, // the page decides what counts as raid-relevant (raidTop)
+      raidTypes,
       candy: candy[p.speciesId]?.candy ?? candy[base]?.candy ?? null,
       candyPurified: candy[p.speciesId]?.purified ?? candy[base]?.purified ?? null,
     };

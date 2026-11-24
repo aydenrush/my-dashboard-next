@@ -3,13 +3,56 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { PALETTE } from "@/lib/constants";
-import { indexSpecies, parseBatch, decideBatch, transferList, ROLE_LABEL } from "@/lib/pogo";
+import { indexSpecies, parseBatch, decideBatch, transferList, explain, ROLE_LABEL } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, trophy: PALETTE.slate };
 const FLAG_ORDER = ["shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax"];
 
 function Chip({ color, children }) {
   return <span style={{ display: "inline-block", fontSize: "0.72rem", padding: "1px 7px", borderRadius: 999, border: `1px solid ${color}`, color, marginRight: 4 }}>{children}</span>;
+}
+
+const cap = (t) => t[0].toUpperCase() + t.slice(1);
+const yes = (ok) => <span style={{ color: ok ? PALETTE.emerald : PALETTE.rose }}>{ok ? "✓" : "✗"}</span>;
+
+// the "Why?" breakdown under a result: every form and league it was judged on, and why each did or didn't count
+function Why({ entry, idx }) {
+  const w = explain(entry, idx);
+  const td = { padding: "2px 8px 2px 0", whiteSpace: "nowrap" };
+  return (
+    <div style={{ fontSize: "0.82rem", marginTop: 6 }}>
+      <div style={{ fontWeight: 600, marginTop: 4 }}>Raids</div>
+      {w.raidAtk === null ? <div className="muted">Dynamax/Gigantamax: judged for Max Battles instead.</div>
+        : <div className="muted">Attack {entry.ivs[0]} {yes(w.raidAtk)} {w.raidAtk ? "meets" : "misses"} your 15-Attack rule. Counts if a form is top {w.rules.raidTop} in some type.</div>}
+      {w.raid.length === 0 && <div className="muted">No raid data for this family.</div>}
+      {w.raid.map((r) => (
+        <div key={r.form}>
+          {yes(r.counts)} <strong>{r.form}</strong>: {r.types.map((t, i) => (
+            <span key={t.type} className={i ? "muted" : ""}>{i ? " · " : ""}#{t.rank} {cap(t.type)} ({t.pct}% of the #1){i === 0 ? `, ${t.moves}${t.elite ? " (legacy/elite move)" : ""}` : ""}</span>
+          ))}
+        </div>
+      ))}
+      {w.max && <><div style={{ fontWeight: 600, marginTop: 6 }}>Max Battles</div><div className="muted">{w.max}</div></>}
+      <div style={{ fontWeight: 600, marginTop: 6 }}>PvP</div>
+      <table style={{ borderCollapse: "collapse" }}>
+        <thead><tr className="muted">{["", "League", "As", "Species rank", "Your IV rank", "Stats", "Level", "CP"].map((h) => <th key={h} style={{ ...td, textAlign: "left", fontWeight: 400 }}>{h}</th>)}</tr></thead>
+        <tbody>
+          {["gl", "ul", "ml"].flatMap((lg) => w.pvp[lg].map((r) => (
+            <tr key={lg + r.form}>
+              <td style={td}>{yes(r.ok)}</td>
+              <td style={td}>{ROLE_LABEL[lg]}</td>
+              <td style={td}>{r.form}</td>
+              <td style={td}>{r.speciesRank ? `#${r.speciesRank}` : "unranked"} {!r.meta && <span className="muted">(needs top {lg === "ml" ? w.rules.mlTop : w.rules.pvpTop})</span>}</td>
+              <td style={td}>#{r.ivRank} of 4096 {lg !== "ml" && !r.ivOk && <span className="muted">(needs top {w.rules.ivTop})</span>}{lg === "ml" && !r.ivOk && <span className="muted">(needs 15/14+/14+)</span>}</td>
+              <td style={td}>{(r.pct * 100).toFixed(1)}%</td>
+              <td style={td}>{r.level}</td>
+              <td style={td}>{r.cp ?? "—"}</td>
+            </tr>
+          )))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 export default function PokemonGoPage() {
@@ -115,6 +158,7 @@ export default function PokemonGoPage() {
                 </div>
               ))}
               {r.reasons.length > 0 && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.reasons.join(" · ")}</div>}
+              <details style={{ marginTop: 4 }}><summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Why?</summary><Why entry={r.entry} idx={idx} /></details>
             </div>
           ))}
         </div>
