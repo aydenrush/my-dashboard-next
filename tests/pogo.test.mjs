@@ -153,3 +153,12 @@ assert.equal(explain(parseBatch("0/15/15 mighty swampert", swIdx).entries[0], sw
 // a Mighty Azumarill is still under 1500 at level 40, so it stays a Great League pick
 assert.ok(decideBatch(parseBatch("0/15/15 mighty azumarill", idx).entries, idx)[0].roles.some((c) => c.role === "gl"));
 console.log("mighty ok");
+
+// quick-entry form: every suggested name maps back to that exact species; partial and form-first names work too
+const { lookupSpecies, pickableNames } = await import("../lib/pogo.js");
+for (const n of pickableNames(idx)) assert.equal(lookupSpecies(n, idx)?.name, n);
+assert.equal(lookupSpecies("alolan ninetales", idx).id, "ninetales_alolan");
+assert.equal(lookupSpecies("rhyp", idx).id, "rhyperior");
+assert.equal(lookupSpecies("", idx), null);
+assert.ok(!pickableNames(idx).some((n) => /Shadow|Mega/.test(n)));
+console.log("quick entry ok");

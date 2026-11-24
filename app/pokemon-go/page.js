@@ -1,9 +1,9 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { PALETTE } from "@/lib/constants";
-import { indexSpecies, parseBatch, decideBatch, transferList, explain, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
+import { indexSpecies, parseBatch, decideBatch, transferList, explain, lookupSpecies, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, trophy: PALETTE.slate };
 const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax"];
@@ -64,39 +64,101 @@ function Why({ entry, idx }) {
   );
 }
 
+const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", lucky: "Lucky", shiny: "Shiny", costume: "Costume", background: "Background", dynamax: "Dynamax", gigantamax: "G-Max" };
+
+// quick entry: name (suggested as you type), three IV boxes that jump ahead as you type, tap-to-toggle flags.
+// Enter adds to the batch and keeps the name, so a run of the same Pokémon is just IVs + Enter.
+function QuickEntry({ idx, onAdd }) {
+  const [name, setName] = useState("");
+  const [ivs, setIvs] = useState(["", "", ""]); // strings: empty stays empty
+  const [flags, setFlags] = useState({});
+  const [err, setErr] = useState("");
+  const refs = [useRef(null), useRef(null), useRef(null)];
+  const names = useMemo(() => pickableNames(idx), [idx]);
+
+  function setIv(i, v) {
+    if (!/^\d{0,2}$/.test(v) || Number(v) > 15) return;
+    setIvs((p) => p.map((x, j) => (j === i ? v : x)));
+    // one digit is complete unless it's a 1 (could be 10–15); two digits always are
+    if (i < 2 && (v.length === 2 || (v.length === 1 && v !== "1"))) refs[i + 1].current?.focus();
+  }
+
+  function add(e) {
+    e?.preventDefault();
+    const species = lookupSpecies(name, idx);
+    if (!species) return setErr(name.trim() ? `Don't know "${name}"` : "Pick a Pokémon");
+    if (ivs.some((v) => v === "")) return setErr("Fill in all three IVs");
+    onAdd({ species, ivs: ivs.map(Number), flags });
+    setIvs(["", "", ""]); setFlags({}); setErr("");
+    refs[0].current?.focus();
+  }
+
+  const field = { padding: "6px 8px", font: "inherit" };
+  return (
+    <form onSubmit={add} className="card" style={{ padding: "10px 12px" }}>
+      <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
+        <input list="pogo-names" value={name} onChange={(e) => setName(e.target.value)} placeholder="Pokémon" aria-label="Pokémon" autoFocus
+          style={{ ...field, flex: "1 1 180px", minWidth: 0 }} />
+        <datalist id="pogo-names">{names.map((n) => <option key={n} value={n} />)}</datalist>
+        {["Atk", "Def", "HP"].map((label, i) => (
+          <input key={label} ref={refs[i]} inputMode="numeric" value={ivs[i]} onChange={(e) => setIv(i, e.target.value)} placeholder={label} aria-label={`${label} IV`}
+            style={{ ...field, width: 56, textAlign: "center" }} />
+        ))}
+        <button type="submit" className="btn btn-primary">Add</button>
+      </div>
+      <div className="row" style={{ marginBottom: 0 }}>
+        {FLAG_ORDER.map((f) => (
+          <button key={f} type="button" aria-pressed={!!flags[f]} onClick={() => setFlags((p) => ({ ...p, [f]: !p[f] }))}
+            className={`btn${flags[f] ? " btn-primary" : ""}`} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>
+            {FLAG_LABEL[f]}
+          </button>
+        ))}
+      </div>
+      {err && <p className="status error" style={{ marginTop: 6, marginBottom: 0 }}>{err}</p>}
+    </form>
+  );
+}
+
 export default function PokemonGoPage() {
   const [idx, setIdx] = useState(null);
   const [box, setBox] = useState([]);
-  const [text, setText] = useState("");
-  const [results, setResults] = useState(null);
+  const [batch, setBatch] = useState([]); // [{ id, ivs, flags: [] }], kept in this browser until cleared
+  const [paste, setPaste] = useState("");
   const [errors, setErrors] = useState([]);
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
     fetch("/pogo-data.json").then((r) => r.json()).then((d) => setIdx(indexSpecies(d))).catch(() => setMsg("Couldn't load the Pokémon data file."));
-    setText(localStorage.getItem("pogo_draft") || "");
+    try { setBatch(JSON.parse(localStorage.getItem("pogo_batch") || "[]")); } catch {}
     loadBox();
   }, []);
-  useEffect(() => { if (text) localStorage.setItem("pogo_draft", text); else localStorage.removeItem("pogo_draft"); }, [text]);
+  useEffect(() => { localStorage.setItem("pogo_batch", JSON.stringify(batch)); }, [batch]);
 
   async function loadBox() {
     const { data } = await supabase.from("pogo_box").select("*").order("created_at");
     if (data) setBox(data);
   }
 
+  const addRows = (entries) => setBatch((b) => [...b, ...entries.map((e) => ({ id: e.species.id, ivs: e.ivs, flags: Object.keys(e.flags).filter((f) => e.flags[f]) }))]);
+
   // saved box rows -> entries the engine understands
   const boxEntries = useMemo(() => (idx ? box.filter((b) => idx.byId[b.species_id]).map((b) => ({
     id: b.id, species: idx.byId[b.species_id], ivs: [b.atk, b.def, b.hp], flags: Object.fromEntries(b.flags.map((f) => [f, true])), roles: b.roles,
   })) : []), [idx, box]);
 
-  function check(e) {
-    e?.preventDefault();
-    if (!idx || !text.trim()) return;
-    const { entries, errors } = parseBatch(text, idx);
-    setErrors(errors);
+  // results update live as the batch changes
+  const results = useMemo(() => {
+    if (!idx || !batch.length) return null;
+    const entries = batch.filter((r) => idx.byId[r.id]).map((r) => ({ species: idx.byId[r.id], ivs: r.ivs, flags: Object.fromEntries(r.flags.map((f) => [f, true])) }));
     const res = decideBatch(entries, idx, boxEntries);
-    setResults(ORDER.flatMap((v) => res.filter((r) => r.verdict === v)));
-    setMsg("");
+    return ORDER.flatMap((v) => res.filter((r) => r.verdict === v));
+  }, [idx, batch, boxEntries]);
+
+  function addPasted() {
+    const { entries, errors } = parseBatch(paste, idx);
+    setErrors(errors);
+    addRows(entries);
+    if (!errors.length) setPaste("");
   }
 
   async function saveKeepers() {
@@ -128,23 +190,35 @@ export default function PokemonGoPage() {
   return (
     <div>
       <h1 className="page-title">Pokémon GO</h1>
-      <p className="muted" style={{ marginBottom: "0.75rem" }}>
-        Paste one or a batch, e.g. <code>14/14/6 shadow gabite</code> or <code>phantump 8/15/15 purified, 14/10/15, 8/13/11 shadow</code>. A piece with no name reuses the last one.
-        Flags: mighty, shadow, purified, lucky, shiny, costume, background, dynamax, gigantamax.
-      </p>
+      {!idx ? <p className="muted">{msg || "Loading Pokémon data…"}</p> : <QuickEntry idx={idx} onAdd={(e) => addRows([e])} />}
 
-      <form onSubmit={check}>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="15/12/13 dynamax machop, 13/11/13 gigantamax machamp … (Enter to check, Shift+Enter for a new line)"
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) check(e); }}
-          style={{ width: "100%", padding: "8px 10px", font: "inherit", resize: "vertical" }} aria-label="Pokémon to check" />
-        <div className="row" style={{ marginTop: 6, alignItems: "center" }}>
-          <button type="submit" className="btn btn-primary" disabled={!idx}>{idx ? "Check" : "Loading data…"}</button>
-          {results && keepers.length > 0 && <button type="button" className="btn" onClick={saveKeepers}>Save {keepers.length} keeper{keepers.length > 1 ? "s" : ""} to box</button>}
-          {results && transfers.length > 0 && <button type="button" className="btn" onClick={copyTransfers}>Copy transfer list</button>}
-          {msg && <span className="muted">{msg}</span>}
+      {idx && batch.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <div className="row" style={{ alignItems: "center" }}>
+            <strong>Batch ({batch.length})</strong>
+            {keepers.length > 0 && <button type="button" className="btn" onClick={saveKeepers}>Save {keepers.length} keeper{keepers.length > 1 ? "s" : ""} to box</button>}
+            {transfers.length > 0 && <button type="button" className="btn" onClick={copyTransfers}>Copy transfer list</button>}
+            <button type="button" className="btn" onClick={() => setBatch([])}>Clear batch</button>
+            {msg && <span className="muted">{msg}</span>}
+          </div>
+          <div className="row">
+            {batch.map((r, i) => (
+              <span key={i} style={{ display: "inline-flex", gap: 6, alignItems: "center", border: "1px solid var(--border)", borderRadius: 999, padding: "2px 4px 2px 10px", fontSize: "0.82rem" }}>
+                {idx.byId[r.id]?.name} {r.ivs.join("/")}{r.flags.length ? <span className="muted">{r.flags.map((f) => FLAG_LABEL[f]).join(", ")}</span> : null}
+                <button type="button" onClick={() => setBatch((b) => b.filter((_, j) => j !== i))} aria-label="Remove from batch" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>✕</button>
+              </span>
+            ))}
+          </div>
         </div>
-      </form>
+      )}
 
+      <details style={{ marginTop: 8 }}>
+        <summary className="muted" style={{ fontWeight: 400 }}>Paste a list instead</summary>
+        <p className="muted" style={{ marginBottom: 6 }}>e.g. <code>phantump 8/15/15 purified, 14/10/15, 8/13/11 shadow</code> (a piece with no name reuses the last one)</p>
+        <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={3} style={{ width: "100%", padding: "8px 10px", font: "inherit" }}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addPasted(); } }} aria-label="Paste Pokémon" />
+        <button type="button" className="btn" onClick={addPasted} disabled={!idx}>Add to batch</button>
+      </details>
       {errors.length > 0 && <p className="status error">{errors.join(" · ")}</p>}
 
       {results && (
