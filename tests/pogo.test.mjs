@@ -167,7 +167,7 @@ assert.equal(lookupSpecies("", idx), null);
 assert.ok(!pickableNames(idx).some((n) => /Shadow|Mega/.test(n)));
 console.log("quick entry ok");
 
-// duplicate trophies: one hundo/98% and one shiny per species is kept; extras are trade bait (not transfers)
+// duplicate trophies: one hundo and one shiny per species is kept; extras are trade bait (not transfers)
 const { tradeList } = await import("../lib/pogo.js");
 const tro = decideBatch(parseBatch("3/4/5 shiny alolan ninetales, 10/12/14 shiny alolan ninetales, 1/1/1 costume alolan ninetales, 2/2/2 costume alolan ninetales, 6/6/6 shiny shadow alolan ninetales", idx).entries, idx);
 assert.deepEqual(tro.map((r) => r.verdict), ["trade", "keep", "keep", "keep", "keep"]); // costumes always kept; shadow shiny separate
@@ -237,3 +237,5 @@ const fullTeam = decideBatch(parseBatch("0/13/13 snorlax", idx).entries, idx, pa
 assert.ok(!fullTeam.roles.some((c) => c.role === "gym"));
 // a gym-line transfer says why (HP under 13)
 assert.match(decideBatch(parseBatch("0/15/12 snorlax", idx).entries, idx)[0].reasons.join(" "), /HP 12/);
+// a 98% with no job is just a transfer; a hundo is still a trophy
+assert.deepEqual(decideBatch(parseBatch("15/15/14 alolan ninetales, 15/15/15 alolan ninetales", idx).entries, idx).map((r) => r.verdict), ["transfer", "keep"]);
