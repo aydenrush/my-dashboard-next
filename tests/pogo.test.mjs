@@ -202,3 +202,12 @@ assert.doesNotMatch(transferList(fl), /0\/0\/4/);
 // gym defenders: Defense/HP 13+ (Attack ignored); the runner-up is a backup
 const gy = decideBatch(parseBatch("0/15/15 snorlax, 0/13/14 snorlax, 0/12/15 snorlax, 0/15/15 shadow snorlax", idx).entries, idx);
 assert.deepEqual(gy.map((r) => r.verdict), ["keep", "backup", "transfer", "transfer"]);
+
+// projects: one ranked list per family, box keepers included, best job first
+const { projects } = await import("../lib/pogo.js");
+const pb = decideBatch(parseBatch("15/14/14 gible", idx).entries, idx, parseBatch("0/15/15 gible", idx).entries, { includeBox: true });
+const pj = projects(pb);
+assert.equal(pj.length, 1);
+assert.ok(pj[0].items.length >= 1);
+assert.ok(pj[0].items.every((x, i, a) => !i || a[i - 1].value >= x.value));
+assert.deepEqual(projects(decideBatch([], idx, parseBatch("15/14/14 gible", idx).entries, { includeBox: true })), []); // box-only families stay out

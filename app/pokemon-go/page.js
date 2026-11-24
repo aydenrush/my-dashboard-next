@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { PALETTE } from "@/lib/constants";
-import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
+import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, projects, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, gym: PALETTE.slate, trophy: PALETTE.slate };
 const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax", "oneoff", "legacy", "xxl", "old", "keep"];
@@ -178,12 +178,14 @@ export default function PokemonGoPage() {
   })) : []), [idx, box]);
 
   // results update live as the batch changes
+  const entries = useMemo(() => (idx ? batch.filter((r) => idx.byId[r.id]).map((r) => ({ species: idx.byId[r.id], ivs: r.ivs, flags: listToFlags(r.flags) })) : []), [idx, batch]);
   const results = useMemo(() => {
     if (!idx || !batch.length) return null;
-    const entries = batch.filter((r) => idx.byId[r.id]).map((r) => ({ species: idx.byId[r.id], ivs: r.ivs, flags: listToFlags(r.flags) }));
     const res = decideBatch(entries, idx, boxEntries);
     return ORDER.flatMap((v) => res.filter((r) => r.verdict === v));
-  }, [idx, batch, boxEntries]);
+  }, [idx, batch.length, entries, boxEntries]);
+  // per family: which keeper (batch or box) to power up first
+  const projectList = useMemo(() => (idx && entries.length ? projects(decideBatch(entries, idx, boxEntries, { includeBox: true })) : []), [idx, entries, boxEntries]);
 
   function addPasted() {
     const { entries, errors } = parseBatch(paste, idx);
@@ -276,6 +278,32 @@ export default function PokemonGoPage() {
         <button type="button" className="btn" onClick={addPasted} disabled={!idx}>Add to batch</button>
       </details>
       {errors.length > 0 && <p className="status error">{errors.join(" · ")}</p>}
+
+      {projectList.length > 0 && (
+        <details open className="card" style={{ marginTop: "1rem", padding: "10px 12px" }}>
+          <summary>Projects: what to power up first</summary>
+          <p className="muted" style={{ fontSize: "0.82rem", marginTop: 0 }}>Per family, best investment first (your box included). Already done #1? Look at the next one.</p>
+          {projectList.map((p) => (
+            <div key={p.family} style={{ marginBottom: 8 }}>
+              <strong>{p.items[0].jobs[0].target.name.replace(/ \(.*\)$/, "")} line</strong>
+              <ol style={{ margin: "4px 0 0", paddingLeft: 22, fontSize: "0.85rem" }}>
+                {p.items.map((x, i) => {
+                  const e = x.result.entry, j = x.jobs[0];
+                  return (
+                    <li key={i} style={{ marginBottom: 2 }}>
+                      <strong>{e.species.name} {e.ivs.join("/")}</strong>{flagNames(e.flags) && <span className="muted"> {flagNames(e.flags, ", ")}</span>}
+                      {x.result.fromBox && <span className="muted"> (in your box)</span>}{x.backup && <span className="muted"> (backup)</span>}
+                      {" "}<Chip color={ROLE_COLOR[j.role]}>{jobLabel(jobKey(j))}</Chip>
+                      {x.jobs.slice(1).map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}
+                      <span className="muted">{x.backup ? "Only if the keeper above goes." : `${j.evo ? `Evolve to ${j.evo.to}${j.evo.candy ? ` (${j.evo.candy} candy)` : ""}, then ` : ""}${j.invest[0].toLowerCase() + j.invest.slice(1)}.`}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          ))}
+        </details>
+      )}
 
       {results && (
         <div style={{ marginTop: "1rem" }}>
