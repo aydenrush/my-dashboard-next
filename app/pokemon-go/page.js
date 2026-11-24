@@ -80,8 +80,6 @@ const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", l
 // 13/14/15 -> "93%" (the in-game appraisal percentage)
 // what one evolution step costs: "100 candy", "50 candy + Metal Coat", "999 Gimmighoul Coins"; "?" when the data doesn't say
 const evoCost = (t) => [t.candy ? `${t.candy} candy` : t.candy == null ? "? candy" : null, t.evoItem, ...(t.evoNotes || [])].filter(Boolean).join(" + ");
-// what to do for a job: "Evolve to Garchomp (100 candy), then level 40; XL Candy is worth it here."
-const todo = (j) => `${j.evo ? `Evolve to ${j.evo.to}${j.evo.candy ? ` (${j.evo.candy} candy${j.evo.items?.length ? ` + ${j.evo.items.join(" + ")}` : ""})` : ""}, then ` : ""}${j.invest[0].toLowerCase() + j.invest.slice(1)}.`;
 // "Dragon / Ground" next to a name (the data pads single types with "none")
 const Types = ({ s }) => <span className="muted" style={{ fontSize: "0.78rem" }}> {s.types.filter((t) => t && t !== "none").map(cap).join(" / ")}</span>;
 const ivPct = (ivs) => `${Math.round(ivs.reduce((x, y) => x + y, 0) / 0.45)}%`;
@@ -90,7 +88,7 @@ const VARIANT = ["costume", "background"]; // these carry a number: which costum
 const flagNames = (flags, sep = " · ") => FLAG_ORDER.filter((f) => flags[f]).map((f) => FLAG_LABEL[f] + (flags[f] === true ? "" : ` ${flags[f]}`)).join(sep);
 
 // one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
-function ProjectCard({ n, x, onDone }) {
+function ProjectCard({ n, x, onDone, inBox }) {
   const e = x.result.entry, j = x.jobs[0];
   return (
     <div className="card" style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 12px", marginBottom: 6 }}>
@@ -99,11 +97,12 @@ function ProjectCard({ n, x, onDone }) {
         <div>
           <strong>{e.species.name}</strong><Types s={e.species} /> <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: 6 }}>{e.ivs.join("/")}</span> <span className="muted">{ivPct(e.ivs)}</span>
           {flagNames(e.flags) && <span className="muted"> · {flagNames(e.flags, ", ")}</span>}
-          {x.result.fromBox && <span className="muted"> · in your box</span>}
+          {x.result.fromBox && !inBox && <span className="muted"> · in your box</span>}
         </div>
         <div style={{ marginTop: 4 }}>{x.jobs.map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}</div>
         {x.backup ? <div style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Backup:</span> only if the one above goes</div> : <>
-          {j.evo && (
+          {j.evo && !j.evo.to && <div style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Mega:</span> Mega Evolve it for raids (needs Mega Energy)</div>}
+          {j.evo?.to && (
             <div style={{ fontSize: "0.85rem", marginTop: 6 }}>
               <span className="muted">Evolve:</span> {j.evo.to}{j.evo.candy ? ` · ${j.evo.candy} candy` : ""}{j.evo.items?.length ? ` · ${j.evo.items.join(", ")}` : ""}
             </div>
@@ -476,7 +475,8 @@ export default function PokemonGoPage() {
               {r.roles.map((c) => (
                 <div key={jobKey(c)} style={{ fontSize: "0.85rem", marginTop: 4 }}>
                   <span style={{ color: ROLE_COLOR[c.role] }}>{jobLabel(jobKey(c))}:</span> {c.detail}. <span className="muted">{c.invest}.</span>
-                  {c.evo && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? `; don't evolve until you have all ${c.evo.candy} candy (one go)` : ""}{c.evo.items?.length ? `; needs ${c.evo.items.join(" + ")}` : ""}.</span>}
+                  {c.evo && !c.evo.to && <span className="muted"> Mega Evolve it for raids (needs Mega Energy).</span>}
+                  {c.evo?.to && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? `; don't evolve until you have all ${c.evo.candy} candy (one go)` : ""}{c.evo.items?.length ? `; needs ${c.evo.items.join(" + ")}` : ""}.</span>}
                   {c.note && <span style={{ color: PALETTE.amber }}> {c.note}.</span>}
                 </div>
               ))}
@@ -523,7 +523,7 @@ export default function PokemonGoPage() {
           <div style={{ margin: "8px 0 16px" }}>
             <div style={{ marginBottom: 6 }}><strong>Top projects</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>best investment first; tap Done once it's powered up</span></div>
             {boxProjects.filter((x) => !x.result.entry.roles.includes("done")).slice(0, 10).map((x, i) => (
-              <ProjectCard key={x.result.entry.id} n={i + 1} x={x} onDone={() => toggleDone(x.result.entry)} />
+              <ProjectCard key={x.result.entry.id} n={i + 1} x={x} inBox onDone={() => toggleDone(x.result.entry)} />
             ))}
           </div>
         )}
