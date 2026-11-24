@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { PALETTE } from "@/lib/constants";
@@ -25,6 +25,13 @@ const VERDICT = {
   transfer: { label: "Transfer", color: PALETTE.slate },
 };
 const ORDER = ["keep", "backup", "trade", "borderline", "transfer"];
+const SECTION = {
+  keep: "Keep",
+  backup: "Backup (hold untouched)",
+  trade: "Trade bait (hold for trades, never transfer)",
+  borderline: "Borderline (your call)",
+  transfer: "Transfer (what Copy transfer list copies)",
+};
 
 // the "Why?" breakdown under a result: every form and league it was judged on, and why each did or didn't count
 function Why({ entry, idx }) {
@@ -233,7 +240,13 @@ export default function PokemonGoPage() {
         <div style={{ marginTop: "1rem" }}>
           {results.length === 0 && <p className="empty">Nothing recognized.</p>}
           {results.map((r, i) => (
-            <div key={i} className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}` }}>
+            <Fragment key={i}>
+            {(i === 0 || results[i - 1].verdict !== r.verdict) && (
+              <h3 style={{ fontSize: "0.9rem", color: VERDICT[r.verdict].color, margin: "14px 0 6px" }}>
+                {SECTION[r.verdict]} · {results.filter((x) => x.verdict === r.verdict).length}
+              </h3>
+            )}
+            <div className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}` }}>
               <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
                 <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
                 <strong>{r.entry.species.name}</strong>
@@ -266,6 +279,7 @@ export default function PokemonGoPage() {
               {r.reasons.length > 0 && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.reasons.join(" · ")}</div>}
               <details style={{ marginTop: 4 }}><summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Why?</summary><Why entry={r.entry} idx={idx} /></details>
             </div>
+            </Fragment>
           ))}
         </div>
       )}
