@@ -78,7 +78,7 @@ function Why({ entry, idx }) {
 const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", lucky: "Lucky", shiny: "Shiny", costume: "Costume", background: "Background", dynamax: "Dynamax", gigantamax: "G-Max", oneoff: "One-off", legacy: "Legacy move", xxl: "XXL", old: "Old catch", keep: "Keep anyway" };
 // 13/14/15 -> "93%" (the in-game appraisal percentage)
 // what one evolution step costs: "100 candy", "50 candy + Metal Coat", "999 Gimmighoul Coins"; "?" when the data doesn't say
-const evoCost = (t) => [t.candy ? `${t.candy} candy` : t.candy == null ? "? candy" : null, t.evoItem].filter(Boolean).join(" + ");
+const evoCost = (t) => [t.candy ? `${t.candy} candy` : t.candy == null ? "? candy" : null, t.evoItem, ...(t.evoNotes || [])].filter(Boolean).join(" + ");
 const ivPct = (ivs) => `${Math.round(ivs.reduce((x, y) => x + y, 0) / 0.45)}%`;
 const VARIANT = ["costume", "background"]; // these carry a number: which costume/background it is
 // { costume: 2, shiny: true } -> "Shiny · Costume 2"
@@ -267,24 +267,22 @@ export default function PokemonGoPage() {
   const keepers = results?.filter((r) => r.keep || r.verdict === "hold") || [];
   const transfers = results?.filter((r) => r.verdict === "transfer") || [];
   const tradeBait = results?.filter((r) => r.verdict === "trade") || [];
-  // one Dex evolve hint per family: on the most-evolved transfer that can still evolve, all the way to the final stage
-  // shortcut: follows the first branch only (Eevee, Gloom...), fine for most lines
-  const pathToFinal = (s) => {
-    const out = [];
-    for (let t = idx?.byId[s.evolutions[0]]; t; t = idx.byId[t.evolutions[0]]) out.push(t);
-    return out;
+  // one Dex evolve hint per family, on the most-evolved transfer that can still evolve: every branch (Eevee, Gloom...)
+  // to its final stage. Stages you obviously have (in the batch or box) are registered already, so paths stop before them.
+  const branches = (s) => {
+    const next = s.evolutions.map((id) => idx?.byId[id]).filter(Boolean);
+    return next.length ? next.flatMap((t) => branches(t).map((p) => [t, ...p])) : [[]];
   };
-  const dexHint = new Map(); // result -> stages it would register
-  const best = {};
-  // stages you obviously have (in the batch or box) are registered already: stop the path at the last one you don't
   const owned = new Set([...(results || []), ...boxEntries.map((entry) => ({ entry }))].map((r) => r.entry.species.id));
+  const dexHint = new Map(); // result -> [path of stages, ...]
+  const best = {};
   for (const r of transfers) {
-    const full = pathToFinal(r.entry.species);
-    const path = full.slice(0, full.findLastIndex((t) => !owned.has(t.id)) + 1);
+    const paths = branches(r.entry.species).map((p) => p.slice(0, p.findLastIndex((t) => !owned.has(t.id)) + 1)).filter((p) => p.length);
+    const size = paths.reduce((n, p) => n + p.length, 0);
     const cur = best[r.entry.species.family];
-    if (path.length && (!cur || path.length < cur.path.length)) best[r.entry.species.family] = { r, path };
+    if (paths.length && (!cur || size < cur.size)) best[r.entry.species.family] = { r, paths, size };
   }
-  for (const { r, path } of Object.values(best)) dexHint.set(r, path);
+  for (const { r, paths } of Object.values(best)) dexHint.set(r, paths);
 
   return (
     <div>
@@ -403,7 +401,13 @@ export default function PokemonGoPage() {
                 </div>
               ))}
               {r.reasons.length > 0 && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.reasons.join(" · ")}</div>}
-              {dexHint.has(r) && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>Dex: if {dexHint.get(r).map((t) => t.name).join(" or ")} {dexHint.get(r).length > 1 ? "aren't" : "isn't"} registered yet, evolve this one to {dexHint.get(r).at(-1).name} first ({dexHint.get(r).map(evoCost).join(", then ")}), then transfer.</div>}
+              {dexHint.has(r) && (
+                <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                  {dexHint.get(r).length === 1
+                    ? <>Dex: if {dexHint.get(r)[0].map((t) => t.name).join(" or ")} {dexHint.get(r)[0].length > 1 ? "aren't" : "isn't"} registered yet, evolve this one to {dexHint.get(r)[0].at(-1).name} first ({dexHint.get(r)[0].map(evoCost).join(", then ")}), then transfer.</>
+                    : <>Dex: evolve spares into any you haven't registered, then transfer: {dexHint.get(r).map((p) => `${p.at(-1).name} (${p.map(evoCost).join(", then ")})`).join("; ")}.</>}
+                </div>
+              )}
               <details style={{ marginTop: 4 }}><summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Why?</summary><Why entry={r.entry} idx={idx} /></details>
             </div>
             </Fragment>

@@ -255,3 +255,9 @@ assert.match(worse.speciesNote, /Your box's Azumarill 15\/0\/0 is already the pl
 const better = decideBatch(parseBatch("0/15/15 azumarill, 13/2/2 azumarill", idx).entries, idx, heldBox)[1];
 assert.equal(better.verdict, "hold");
 assert.equal(better.hold[0].replaces, "Azumarill 15/0/0");
+
+// evolution conditions ride along with the evolve step (items first, then conditions)
+const condData = { ...data, species: data.species.map((s) => (s.id === "garchomp" ? { ...s, evoItem: "Dragon Scale", evoNotes: ["night only"] } : s)) };
+const condIdx = indexSpecies(condData);
+const condRaid = decideBatch(parseBatch("15/15/15 gible", condIdx).entries, condIdx)[0].roles.find((c) => c.role === "raid");
+assert.ok(condRaid.evo.items.includes("Dragon Scale") && condRaid.evo.items.includes("night only"));

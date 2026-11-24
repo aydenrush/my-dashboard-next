@@ -57,14 +57,34 @@ async function main() {
     const name = ITEM_NAMES[id] || (/TROY_DISK_/.test(id) ? `${title(id.replace(/^ITEM_TROY_DISK_/, ""))} Lure` : title(id.replace(/^ITEM_/, "")));
     return (cost ? `${cost} ` : "") + (FIX[name] || name);
   };
+  // evolution quests: "ANNIHILAPE_EVOLUTION_QUEST" -> "quest: fight type ghost psychic ×30"
+  const quests = {};
+  for (const e of game) {
+    const q = e.data?.evolutionQuestTemplate;
+    if (!q) continue;
+    let what = (q.display?.description || q.questType || "").replace(/^quest_|^QUEST_/, "").replace(/_(plural|singular)$/, "").toLowerCase().replace(/_/g, " ");
+    const n = q.goals?.[0]?.target;
+    if (/buddy affection/.test(what)) what = "earn buddy hearts"; // Sylveon
+    if (/^land excellent/.test(what)) what = "land excellent throws";
+    quests[e.templateId] = `quest: ${what}${n > 1 ? ` ×${n}` : ""}`;
+  }
+  // conditions on one evolution branch, in words
+  const conditions = (b) => [
+    b.onlyDaytime && "daytime only", b.onlyNighttime && "night only", b.onlyDuskPeriod && "at dusk", b.onlyFullMoon && "full moon only",
+    b.onlyUpsideDown && "phone upside down",
+    b.kmBuddyDistanceRequirement ? `walk ${b.kmBuddyDistanceRequirement} km as buddy` : b.mustBeBuddy && "must be your buddy",
+    b.genderRequirement && `${b.genderRequirement.toLowerCase()} only`,
+    ...(b.questDisplay || []).map((q) => quests[q.questRequirementTemplateId]).filter((q) => q && !(b.kmBuddyDistanceRequirement && /buddy walk/.test(q))),
+    b.noCandyCostViaTrade && "free if traded first",
+  ].filter(Boolean);
   const candy = {};
   for (const e of game) {
     const ps = e.data?.pokemonSettings;
     if (!ps?.evolutionBranch || !/^V\d+_POKEMON_[A-Z0-9_]+$/.test(e.templateId)) continue;
     for (const b of ps.evolutionBranch) {
       const item = b.evolutionItemRequirement || b.lureItemRequirement;
-      if (!b.evolution || (!b.candyCost && !item)) continue;
-      const v = { candy: b.candyCost || 0, purified: b.candyCostPurified || b.candyCost || 0, item: item ? itemName(item, b.evolutionItemRequirementCost) : null };
+      if (!b.evolution) continue;
+      const v = { candy: b.candyCost || 0, purified: b.candyCostPurified || b.candyCost || 0, item: item ? itemName(item, b.evolutionItemRequirementCost) : null, notes: conditions(b) };
       for (const key of [b.evolution, b.form?.replace(/_NORMAL$/, "")].filter(Boolean)) candy[key.toLowerCase()] ??= v;
     }
   }
@@ -152,6 +172,7 @@ async function main() {
       candy: candy[p.speciesId]?.candy ?? candy[base]?.candy ?? null,
       candyPurified: candy[p.speciesId]?.purified ?? candy[base]?.purified ?? null,
       evoItem: candy[p.speciesId]?.item ?? candy[base]?.item ?? null, // e.g. "Metal Coat" to evolve into this
+      evoNotes: (candy[p.speciesId] ?? candy[base])?.notes || [], // e.g. "night only", "walk 10 km as buddy"
     };
   });
 
