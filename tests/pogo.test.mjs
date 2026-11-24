@@ -15,8 +15,8 @@ const data = {
     sp("celebi", "Celebi", { tags: ["mythical"] }),
     sp("snorlax", "Snorlax"),
     sp("azumarill", "Azumarill", { family: "A", atk: 112, def: 152, hp: 225, gl: 5, ul: 60 }),
-    sp("ninetales_alolan", "Ninetales (Alolan)", { family: "N" }),
-    sp("rhyperior", "Rhyperior", { family: "R", atk: 241, def: 190, hp: 251, ml: 59, raid: { type: "rock", rank: 11, pct: 82, fast: "SMACK_DOWN", charged: "ROCK_WRECKER", elite: true } }),
+    sp("ninetales_alolan", "Ninetales (Alolan)", { family: "N", maxTypes: [{ type: "ice", rank: 40, pct: 55 }], maxTank: 300 }),
+    sp("rhyperior", "Rhyperior", { family: "R", atk: 241, def: 190, hp: 251, ml: 59, maxTypes: [{ type: "rock", rank: 9, pct: 81 }], maxTank: 30, raid: { type: "rock", rank: 11, pct: 82, fast: "SMACK_DOWN", charged: "ROCK_WRECKER", elite: true } }),
   ],
 };
 const idx = indexSpecies(data);
@@ -82,7 +82,7 @@ assert.match(transferList(vsBox), /Gible 15\/14\/14/);
 assert.equal(decideBatch(parseBatch("15/15/15 gible, 15/14/14 gible", idx).entries, idx)[1].verdict, "backup");
 
 // Dynamax needs 15 Attack; Gigantamax doesn't
-// ...and a Dynamax only counts if the species is a real raid attacker (Alolan Ninetales here isn't); G-Max always counts
+// ...and a Dynamax attacker needs 70%+ of the best of its Max move type (Alolan Ninetales here is 55%); G-Max always counts
 const mx = decideBatch(parseBatch("13/10/14 dynamax alolan ninetales, 15/12/13 dynamax alolan ninetales, 10/10/10 gigantamax alolan ninetales", idx).entries, idx);
 assert.deepEqual(mx.map((r) => r.verdict), ["transfer", "transfer", "keep"]);
 const realMax = decideBatch(parseBatch("15/12/13 dynamax rhyperior", idx).entries, idx)[0]; // Rhyperior is #11 Rock
@@ -211,3 +211,10 @@ assert.equal(pj.length, 1);
 assert.ok(pj[0].items.length >= 1);
 assert.ok(pj[0].items.every((x, i, a) => !i || a[i - 1].value >= x.value));
 assert.deepEqual(projects(decideBatch([], idx, parseBatch("15/14/14 gible", idx).entries, { includeBox: true })), []); // box-only families stay out
+
+// Max Battles: attacker per Max move type (G-Max beats Dynamax at the same job), tank by bulk with Def/HP 13+
+const mb = decideBatch(parseBatch("15/10/10 dynamax rhyperior, 15/11/11 gigantamax rhyperior, 2/14/15 dynamax rhyperior, 15/10/10 rhyperior", idx).entries, idx);
+assert.ok(mb[1].roles.some((c) => c.role === "max" && c.rtype === "rock"));
+assert.ok(!mb[0].roles.some((c) => c.role === "max" && c.rtype === "rock")); // behind the G-Max
+assert.ok(mb[2].roles.some((c) => c.role === "max" && c.rtype === "tank"));
+assert.ok(!mb[3].roles.some((c) => c.role === "max")); // not caught as Dynamax

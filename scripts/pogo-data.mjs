@@ -1,6 +1,7 @@
 // Builds public/pogo-data.json for the Pokémon GO page from two free sources:
 //  - PvPoke (MIT): species, base stats, moves, families, Great/Ultra/Master League rankings
 //  - PokeMiners' copy of the game master: raid (PvE) move power/energy/duration, evolution candy, CP multipliers
+// Max Battle ranks are our own estimate from stats (no free source has them).
 // Run: npm run pogo-data. If a download fails the existing file is kept, so a deploy never breaks on it.
 import { writeFileSync, existsSync } from "node:fs";
 
@@ -100,6 +101,25 @@ async function main() {
     list.forEach(([id], i) => { (typeRank[id] ||= {})[T] = { rank: i + 1, pct: Math.round((list[i][1] / list[0][1]) * 100) }; });
   }
 
+  // Max Battles: a Max move's type is the fast move's type and its power is fixed, so an attacker is
+  // Attack x STAB (bulk a little, it has to survive). Tanks/healers (Max Guard/Spirit) are pure bulk.
+  // Shadows and Megas can't Dynamax.
+  const maxPool = released.filter((p) => !p.tags?.includes("shadow") && !p.tags?.includes("mega") && !/_mega/.test(p.speciesId));
+  const maxByType = {};
+  for (const p of maxPool) {
+    const atk = (p.baseStats.atk + 15) * cpm40, bulk = (p.baseStats.def + 15) * (p.baseStats.hp + 15) * cpm40 * cpm40;
+    for (const T of new Set(p.fastMoves.map((m) => pve[m]?.type).filter(Boolean))) {
+      (maxByType[T] ||= []).push([p.speciesId, atk * (p.types.includes(T) ? STAB : 1) * Math.pow(bulk, 0.125)]);
+    }
+  }
+  const maxRank = {};
+  for (const [T, list] of Object.entries(maxByType)) {
+    list.sort((a, b) => b[1] - a[1]);
+    list.forEach(([id, sc], i) => (maxRank[id] ||= []).push({ type: T, rank: i + 1, pct: Math.round((sc / list[0][1]) * 100) }));
+  }
+  const tankList = maxPool.map((p) => [p.speciesId, (p.baseStats.def + 15) * (p.baseStats.hp + 15)]).sort((a, b) => b[1] - a[1]);
+  const tankRank = Object.fromEntries(tankList.map(([id], i) => [id, i + 1]));
+
   const species = scored.map(({ p, raid }) => {
     // best attacking type for this species = its best rank across types
     // its 3 best attacking types (best first), each with rank, % of the type's #1, and the moveset used
@@ -116,6 +136,8 @@ async function main() {
       gl: ranks.gl[p.speciesId] || null, ul: ranks.ul[p.speciesId] || null, ml: ranks.ml[p.speciesId] || null,
       raid: best, // the page decides what counts as raid-relevant (raidTop)
       raidTypes,
+      maxTypes: (maxRank[p.speciesId] || []).sort((x, y) => x.rank - y.rank).slice(0, 3), // Max attacker rank per Max move type
+      maxTank: tankRank[p.speciesId] || null, // bulk rank among everything that can Dynamax
       candy: candy[p.speciesId]?.candy ?? candy[base]?.candy ?? null,
       candyPurified: candy[p.speciesId]?.purified ?? candy[base]?.purified ?? null,
     };
