@@ -78,7 +78,7 @@ assert.ok(by("15/15/15", "ninetales_alolan").roles.some((c) => c.role === "troph
 const box = parseBatch("15/15/15 gible", idx).entries;
 const vsBox = decideBatch(parseBatch("15/14/14 gible", idx).entries, idx, box);
 assert.equal(vsBox[0].verdict, "transfer");
-assert.equal(vsBox[0].reasons[0], "Raids · Dragon: your box already has Gible 15/15/15");
+assert.equal(vsBox[0].reasons[0], "Raids · Dragon (Mega): your box already has Gible 15/15/15");
 assert.match(transferList(vsBox), /Gible 15\/14\/14/);
 // inside one batch (nothing saved yet) the runner-up is still a Backup
 assert.equal(decideBatch(parseBatch("15/15/15 gible, 15/14/14 gible", idx).entries, idx)[1].verdict, "backup");
