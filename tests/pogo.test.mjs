@@ -1,5 +1,7 @@
 import assert from "node:assert";
-const { indexSpecies, parseBatch, decideBatch, ivRank, transferList } = await import("../lib/pogo.js");
+const { indexSpecies, parseBatch, decideBatch, ivRank, transferList, TEAM } = await import("../lib/pogo.js");
+const TEAM_REAL = { ...TEAM };
+Object.assign(TEAM, { gym: 1, raid: 1, max: 1 }); // the older tests below were written for one winner per job; team tests at the end
 
 // small fixed dataset, so these tests don't change when the real data is refreshed
 const cpm = Array.from({ length: 99 }, (_, i) => 0.094 + (0.84 - 0.094) * Math.sqrt(i / 98)); // rising curve, L1..L50
@@ -222,3 +224,16 @@ assert.ok(!mb[3].roles.some((c) => c.role === "max")); // not caught as Dynamax
 // 14 Attack on a top-5 raid line is borderline, not a transfer (Mega Garchomp is #2 Dragon in the fixture)
 const g14 = decideBatch(parseBatch("14/15/15 gible", idx).entries, idx)[0];
 assert.ok(g14.borderline.some((c) => c.role === "raid" && c.detail.includes("14 Attack")));
+
+// team sizes: top-5 raid types keep up to 6, gyms up to 6, Max up to 3; a box keeper takes a team spot
+Object.assign(TEAM, TEAM_REAL);
+const six = decideBatch(parseBatch("15/15/15 gible, 15/14/14 gible, 15/13/13 gible", idx).entries, idx); // Mega Garchomp #2 Dragon
+assert.deepEqual(six.map((r) => r.verdict), ["keep", "keep", "keep"]);
+const rock = decideBatch(parseBatch("15/10/10 rhyperior, 15/9/9 rhyperior", idx).entries, idx); // #11 Rock: one is enough
+assert.ok(!rock[1].roles.some((c) => c.role === "raid"));
+const gyms = decideBatch(parseBatch("0/15/15 snorlax, 0/14/14 snorlax, 0/13/13 snorlax", idx).entries, idx);
+assert.ok(gyms.every((r) => r.roles.some((c) => c.role === "gym")));
+const fullTeam = decideBatch(parseBatch("0/13/13 snorlax", idx).entries, idx, parseBatch("0/15/15 snorlax, 0/15/15 snorlax, 0/15/14 snorlax, 0/14/15 snorlax, 0/14/14 snorlax, 0/14/13 snorlax", idx).entries)[0];
+assert.ok(!fullTeam.roles.some((c) => c.role === "gym"));
+// a gym-line transfer says why (HP under 13)
+assert.match(decideBatch(parseBatch("0/15/12 snorlax", idx).entries, idx)[0].reasons.join(" "), /HP 12/);
