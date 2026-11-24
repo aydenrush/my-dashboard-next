@@ -82,6 +82,8 @@ const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", l
 const evoCost = (t) => [t.candy ? `${t.candy} candy` : t.candy == null ? "? candy" : null, t.evoItem, ...(t.evoNotes || [])].filter(Boolean).join(" + ");
 // what to do for a job: "Evolve to Garchomp (100 candy), then level 40; XL Candy is worth it here."
 const todo = (j) => `${j.evo ? `Evolve to ${j.evo.to}${j.evo.candy ? ` (${j.evo.candy} candy${j.evo.items?.length ? ` + ${j.evo.items.join(" + ")}` : ""})` : ""}, then ` : ""}${j.invest[0].toLowerCase() + j.invest.slice(1)}.`;
+// "Dragon / Ground" next to a name (the data pads single types with "none")
+const Types = ({ s }) => <span className="muted" style={{ fontSize: "0.78rem" }}> {s.types.filter((t) => t && t !== "none").map(cap).join(" / ")}</span>;
 const ivPct = (ivs) => `${Math.round(ivs.reduce((x, y) => x + y, 0) / 0.45)}%`;
 const VARIANT = ["costume", "background"]; // these carry a number: which costume/background it is
 // { costume: 2, shiny: true } -> "Shiny · Costume 2"
@@ -423,7 +425,7 @@ export default function PokemonGoPage() {
                   const e = x.result.entry, j = x.jobs[0];
                   return (
                     <li key={i} style={{ marginBottom: 2 }}>
-                      <strong>{e.species.name} {e.ivs.join("/")}</strong> <span className="muted">{ivPct(e.ivs)}</span>{flagNames(e.flags) && <span className="muted"> {flagNames(e.flags, ", ")}</span>}
+                      <strong>{e.species.name}</strong><Types s={e.species} /> <strong>{e.ivs.join("/")}</strong> <span className="muted">{ivPct(e.ivs)}</span>{flagNames(e.flags) && <span className="muted"> {flagNames(e.flags, ", ")}</span>}
                       {x.result.fromBox && <span className="muted"> (in your box)</span>}{x.backup && <span className="muted"> (backup)</span>}
                       {" "}<Chip color={ROLE_COLOR[j.role]}>{jobLabel(jobKey(j))}</Chip>
                       {x.jobs.slice(1).map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}
@@ -457,7 +459,7 @@ export default function PokemonGoPage() {
                   <button type="button" className="btn" onClick={() => { setEditing(r.entry.i); setEditingBox(null); }} aria-label={`Edit ${r.entry.species.name}`}
                     style={{ order: 99, marginLeft: 0, padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Edit</button>
                 )}
-                <strong>{r.entry.species.name}</strong>
+                <strong>{r.entry.species.name}</strong><Types s={r.entry.species} />
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
                 <span className="muted">{ivPct(r.entry.ivs)}</span>
                 <span className="muted">{flagNames(r.entry.flags)}</span>
@@ -517,7 +519,7 @@ export default function PokemonGoPage() {
                 const e = x.result.entry, j = x.jobs[0];
                 return (
                   <li key={e.id} style={{ marginBottom: 4 }}>
-                    <strong>{e.species.name} {e.ivs.join("/")}</strong> <span className="muted">{ivPct(e.ivs)}</span>{" "}
+                    <strong>{e.species.name}</strong><Types s={e.species} /> <strong>{e.ivs.join("/")}</strong> <span className="muted">{ivPct(e.ivs)}</span>{" "}
                     {x.jobs.map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}
                     <span className="muted">{todo(j)}</span>{" "}
                     <button type="button" className="btn" onClick={() => toggleDone(e)} style={{ padding: "0 8px", fontSize: "0.75rem", minHeight: 0 }}>Done</button>
@@ -543,7 +545,7 @@ export default function PokemonGoPage() {
         {boxEntries.length > 0 && boxList.length === 0 && <p className="empty">Nothing matches.</p>}
         {boxList.map((b) => (
           <div key={b.id} className="row" style={{ alignItems: "center", marginBottom: 4 }}>
-            <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
+            <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong><Types s={b.species} /> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
             <span className="muted">{flagNames(b.flags)}</span>
             {b.roles.includes("done") && <button type="button" onClick={() => toggleDone(b)} title="Powered up. Click to put it back in Top projects" style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}><Chip color={PALETTE.emerald}>Done ✓</Chip></button>}
             {tagsFor(b).length === 0 && <span className="muted" style={{ fontSize: "0.8rem" }}>no job now (a better one in your box took it)</span>}
