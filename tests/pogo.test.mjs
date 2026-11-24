@@ -234,7 +234,13 @@ assert.ok(g14.borderline.some((c) => c.role === "raid" && c.detail.includes("14 
 
 // team sizes: top-5 raid types keep up to 6, gyms up to 6, Max up to 3; a box keeper takes a team spot
 Object.assign(TEAM, TEAM_REAL);
-const six = decideBatch(parseBatch("15/15/15 gible, 15/14/14 gible, 15/13/13 gible", idx).entries, idx); // Mega Garchomp #2 Dragon
+// Mega Garchomp (#2 Dragon) is a Mega: one per raid, so the others are backups
+const megaJob = decideBatch(parseBatch("15/15/15 gible, 15/14/14 gible, 15/13/13 gible", idx).entries, idx);
+assert.deepEqual(megaJob.map((r) => r.verdict), ["keep", "backup", "backup"]);
+// a non-Mega top-5 (Shadow Garchomp moved to #4 Ground here) keeps a team of up to 6
+const sixData = { ...data, species: data.species.map((s) => (s.id === "garchomp_shadow" ? { ...s, raid: { ...s.raid, rank: 4 } } : s)) };
+const sixIdx = indexSpecies(sixData);
+const six = decideBatch(parseBatch("15/15/15 shadow gible, 15/14/14 shadow gible, 15/13/13 shadow gible", sixIdx).entries, sixIdx);
 assert.deepEqual(six.map((r) => r.verdict), ["keep", "keep", "keep"]);
 const rock = decideBatch(parseBatch("15/10/10 rhyperior, 15/9/9 rhyperior", idx).entries, idx); // #11 Rock: one is enough
 assert.ok(!rock[1].roles.some((c) => c.role === "raid"));
