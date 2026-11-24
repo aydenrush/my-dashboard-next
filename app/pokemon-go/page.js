@@ -73,6 +73,8 @@ function Why({ entry, idx }) {
 }
 
 const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", lucky: "Lucky", shiny: "Shiny", costume: "Costume", background: "Background", dynamax: "Dynamax", gigantamax: "G-Max", oneoff: "One-off", legacy: "Legacy move", xxl: "XXL", old: "Old catch", keep: "Keep anyway" };
+// 13/14/15 -> "93%" (the in-game appraisal percentage)
+const ivPct = (ivs) => `${Math.round(ivs.reduce((x, y) => x + y, 0) / 0.45)}%`;
 const VARIANT = ["costume", "background"]; // these carry a number: which costume/background it is
 // { costume: 2, shiny: true } -> "Shiny · Costume 2"
 const flagNames = (flags, sep = " · ") => FLAG_ORDER.filter((f) => flags[f]).map((f) => FLAG_LABEL[f] + (flags[f] === true ? "" : ` ${flags[f]}`)).join(sep);
@@ -303,7 +305,7 @@ export default function PokemonGoPage() {
             {batch.map((r, i) => (
               <span key={i} style={{ display: "inline-flex", gap: 6, alignItems: "center", border: `1px solid ${editing === i ? "var(--accent)" : "var(--border)"}`, borderRadius: 999, padding: "2px 4px 2px 10px", fontSize: "0.82rem" }}>
                 <button type="button" onClick={() => setEditing(i)} title="Edit" style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer" }}>
-                  {idx.byId[r.id]?.name} {r.ivs.join("/")}{r.flags.length ? <span className="muted"> {flagNames(listToFlags(r.flags), ", ")}</span> : null}
+                  {idx.byId[r.id]?.name} {r.ivs.join("/")} <span className="muted">{ivPct(r.ivs)}</span>{r.flags.length ? <span className="muted"> {flagNames(listToFlags(r.flags), ", ")}</span> : null}
                 </button>
                 <button type="button" onClick={() => { setBatch((b) => b.filter((_, j) => j !== i)); setEditing(null); }} aria-label="Remove from batch" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>✕</button>
               </span>
@@ -333,7 +335,7 @@ export default function PokemonGoPage() {
                   const e = x.result.entry, j = x.jobs[0];
                   return (
                     <li key={i} style={{ marginBottom: 2 }}>
-                      <strong>{e.species.name} {e.ivs.join("/")}</strong>{flagNames(e.flags) && <span className="muted"> {flagNames(e.flags, ", ")}</span>}
+                      <strong>{e.species.name} {e.ivs.join("/")}</strong> <span className="muted">{ivPct(e.ivs)}</span>{flagNames(e.flags) && <span className="muted"> {flagNames(e.flags, ", ")}</span>}
                       {x.result.fromBox && <span className="muted"> (in your box)</span>}{x.backup && <span className="muted"> (backup)</span>}
                       {" "}<Chip color={ROLE_COLOR[j.role]}>{jobLabel(jobKey(j))}</Chip>
                       {x.jobs.slice(1).map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}
@@ -362,6 +364,7 @@ export default function PokemonGoPage() {
                 <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
                 <strong>{r.entry.species.name}</strong>
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
+                <span className="muted">{ivPct(r.entry.ivs)}</span>
                 <span className="muted">{flagNames(r.entry.flags)}</span>
                 {r.roles.map((c) => <Chip key={jobKey(c)} color={ROLE_COLOR[c.role]}>{jobLabel(jobKey(c))}</Chip>)}
               </div>
@@ -401,7 +404,7 @@ export default function PokemonGoPage() {
         {boxEntries.length === 0 && <p className="empty">Keepers you save show up here, and new batches are compared against them.</p>}
         {boxEntries.map((b) => (
           <div key={b.id} className="row" style={{ alignItems: "center", marginBottom: 4 }}>
-            <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong> {b.ivs.join("/")}</span>
+            <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
             <span className="muted">{flagNames(b.flags)}</span>
             {b.roles.map((r) => <Chip key={r} color={ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
             <button className="btn" onClick={() => removeFromBox(b)} aria-label={`Remove ${b.species.name} from box`} style={{ padding: "1px 8px", fontSize: "0.75rem" }}>✕</button>
