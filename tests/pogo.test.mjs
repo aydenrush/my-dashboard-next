@@ -121,3 +121,20 @@ const nIdx = indexSpecies(ninetalesData);
 const nine = decideBatch(parseBatch("15/10/10 ninetales, 15/11/11 alolan ninetales", nIdx).entries, nIdx);
 assert.deepEqual(nine.map((r) => [r.verdict, r.roles.map((c) => c.rtype).join()]), [["keep", "fire"], ["keep", "ice"]]);
 console.log("per-type raids ok");
+
+// Mighty: already level 40+, so it beats a slightly better non-Mighty copy for raids...
+const mighty = decideBatch(parseBatch("15/15/15 rhyperior, 15/13/13 mighty rhyperior", idx).entries, idx);
+const mRaid = mighty.find((r) => r.entry.flags.mighty).roles.find((c) => c.role === "raid");
+assert.ok(mRaid, "mighty wins the raid job");
+assert.match(mRaid.invest, /Already level 40\+/);
+assert.equal(mighty.find((r) => !r.entry.flags.mighty).backup[0].role, "raid");
+// ...but it can't drop to a CP cap: a level-40+ Swampert is over 1500 CP, so not a Great League pick
+const swData = { ...data, species: [...data.species, sp("swampert", "Swampert", { family: "S", atk: 208, def: 175, hp: 225, gl: 50 })] };
+const swIdx = indexSpecies(swData);
+const mSw = decideBatch(parseBatch("0/15/15 mighty swampert", swIdx).entries, swIdx)[0];
+assert.ok(mSw.roles.every((c) => c.role !== "gl"));
+assert.ok(mSw.reasons.join(" ").includes("Mighty (level 40+) is already over the 1500 CP cap"));
+assert.equal(explain(parseBatch("0/15/15 mighty swampert", swIdx).entries[0], swIdx).pvp.gl[0].overCap, true);
+// a Mighty Azumarill is still under 1500 at level 40, so it stays a Great League pick
+assert.ok(decideBatch(parseBatch("0/15/15 mighty azumarill", idx).entries, idx)[0].roles.some((c) => c.role === "gl"));
+console.log("mighty ok");

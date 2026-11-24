@@ -6,7 +6,7 @@ import { PALETTE } from "@/lib/constants";
 import { indexSpecies, parseBatch, decideBatch, transferList, explain, ROLE_LABEL } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, trophy: PALETTE.slate };
-const FLAG_ORDER = ["shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax"];
+const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax"];
 
 function Chip({ color, children }) {
   return <span style={{ display: "inline-block", fontSize: "0.72rem", padding: "1px 7px", borderRadius: 999, border: `1px solid ${color}`, color, marginRight: 4 }}>{children}</span>;
@@ -55,7 +55,7 @@ function Why({ entry, idx }) {
               <td style={td}>#{r.ivRank} of 4096 {lg !== "ml" && !r.ivOk && <span className="muted">(needs top {w.rules.ivTop})</span>}{lg === "ml" && !r.ivOk && <span className="muted">(needs 15/14+/14+)</span>}</td>
               <td style={td}>{(r.pct * 100).toFixed(1)}%</td>
               <td style={td}>{r.level}</td>
-              <td style={td}>{r.cp ?? "—"}</td>
+              <td style={td}>{r.cp ?? "—"}{r.overCap && <span className="muted"> (Mighty: already over the cap at level 40+)</span>}</td>
             </tr>
           )))}
         </tbody>
@@ -130,7 +130,7 @@ export default function PokemonGoPage() {
       <h1 className="page-title">Pokémon GO</h1>
       <p className="muted" style={{ marginBottom: "0.75rem" }}>
         Paste one or a batch, e.g. <code>14/14/6 shadow gabite</code> or <code>phantump 8/15/15 purified, 14/10/15, 8/13/11 shadow</code>. A piece with no name reuses the last one.
-        Flags: shadow, purified, lucky, shiny, costume, background, dynamax, gigantamax.
+        Flags: mighty, shadow, purified, lucky, shiny, costume, background, dynamax, gigantamax.
       </p>
 
       <form onSubmit={check}>
