@@ -391,16 +391,6 @@ export default function PokemonGoPage() {
             <button type="button" className="btn" onClick={() => { setBatch([]); setEditing(null); }}>Clear batch</button>
             {msg && <span className="muted">{msg}</span>}
           </div>
-          <div className="row">
-            {batch.map((r, i) => (
-              <span key={i} style={{ display: "inline-flex", gap: 6, alignItems: "center", border: `1px solid ${editing === i ? "var(--accent)" : "var(--border)"}`, borderRadius: 999, padding: "2px 4px 2px 10px", fontSize: "0.82rem" }}>
-                <button type="button" onClick={() => { setEditing(i); setEditingBox(null); }} title="Edit" style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "inherit", cursor: "pointer" }}>
-                  {idx.byId[r.id]?.name} {r.ivs.join("/")} <span className="muted">{ivPct(r.ivs)}</span>{r.flags.length ? <span className="muted"> {flagNames(listToFlags(r.flags), ", ")}</span> : null}
-                </button>
-                <button type="button" onClick={() => { setBatch((b) => b.filter((_, j) => j !== i)); setEditing(null); }} aria-label="Remove from batch" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }}>✕</button>
-              </span>
-            ))}
-          </div>
         </div>
       )}
 
@@ -449,7 +439,7 @@ export default function PokemonGoPage() {
                 {SECTION[r.verdict]} · {results.filter((x) => x.verdict === r.verdict).length}
               </h3>
             )}
-            <div className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}` }}>
+            <div className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}`, outline: r.entry.i != null && editing === r.entry.i ? "2px solid var(--accent)" : undefined }}>
               <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
                 <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
                 {r.entry.i != null && (
