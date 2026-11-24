@@ -459,6 +459,10 @@ export default function PokemonGoPage() {
                   <button type="button" className="btn" onClick={() => { setEditing(r.entry.i); setEditingBox(null); }} aria-label={`Edit ${r.entry.species.name}`}
                     style={{ order: 99, marginLeft: 0, padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Edit</button>
                 )}
+                {r.entry.i != null && (
+                  <button type="button" className="btn" onClick={() => { setBatch((b) => b.filter((_, j) => j !== r.entry.i)); setEditing(null); }} aria-label={`Remove ${r.entry.species.name} from batch`}
+                    style={{ order: 100, padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Remove</button>
+                )}
                 <strong>{r.entry.species.name}</strong><Types s={r.entry.species} />
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
                 <span className="muted">{ivPct(r.entry.ivs)}</span>
