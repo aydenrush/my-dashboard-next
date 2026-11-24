@@ -20,14 +20,16 @@ const jobLabel = (key) => { const [role, type] = key.split(":"); return ROLE_LAB
 const VERDICT = {
   keep: { label: "KEEP", color: PALETTE.emerald },
   backup: { label: "Backup", color: PALETTE.blue },
+  hold: { label: "Hold", color: PALETTE.blue },
   trade: { label: "Trade bait", color: PALETTE.violet },
   borderline: { label: "Borderline", color: PALETTE.amber },
   transfer: { label: "Transfer", color: PALETTE.slate },
 };
-const ORDER = ["keep", "backup", "trade", "borderline", "transfer"];
+const ORDER = ["keep", "backup", "borderline", "hold", "trade", "transfer"];
 const SECTION = {
   keep: "Keep",
   backup: "Backup (hold untouched)",
+  hold: "Hold: good species, waiting on better IVs",
   trade: "Trade bait (hold for trades, never transfer)",
   borderline: "Borderline (your call)",
   transfer: "Transfer (what Copy transfer list copies)",
@@ -385,6 +387,12 @@ export default function PokemonGoPage() {
                   <span style={{ color: PALETTE.violet }}>Trade bait:</span> {c.behind ? <>duplicate {c.kind}, you already keep {c.behind}.</> : <>{c.note}.</>} <span className="muted">Don't power it up; trade it.</span>
                 </div>
               ))}
+              {r.hold.map((g) => (
+                <div key={g.job} style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                  <span style={{ color: PALETTE.blue }}>Good species for {g.label}</span> ({g.what}), but it needs {g.needs}. <span className="muted">Nothing better yet: hold it untouched (no candy or Stardust) and transfer it once a better one turns up.</span>
+                </div>
+              ))}
+              {r.speciesNote && <div style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.speciesNote}</div>}
               {r.borderline.map((c) => (
                 <div key={c.role} style={{ fontSize: "0.85rem", marginTop: 4 }}>
                   <span style={{ color: PALETTE.amber }}>Borderline for {ROLE_LABEL[c.role]}:</span> {c.detail}. <span className="muted">Your call; hold untouched if unsure.</span>

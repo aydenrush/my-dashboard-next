@@ -94,10 +94,16 @@ assert.ok(realMax.roles.some((c) => c.role === "max"));
 const lk = decideBatch(parseBatch("15/14/14 rhyperior, 15/13/13 lucky rhyperior", idx).entries, idx);
 const lkRaid = lk.find((r) => r.entry.flags.lucky).roles.find((c) => c.role === "raid");
 assert.ok(lkRaid && lkRaid.invest.includes("Lucky: half Stardust"));
-const badAzu = decideBatch(parseBatch("15/0/0 azumarill", idx).entries, idx)[0];
-assert.equal(badAzu.verdict, "transfer");
+// 0/15/15 covers Great League; the first bad one is held for Ultra League (nothing qualifies yet), the second is a transfer
+const azus = decideBatch(parseBatch("0/15/15 azumarill, 15/0/0 azumarill, 15/0/0 azumarill", idx).entries, idx);
+assert.deepEqual(azus.map((r) => r.verdict), ["keep", "hold", "transfer"]);
+assert.equal(azus[1].hold[0].job, "ul");
+const badAzu = azus[2];
 assert.ok(badAzu.reasons.join(" ").includes("trade it to re-roll the IVs"));
-assert.ok(!decideBatch(parseBatch("15/0/0 shadow azumarill", idx).entries, idx)[0].reasons.join(" ").includes("trade")); // shadows can't be traded
+assert.match(badAzu.speciesNote, /^Good species .*A better placeholder is being held/);
+assert.ok(!decideBatch(parseBatch("0/15/15 shadow azumarill, 15/0/0 shadow azumarill, 15/0/0 shadow azumarill", idx).entries, idx)[2].reasons.join(" ").includes("trade")); // shadows can't be traded
+// alone, a bad one of a good species is held until a better one shows up
+assert.equal(decideBatch(parseBatch("15/0/0 azumarill", idx).entries, idx)[0].verdict, "hold");
 
 assert.match(transferList(res), /Gabite 14\/14\/6 shadow/);
 console.log("pogo ok");
@@ -197,7 +203,7 @@ assert.equal(decideBatch(parseBatch("0/1/2 gible oneoff", idx).entries, idx)[0].
 
 // Keep anyway, legacy move, XXL (extras trade bait), old catch (bad IVs -> trade bait, not transfer)
 const fl = decideBatch(parseBatch("0/1/2 gible keep, 0/1/3 gible legacy, 1/1/1 gible xxl, 2/2/2 gible xxl, 0/0/4 gible old, 0/0/5 gible", idx).entries, idx);
-assert.deepEqual(fl.map((r) => r.verdict), ["keep", "keep", "trade", "keep", "trade", "transfer"]);
+assert.deepEqual(fl.map((r) => r.verdict), ["keep", "keep", "trade", "keep", "trade", "hold"]); // the plain one is held: nothing qualifies for Gible raids yet
 assert.equal(fl[2].trade[0].kind, "XXL");
 assert.match(fl[4].trade[0].note, /Lucky/);
 assert.doesNotMatch(transferList(fl), /0\/0\/4/);
@@ -236,6 +242,6 @@ assert.ok(gyms.every((r) => r.roles.some((c) => c.role === "gym")));
 const fullTeam = decideBatch(parseBatch("0/13/13 snorlax", idx).entries, idx, parseBatch("0/15/15 snorlax, 0/15/15 snorlax, 0/15/14 snorlax, 0/14/15 snorlax, 0/14/14 snorlax, 0/14/13 snorlax", idx).entries)[0];
 assert.ok(!fullTeam.roles.some((c) => c.role === "gym"));
 // a gym-line transfer says why (HP under 13)
-assert.match(decideBatch(parseBatch("0/15/12 snorlax", idx).entries, idx)[0].reasons.join(" "), /HP 12/);
+assert.match(decideBatch(parseBatch("0/15/15 snorlax, 0/15/12 snorlax", idx).entries, idx)[1].reasons.join(" "), /HP 12/);
 // a 98% with no job is just a transfer; a hundo is still a trophy
 assert.deepEqual(decideBatch(parseBatch("15/15/14 alolan ninetales, 15/15/15 alolan ninetales", idx).entries, idx).map((r) => r.verdict), ["transfer", "keep"]);
