@@ -30,7 +30,7 @@ const ORDER = ["keep", "backup", "borderline", "hold", "trade", "transfer"];
 const SECTION = {
   keep: "Keep",
   backup: "Backup (hold untouched)",
-  hold: "Hold: good species, waiting on better IVs",
+  hold: "Hold: hard to replace (legendary, Ultra Beast, regional), waiting on better IVs",
   trade: "Trade bait (hold for trades, never transfer)",
   borderline: "Borderline (your call)",
   transfer: "Transfer (what Copy transfer list copies)",

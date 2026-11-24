@@ -16,7 +16,7 @@ const data = {
     sp("garchomp_mega", "Garchomp (Mega)", { family: "G", tags: ["mega"], atk: 339, def: 222, hp: 239, raid: { type: "dragon", rank: 2, pct: 95, fast: "DRAGON_TAIL", charged: "OUTRAGE", elite: false } }),
     sp("celebi", "Celebi", { tags: ["mythical"] }),
     sp("snorlax", "Snorlax"),
-    sp("azumarill", "Azumarill", { family: "A", atk: 112, def: 152, hp: 225, gl: 5, ul: 60 }),
+    sp("azumarill", "Azumarill", { family: "A", tags: ["regional"], atk: 112, def: 152, hp: 225, gl: 5, ul: 60 }), // tagged regional so the Hold tests have a hard-to-replace species
     sp("ninetales_alolan", "Ninetales (Alolan)", { family: "N", maxTypes: [{ type: "ice", rank: 40, pct: 55 }], maxTank: 300 }),
     sp("rhyperior", "Rhyperior", { family: "R", atk: 241, def: 190, hp: 251, ml: 59, maxTypes: [{ type: "rock", rank: 9, pct: 81 }], maxTank: 30, raid: { type: "rock", rank: 11, pct: 82, fast: "SMACK_DOWN", charged: "ROCK_WRECKER", elite: true } }),
   ],
@@ -203,7 +203,8 @@ assert.equal(decideBatch(parseBatch("0/1/2 gible oneoff", idx).entries, idx)[0].
 
 // Keep anyway, legacy move, XXL (extras trade bait), old catch (bad IVs -> trade bait, not transfer)
 const fl = decideBatch(parseBatch("0/1/2 gible keep, 0/1/3 gible legacy, 1/1/1 gible xxl, 2/2/2 gible xxl, 0/0/4 gible old, 0/0/5 gible", idx).entries, idx);
-assert.deepEqual(fl.map((r) => r.verdict), ["keep", "keep", "trade", "keep", "trade", "hold"]); // the plain one is held: nothing qualifies for Gible raids yet
+assert.deepEqual(fl.map((r) => r.verdict), ["keep", "keep", "trade", "keep", "trade", "transfer"]); // Gible is easy to catch again, so no Hold
+assert.match(fl[5].speciesNote, /Easy to catch again/);
 assert.equal(fl[2].trade[0].kind, "XXL");
 assert.match(fl[4].trade[0].note, /Lucky/);
 assert.doesNotMatch(transferList(fl), /0\/0\/4/);
