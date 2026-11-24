@@ -80,6 +80,8 @@ const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", l
 // 13/14/15 -> "93%" (the in-game appraisal percentage)
 // what one evolution step costs: "100 candy", "50 candy + Metal Coat", "999 Gimmighoul Coins"; "?" when the data doesn't say
 const evoCost = (t) => [t.candy ? `${t.candy} candy` : t.candy == null ? "? candy" : null, t.evoItem, ...(t.evoNotes || [])].filter(Boolean).join(" + ");
+// what to do for a job: "Evolve to Garchomp (100 candy), then level 40; XL Candy is worth it here."
+const todo = (j) => `${j.evo ? `Evolve to ${j.evo.to}${j.evo.candy ? ` (${j.evo.candy} candy${j.evo.items?.length ? ` + ${j.evo.items.join(" + ")}` : ""})` : ""}, then ` : ""}${j.invest[0].toLowerCase() + j.invest.slice(1)}.`;
 const ivPct = (ivs) => `${Math.round(ivs.reduce((x, y) => x + y, 0) / 0.45)}%`;
 const VARIANT = ["costume", "background"]; // these carry a number: which costume/background it is
 // { costume: 2, shiny: true } -> "Shiny · Costume 2"
@@ -276,6 +278,15 @@ export default function PokemonGoPage() {
     const res = decideBatch([], idx, boxEntries, { includeBox: true });
     return new Map(res.map((r) => [r.entry.id, [...r.roles.map(jobKey), ...r.backup.map((c) => `backup:${jobKey(c)}`), ...r.borderline.map((c) => `near:${c.role}`)]]));
   }, [idx, boxEntries]);
+  // the whole box ranked by what to power up next; ones you mark Done (stored as "done" in roles) drop off
+  const boxProjects = useMemo(() => (idx && boxEntries.length
+    ? projects(decideBatch([], idx, boxEntries, { includeBox: true }), { all: true }).flatMap((p) => p.items).filter((x) => !x.backup).sort((x, y) => y.value - x.value)
+    : []), [idx, boxEntries]);
+  async function toggleDone(b) {
+    const roles = b.roles.includes("done") ? b.roles.filter((r) => r !== "done") : [...b.roles, "done"];
+    const { error } = await supabase.from("pogo_box").update({ roles }).eq("id", b.id);
+    if (!error) setBox((bx) => bx.map((x) => (x.id === b.id ? { ...x, roles } : x)));
+  }
   const tagsFor = (b) => { const live = boxTags.get(b.id) || []; return live.length ? live : b.roles.filter((r) => r.startsWith("hold:")); };
 
   // the box row being edited, in the batch-row shape the form reads (memoized: the form reloads when this changes)
@@ -291,7 +302,7 @@ export default function PokemonGoPage() {
     const r = res.find((x) => x.entry === entry);
     const { error } = await supabase.from("pogo_box").update({
       species_id: e.species.id, atk: e.ivs[0], def: e.ivs[1], hp: e.ivs[2], flags: flagsToList(e.flags),
-      roles: r ? [...r.roles.map(jobKey), ...r.hold.map((g) => `hold:${g.job}`)] : [],
+      roles: [...(r ? [...r.roles.map(jobKey), ...r.hold.map((g) => `hold:${g.job}`)] : []), ...(box.find((x) => x.id === editingBox)?.roles.includes("done") ? ["done"] : [])], // keep a Done mark
     }).eq("id", editingBox);
     if (error) return;
     setEditingBox(null);
@@ -385,7 +396,7 @@ export default function PokemonGoPage() {
                       {x.result.fromBox && <span className="muted"> (in your box)</span>}{x.backup && <span className="muted"> (backup)</span>}
                       {" "}<Chip color={ROLE_COLOR[j.role]}>{jobLabel(jobKey(j))}</Chip>
                       {x.jobs.slice(1).map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}
-                      <span className="muted">{x.backup ? "Only if the keeper above goes." : `${j.evo ? `Evolve to ${j.evo.to}${j.evo.candy ? ` (${j.evo.candy} candy${j.evo.items?.length ? ` + ${j.evo.items.join(" + ")}` : ""})` : ""}, then ` : ""}${j.invest[0].toLowerCase() + j.invest.slice(1)}.`}</span>
+                      <span className="muted">{x.backup ? "Only if the keeper above goes." : todo(j)}</span>
                     </li>
                   );
                 })}
@@ -467,11 +478,30 @@ export default function PokemonGoPage() {
 
       <details style={{ marginTop: "1.5rem" }}>
         <summary>Your box ({boxEntries.length})</summary>
+        {boxProjects.some((x) => !x.result.entry.roles.includes("done")) && (
+          <div className="card" style={{ padding: "10px 12px", margin: "8px 0 12px" }}>
+            <strong>Top projects</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>best investment first; mark one Done once it's powered up</span>
+            <ol style={{ margin: "6px 0 0", paddingLeft: 22, fontSize: "0.85rem" }}>
+              {boxProjects.filter((x) => !x.result.entry.roles.includes("done")).slice(0, 10).map((x) => {
+                const e = x.result.entry, j = x.jobs[0];
+                return (
+                  <li key={e.id} style={{ marginBottom: 4 }}>
+                    <strong>{e.species.name} {e.ivs.join("/")}</strong> <span className="muted">{ivPct(e.ivs)}</span>{" "}
+                    {x.jobs.map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}
+                    <span className="muted">{todo(j)}</span>{" "}
+                    <button type="button" className="btn" onClick={() => toggleDone(e)} style={{ padding: "0 8px", fontSize: "0.75rem", minHeight: 0 }}>Done</button>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        )}
         {boxEntries.length === 0 && <p className="empty">Keepers you save show up here, and new batches are compared against them.</p>}
         {boxEntries.map((b) => (
           <div key={b.id} className="row" style={{ alignItems: "center", marginBottom: 4 }}>
             <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
             <span className="muted">{flagNames(b.flags)}</span>
+            {b.roles.includes("done") && <button type="button" onClick={() => toggleDone(b)} title="Powered up. Click to put it back in Top projects" style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}><Chip color={PALETTE.emerald}>Done ✓</Chip></button>}
             {tagsFor(b).length === 0 && <span className="muted" style={{ fontSize: "0.8rem" }}>no job now (a better one in your box took it)</span>}
             {tagsFor(b).map((r) => <Chip key={r} color={r.startsWith("near:") ? PALETTE.amber : r.startsWith("hold:") || r.startsWith("backup:") ? PALETTE.blue : ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
             <button className="btn" onClick={() => { setEditingBox(b.id); setEditing(null); }} aria-label={`Edit ${b.species.name} in box`}

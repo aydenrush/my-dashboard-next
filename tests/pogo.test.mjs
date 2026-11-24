@@ -278,3 +278,6 @@ assert.ok(!boxView[2].roles.some((c) => c.role === "raid"));
 assert.ok(decideBatch(parseBatch("13/10/10 mighty rhyperior", idx).entries, idx)[0].roles.some((c) => c.role === "raid"));
 assert.ok(!decideBatch(parseBatch("13/10/10 rhyperior", idx).entries, idx)[0].roles.some((c) => c.role === "raid"));
 assert.ok(!decideBatch(parseBatch("12/10/10 mighty rhyperior", idx).entries, idx)[0].roles.some((c) => c.role === "raid"));
+
+// projects over the whole box ({ all: true }) include box-only families
+assert.equal(projects(decideBatch([], idx, parseBatch("15/14/14 gible", idx).entries, { includeBox: true }), { all: true }).length, 1);
