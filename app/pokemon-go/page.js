@@ -260,13 +260,21 @@ export default function PokemonGoPage() {
   const keepers = results?.filter((r) => r.keep) || [];
   const transfers = results?.filter((r) => r.verdict === "transfer") || [];
   const tradeBait = results?.filter((r) => r.verdict === "trade") || [];
-  // one Dex evolve hint per family, on its first transfer that can still evolve
-  const dexHint = new Set();
-  const hinted = new Set();
+  // one Dex evolve hint per family: on the most-evolved transfer that can still evolve, all the way to the final stage
+  // shortcut: follows the first branch only (Eevee, Gloom...), fine for most lines
+  const pathToFinal = (s) => {
+    const out = [];
+    for (let t = idx?.byId[s.evolutions[0]]; t; t = idx.byId[t.evolutions[0]]) out.push(t);
+    return out;
+  };
+  const dexHint = new Map(); // result -> stages it would register
+  const best = {};
   for (const r of transfers) {
-    const s = r.entry.species;
-    if (s.evolutions.length && idx.byId[s.evolutions[0]] && !hinted.has(s.family)) { hinted.add(s.family); dexHint.add(r); }
+    const path = pathToFinal(r.entry.species);
+    const cur = best[r.entry.species.family];
+    if (path.length && (!cur || path.length < cur.path.length)) best[r.entry.species.family] = { r, path };
   }
+  for (const { r, path } of Object.values(best)) dexHint.set(r, path);
 
   return (
     <div>
@@ -377,7 +385,7 @@ export default function PokemonGoPage() {
                 </div>
               ))}
               {r.reasons.length > 0 && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.reasons.join(" · ")}</div>}
-              {dexHint.has(r) && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>Dex: if {idx.byId[r.entry.species.evolutions[0]].name} isn't registered yet, evolve your best spare once first ({idx.byId[r.entry.species.evolutions[0]].candy} candy), then transfer.</div>}
+              {dexHint.has(r) && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>Dex: if {dexHint.get(r).map((t) => t.name).join(" or ")} {dexHint.get(r).length > 1 ? "aren't" : "isn't"} registered yet, evolve this one to {dexHint.get(r).at(-1).name} first ({dexHint.get(r).map((t) => t.candy || 0).join(" + ")} candy), then transfer.</div>}
               <details style={{ marginTop: 4 }}><summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Why?</summary><Why entry={r.entry} idx={idx} /></details>
             </div>
             </Fragment>
