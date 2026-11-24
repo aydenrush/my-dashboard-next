@@ -13,6 +13,7 @@ const data = {
     sp("garchomp_shadow", "Garchomp (Shadow)", { family: "G", tags: ["shadow"], atk: 261, def: 193, hp: 239, raid: { type: "ground", rank: 6, pct: 90, fast: "MUD_SHOT", charged: "EARTHQUAKE", elite: false } }),
     sp("garchomp_mega", "Garchomp (Mega)", { family: "G", tags: ["mega"], atk: 339, def: 222, hp: 239, raid: { type: "dragon", rank: 2, pct: 95, fast: "DRAGON_TAIL", charged: "OUTRAGE", elite: false } }),
     sp("celebi", "Celebi", { tags: ["mythical"] }),
+    sp("snorlax", "Snorlax"),
     sp("azumarill", "Azumarill", { family: "A", atk: 112, def: 152, hp: 225, gl: 5, ul: 60 }),
     sp("ninetales_alolan", "Ninetales (Alolan)", { family: "N" }),
     sp("rhyperior", "Rhyperior", { family: "R", atk: 241, def: 190, hp: 251, ml: 59, raid: { type: "rock", rank: 11, pct: 82, fast: "SMACK_DOWN", charged: "ROCK_WRECKER", elite: true } }),
@@ -191,3 +192,13 @@ assert.deepEqual(myth.map((r) => r.verdict), ["keep", "transfer"]);
 assert.match(myth[0].roles[0].detail, /mythical/);
 // One-off flag (a research legendary): kept whatever the IVs, like a mythical
 assert.equal(decideBatch(parseBatch("0/1/2 gible oneoff", idx).entries, idx)[0].verdict, "keep");
+
+// Keep anyway, legacy move, XXL (extras trade bait), old catch (bad IVs -> trade bait, not transfer)
+const fl = decideBatch(parseBatch("0/1/2 gible keep, 0/1/3 gible legacy, 1/1/1 gible xxl, 2/2/2 gible xxl, 0/0/4 gible old, 0/0/5 gible", idx).entries, idx);
+assert.deepEqual(fl.map((r) => r.verdict), ["keep", "keep", "trade", "keep", "trade", "transfer"]);
+assert.equal(fl[2].trade[0].kind, "XXL");
+assert.match(fl[4].trade[0].note, /Lucky/);
+assert.doesNotMatch(transferList(fl), /0\/0\/4/);
+// gym defenders: Defense/HP 13+ (Attack ignored); the runner-up is a backup
+const gy = decideBatch(parseBatch("0/15/15 snorlax, 0/13/14 snorlax, 0/12/15 snorlax, 0/15/15 shadow snorlax", idx).entries, idx);
+assert.deepEqual(gy.map((r) => r.verdict), ["keep", "backup", "transfer", "transfer"]);

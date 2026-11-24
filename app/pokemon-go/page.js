@@ -5,8 +5,8 @@ import { askConfirm } from "@/lib/confirm";
 import { PALETTE } from "@/lib/constants";
 import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
-const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, trophy: PALETTE.slate };
-const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax", "oneoff"];
+const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, gym: PALETTE.slate, trophy: PALETTE.slate };
+const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax", "oneoff", "legacy", "xxl", "old", "keep"];
 
 function Chip({ color, children }) {
   return <span style={{ display: "inline-block", fontSize: "0.72rem", padding: "1px 7px", borderRadius: 999, border: `1px solid ${color}`, color, marginRight: 4 }}>{children}</span>;
@@ -72,7 +72,7 @@ function Why({ entry, idx }) {
   );
 }
 
-const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", lucky: "Lucky", shiny: "Shiny", costume: "Costume", background: "Background", dynamax: "Dynamax", gigantamax: "G-Max", oneoff: "One-off" };
+const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", lucky: "Lucky", shiny: "Shiny", costume: "Costume", background: "Background", dynamax: "Dynamax", gigantamax: "G-Max", oneoff: "One-off", legacy: "Legacy move", xxl: "XXL", old: "Old catch", keep: "Keep anyway" };
 const VARIANT = ["costume", "background"]; // these carry a number: which costume/background it is
 // { costume: 2, shiny: true } -> "Shiny · Costume 2"
 const flagNames = (flags, sep = " · ") => FLAG_ORDER.filter((f) => flags[f]).map((f) => FLAG_LABEL[f] + (flags[f] === true ? "" : ` ${flags[f]}`)).join(sep);
@@ -227,6 +227,13 @@ export default function PokemonGoPage() {
   const keepers = results?.filter((r) => r.keep) || [];
   const transfers = results?.filter((r) => r.verdict === "transfer") || [];
   const tradeBait = results?.filter((r) => r.verdict === "trade") || [];
+  // one Dex evolve hint per family, on its first transfer that can still evolve
+  const dexHint = new Set();
+  const hinted = new Set();
+  for (const r of transfers) {
+    const s = r.entry.species;
+    if (s.evolutions.length && idx.byId[s.evolutions[0]] && !hinted.has(s.family)) { hinted.add(s.family); dexHint.add(r); }
+  }
 
   return (
     <div>
@@ -302,7 +309,7 @@ export default function PokemonGoPage() {
               ))}
               {r.trade.map((c) => (
                 <div key={c.kind} style={{ fontSize: "0.85rem", marginTop: 4 }}>
-                  <span style={{ color: PALETTE.violet }}>Trade bait:</span> duplicate {c.kind}, you already keep {c.behind}. <span className="muted">Don't power it up; trade it.</span>
+                  <span style={{ color: PALETTE.violet }}>Trade bait:</span> {c.behind ? <>duplicate {c.kind}, you already keep {c.behind}.</> : <>{c.note}.</>} <span className="muted">Don't power it up; trade it.</span>
                 </div>
               ))}
               {r.borderline.map((c) => (
@@ -311,6 +318,7 @@ export default function PokemonGoPage() {
                 </div>
               ))}
               {r.reasons.length > 0 && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.reasons.join(" · ")}</div>}
+              {dexHint.has(r) && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>Dex: if {idx.byId[r.entry.species.evolutions[0]].name} isn't registered yet, evolve your best spare once first ({idx.byId[r.entry.species.evolutions[0]].candy} candy), then transfer.</div>}
               <details style={{ marginTop: 4 }}><summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Why?</summary><Why entry={r.entry} idx={idx} /></details>
             </div>
             </Fragment>
