@@ -162,3 +162,17 @@ assert.equal(lookupSpecies("rhyp", idx).id, "rhyperior");
 assert.equal(lookupSpecies("", idx), null);
 assert.ok(!pickableNames(idx).some((n) => /Shadow|Mega/.test(n)));
 console.log("quick entry ok");
+
+// duplicate trophies: one hundo/98% and one shiny per species is kept; extras are trade bait (not transfers)
+const { tradeList } = await import("../lib/pogo.js");
+const tro = decideBatch(parseBatch("3/4/5 shiny alolan ninetales, 10/12/14 shiny alolan ninetales, 1/1/1 costume alolan ninetales, 2/2/2 costume alolan ninetales, 6/6/6 shiny shadow alolan ninetales", idx).entries, idx);
+assert.deepEqual(tro.map((r) => r.verdict), ["trade", "keep", "keep", "keep", "keep"]); // costumes always kept; shadow shiny separate
+assert.equal(tro[0].trade[0].kind, "shiny");
+assert.equal(tro[0].trade[0].behind, "Ninetales (Alolan) 10/12/14 shiny");
+assert.match(tradeList(tro), /Ninetales \(Alolan\) 3\/4\/5 shiny/);
+assert.doesNotMatch(transferList(tro), /3\/4\/5/);
+// against the saved box too
+const troBox = decideBatch(parseBatch("15/15/15 alolan ninetales", idx).entries, idx, parseBatch("15/15/15 alolan ninetales", idx).entries);
+assert.equal(troBox[0].verdict, "trade");
+assert.equal(troBox[0].trade[0].behind, "your box's Ninetales (Alolan) 15/15/15");
+console.log("trophy dupes ok");

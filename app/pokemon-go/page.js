@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { PALETTE } from "@/lib/constants";
-import { indexSpecies, parseBatch, decideBatch, transferList, explain, lookupSpecies, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
+import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, trophy: PALETTE.slate };
 const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax"];
@@ -20,10 +20,11 @@ const jobLabel = (key) => { const [role, type] = key.split(":"); return ROLE_LAB
 const VERDICT = {
   keep: { label: "KEEP", color: PALETTE.emerald },
   backup: { label: "Backup", color: PALETTE.blue },
+  trade: { label: "Trade bait", color: PALETTE.violet },
   borderline: { label: "Borderline", color: PALETTE.amber },
   transfer: { label: "Transfer", color: PALETTE.slate },
 };
-const ORDER = ["keep", "backup", "borderline", "transfer"];
+const ORDER = ["keep", "backup", "trade", "borderline", "transfer"];
 
 // the "Why?" breakdown under a result: every form and league it was judged on, and why each did or didn't count
 function Why({ entry, idx }) {
@@ -173,6 +174,11 @@ export default function PokemonGoPage() {
     loadBox();
   }
 
+  async function copyTrades() {
+    await navigator.clipboard.writeText(tradeList(results));
+    setMsg("Trade list copied.");
+  }
+
   async function copyTransfers() {
     await navigator.clipboard.writeText(transferList(results));
     setMsg("Transfer list copied.");
@@ -186,6 +192,7 @@ export default function PokemonGoPage() {
 
   const keepers = results?.filter((r) => r.keep) || [];
   const transfers = results?.filter((r) => r.verdict === "transfer") || [];
+  const tradeBait = results?.filter((r) => r.verdict === "trade") || [];
 
   return (
     <div>
@@ -197,6 +204,7 @@ export default function PokemonGoPage() {
           <div className="row" style={{ alignItems: "center" }}>
             <strong>Batch ({batch.length})</strong>
             {keepers.length > 0 && <button type="button" className="btn" onClick={saveKeepers}>Save {keepers.length} keeper{keepers.length > 1 ? "s" : ""} to box</button>}
+            {tradeBait.length > 0 && <button type="button" className="btn" onClick={copyTrades}>Copy trade list</button>}
             {transfers.length > 0 && <button type="button" className="btn" onClick={copyTransfers}>Copy transfer list</button>}
             <button type="button" className="btn" onClick={() => setBatch([])}>Clear batch</button>
             {msg && <span className="muted">{msg}</span>}
@@ -243,6 +251,11 @@ export default function PokemonGoPage() {
               {r.backup.map((c) => (
                 <div key={jobKey(c)} style={{ fontSize: "0.85rem", marginTop: 4 }}>
                   <span style={{ color: PALETTE.blue }}>Backup for {jobLabel(jobKey(c))}</span> behind {c.behind}: {c.detail}. <span className="muted">Hold untouched; promote it if the keeper goes.</span>
+                </div>
+              ))}
+              {r.trade.map((c) => (
+                <div key={c.kind} style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                  <span style={{ color: PALETTE.violet }}>Trade bait:</span> duplicate {c.kind}, you already keep {c.behind}. <span className="muted">Don't power it up; trade it.</span>
                 </div>
               ))}
               {r.borderline.map((c) => (
