@@ -14,6 +14,9 @@ function Chip({ color, children }) {
 
 const cap = (t) => t[0].toUpperCase() + t.slice(1);
 const yes = (ok, near) => <span style={{ color: ok ? PALETTE.emerald : near ? PALETTE.amber : PALETTE.rose }} title={ok ? "qualifies" : near ? "borderline" : "doesn't qualify"}>{ok ? "✓" : near ? "≈" : "✗"}</span>;
+// "raid" + type -> "Raids · Dragon"; also reads saved box roles like "raid:dragon"
+const jobKey = (c) => c.role + (c.rtype ? `:${c.rtype}` : "");
+const jobLabel = (key) => { const [role, type] = key.split(":"); return ROLE_LABEL[role] + (type ? ` · ${cap(type)}` : ""); };
 const VERDICT = {
   keep: { label: "KEEP", color: PALETTE.emerald },
   backup: { label: "Backup", color: PALETTE.blue },
@@ -99,7 +102,7 @@ export default function PokemonGoPage() {
   async function saveKeepers() {
     const rows = results.filter((r) => r.keep).map((r) => ({
       species_id: r.entry.species.id, atk: r.entry.ivs[0], def: r.entry.ivs[1], hp: r.entry.ivs[2],
-      flags: Object.keys(r.entry.flags), roles: r.roles.map((c) => c.role),
+      flags: Object.keys(r.entry.flags), roles: r.roles.map(jobKey),
     }));
     if (!rows.length) return;
     const { error } = await supabase.from("pogo_box").insert(rows);
@@ -154,18 +157,18 @@ export default function PokemonGoPage() {
                 <strong>{r.entry.species.name}</strong>
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
                 <span className="muted">{FLAG_ORDER.filter((f) => r.entry.flags[f]).join(" · ")}</span>
-                {r.roles.map((c) => <Chip key={c.role} color={ROLE_COLOR[c.role]}>{ROLE_LABEL[c.role]}</Chip>)}
+                {r.roles.map((c) => <Chip key={jobKey(c)} color={ROLE_COLOR[c.role]}>{jobLabel(jobKey(c))}</Chip>)}
               </div>
               {r.roles.map((c) => (
-                <div key={c.role} style={{ fontSize: "0.85rem", marginTop: 4 }}>
-                  <span style={{ color: ROLE_COLOR[c.role] }}>{ROLE_LABEL[c.role]}:</span> {c.detail}. <span className="muted">{c.invest}.</span>
+                <div key={jobKey(c)} style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                  <span style={{ color: ROLE_COLOR[c.role] }}>{jobLabel(jobKey(c))}:</span> {c.detail}. <span className="muted">{c.invest}.</span>
                   {c.evo && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? ` (${c.evo.candy} candy, all at once)` : ""}.</span>}
                   {c.note && <span style={{ color: PALETTE.amber }}> {c.note}.</span>}
                 </div>
               ))}
               {r.backup.map((c) => (
-                <div key={c.role} style={{ fontSize: "0.85rem", marginTop: 4 }}>
-                  <span style={{ color: PALETTE.blue }}>Backup for {ROLE_LABEL[c.role]}</span> behind {c.behind}: {c.detail}. <span className="muted">Hold untouched; promote it if the keeper goes.</span>
+                <div key={jobKey(c)} style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                  <span style={{ color: PALETTE.blue }}>Backup for {jobLabel(jobKey(c))}</span> behind {c.behind}: {c.detail}. <span className="muted">Hold untouched; promote it if the keeper goes.</span>
                 </div>
               ))}
               {r.borderline.map((c) => (
@@ -187,7 +190,7 @@ export default function PokemonGoPage() {
           <div key={b.id} className="row" style={{ alignItems: "center", marginBottom: 4 }}>
             <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong> {b.ivs.join("/")}</span>
             <span className="muted">{FLAG_ORDER.filter((f) => b.flags[f]).join(" · ")}</span>
-            {b.roles.map((r) => <Chip key={r} color={ROLE_COLOR[r]}>{ROLE_LABEL[r]}</Chip>)}
+            {b.roles.map((r) => <Chip key={r} color={ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
             <button className="btn" onClick={() => removeFromBox(b)} aria-label={`Remove ${b.species.name} from box`} style={{ padding: "1px 8px", fontSize: "0.75rem" }}>✕</button>
           </div>
         ))}

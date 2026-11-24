@@ -42,16 +42,17 @@ const batch = parseBatch(`15/14/14 gible
 const res = decideBatch(batch, idx);
 const by = (ivs, id) => res.find((r) => r.entry.ivs.join("/") === ivs && r.entry.species.id === id);
 
-// raids: the non-shadow 15-Attack Gible line can become Mega Garchomp (#2 dragon) -> best raid pick
-// one raid winner per family: the hundo (Mega Garchomp, #2) beats the 15/14/14 and the Shadow (#6) line
-const raidWin = res.filter((r) => r.roles.some((c) => c.role === "raid"));
-assert.equal(raidWin.length, 1);
+// raids: one winner per family per attacking type. The hundo becomes Mega Garchomp for Dragon (#2);
+// the Shadow Gible becomes Shadow Garchomp for Ground (#6, beats regular Garchomp #15). Both are kept.
+const raidJobs = res.flatMap((r) => r.roles.filter((c) => c.role === "raid").map((c) => [`${r.entry.ivs.join("/")} ${r.entry.species.id}`, c.rtype, c.target.id]));
+assert.deepEqual(raidJobs.sort(), [["15/12/15 gible", "ground", "garchomp_shadow"], ["15/15/15 gible", "dragon", "garchomp_mega"]].sort());
 const hundoGible = by("15/15/15", "gible");
-assert.equal(raidWin[0], hundoGible);
-// the runner-up still passes the raid rules, so it's a Backup (kept out of the transfer list)
+// the runner-up still passes the raid rules for both types, so it's a Backup (kept out of the transfer list)
 const runnerUp = by("15/14/14", "gible");
 assert.equal(runnerUp.verdict, "backup");
-assert.deepEqual(runnerUp.backup.map((b) => [b.role, b.behind]), [["raid", "Gible 15/15/15 purified"], ["ml", "Gible 15/15/15 purified"]]);
+assert.deepEqual(runnerUp.backup.map((b) => [b.role, b.rtype || "", b.behind]).sort(), [
+  ["ml", "", "Gible 15/15/15 purified"], ["raid", "dragon", "Gible 15/15/15 purified"], ["raid", "ground", "Gible 15/12/15 shadow"],
+]);
 assert.doesNotMatch(transferList(res), /Gible 15\/14\/14/);
 assert.ok(hundoGible.keep);
 assert.ok(hundoGible.roles.some((c) => c.role === "trophy"), "hundo is a trophy");
@@ -110,3 +111,13 @@ assert.equal(rhyWhy.pvp.ml[0].near, true);
 const dmaxRaid = decideBatch(parseBatch("15/13/14 dynamax rhyperior", idx).entries, idx)[0];
 assert.ok(dmaxRaid.roles.some((c) => c.role === "raid"));
 console.log("borderline ok");
+
+// regional forms share a family but attack with different types, so both can be kept for raids
+const ninetalesData = { ...data, species: [...data.species.filter((x) => x.family !== "N"),
+  sp("ninetales", "Ninetales", { family: "V", raid: { type: "fire", rank: 18, pct: 70, fast: "FIRE_SPIN", charged: "OVERHEAT", elite: false } }),
+  sp("ninetales_alolan", "Ninetales (Alolan)", { family: "V", raid: { type: "ice", rank: 19, pct: 69, fast: "POWDER_SNOW", charged: "BLIZZARD", elite: false } }),
+] };
+const nIdx = indexSpecies(ninetalesData);
+const nine = decideBatch(parseBatch("15/10/10 ninetales, 15/11/11 alolan ninetales", nIdx).entries, nIdx);
+assert.deepEqual(nine.map((r) => [r.verdict, r.roles.map((c) => c.rtype).join()]), [["keep", "fire"], ["keep", "ice"]]);
+console.log("per-type raids ok");
