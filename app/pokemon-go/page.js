@@ -906,15 +906,19 @@ export default function PokemonGoPage() {
         )}
           </div>
           </div>
-        {shownWanted.length > 0 && (
-          <details open className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
-            <summary style={{ fontSize: "0.95rem" }}>Wanted ({shownWanted.length}) <span className="muted" style={{ fontSize: "0.82rem", fontWeight: 400 }}>meta picks for jobs your box doesn't cover yet</span></summary>
-            <label className="muted" style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: "0.82rem", marginTop: 4 }}>
-              <input type="checkbox" checked={wantedEasy} onChange={(e) => setWantedEasy(e.target.checked)} />
-              Easy to get only (no legendaries, Ultra Beasts or Megas)
-            </label>
+        {idx && (
+          <div style={{ margin: "8px 0 16px" }}>
+            <div className="row" style={{ alignItems: "center", marginBottom: 6 }}>
+              <span><strong>Wanted</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>{shownWanted.length} meta picks for jobs your box doesn't cover yet</span></span>
+              <label className="muted" style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: "0.82rem" }}>
+                <input type="checkbox" checked={wantedEasy} onChange={(e) => setWantedEasy(e.target.checked)} />
+                Easy to get only (no legendaries, Ultra Beasts or Megas)
+              </label>
+            </div>
+            {shownWanted.length === 0 && <p className="empty">Nothing to suggest with these filters.</p>}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 8 }}>
             {shownWanted.map((w) => (
-              <div key={w.species.id} style={{ marginTop: 10 }}>
+              <div key={w.species.id} className="card" style={{ padding: "10px 12px", fontSize: "0.85rem" }}>
                 <div>
                   <strong>{w.species.name}</strong><Types s={w.species} />{" "}
                   {w.jobs.map((j) => <Chip key={j.job} color={ROLE_COLOR[j.job.split(":")[0]]}>{j.label}</Chip>)}
@@ -932,7 +936,8 @@ export default function PokemonGoPage() {
                 <CatchLine t={w.species} idx={idx} />
               </div>
             ))}
-          </details>
+            </div>
+          </div>
         )}
         </>
       )}
