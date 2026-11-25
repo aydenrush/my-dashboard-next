@@ -185,6 +185,22 @@ function Recommend({ jobs, labelOf }) {
   );
 }
 
+// compact row for the side cards: rank, Pokémon, one main line and a small note, optional control on the right
+function MiniRow({ n, e, line, note, right }) {
+  return (
+    <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid var(--border)" }}>
+      <div style={{ fontWeight: 700, color: "var(--muted)", minWidth: 30, textAlign: "right" }}>#{n}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div><strong>{e.species.name}</strong> <span className="muted" style={{ fontSize: "0.82rem", fontVariantNumeric: "tabular-nums" }}>{e.ivs.join("/")}</span></div>
+        <div style={{ fontSize: "0.85rem" }}>{line}</div>
+        {note && <div className="muted" style={{ fontSize: "0.78rem" }}>{note}</div>}
+      </div>
+      {right}
+    </div>
+  );
+}
+const SubHead = ({ children }) => <div className="muted" style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.04em", margin: "10px 0 2px" }}>{children}</div>;
+
 // one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
 function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
   const e = x.result.entry, j = x.jobs[0];
@@ -478,9 +494,9 @@ export default function PokemonGoPage() {
   // walk for evolution candy: the top projects that still need to evolve (one per family; buddy candy goes to the
   // whole family). km = candy still needed x the walker's km per candy (Magikarp 1, Gible 5).
   const walkFams = new Set();
-  const buddyWalk = topList.map((x) => ({ x, n: projNum.get(x.result.entry.id), job: x.jobs.find((j) => j.evo?.to && j.evo.candy > 0) }))
+  const buddyWalk = projMatches.map((x) => ({ x, n: projNum.get(x.result.entry.id), job: x.jobs.find((j) => j.evo?.to && j.evo.candy > 0) }))
     .filter(({ x, job }) => job && x.result.entry.species.buddyKm && !walkFams.has(x.result.entry.species.family) && walkFams.add(x.result.entry.species.family))
-    .slice(0, 5)
+    .slice(0, 8)
     .map((b) => {
       const fam = b.x.result.entry.species.family, have = parseInt(candyHave[fam]);
       const left = Math.max(0, b.job.evo.candy - (Number.isNaN(have) ? 0 : have));
@@ -503,14 +519,14 @@ export default function PokemonGoPage() {
       : xl ? "Rare Candy XL to power it past level 40" : "Rare Candy for power-ups";
     return { x, n: projNum.get(x.result.entry.id), hard, use, why: hard === 2 ? "candy only comes from raids / 20 km walks" : "5 km per candy" };
   }).filter((r) => r.hard > 0 && planMatch(r.x.result.entry.species.name, r.x.jobs.map((j) => j.role)))
-    .sort((a, b) => b.hard - a.hard || a.n - b.n).slice(0, 5);
-  const buddyEvolve = topList.map((x) => ({ x, n: projNum.get(x.result.entry.id), job: x.jobs.find((j) => j.evo?.items?.some((t) => /buddy/.test(t))) }))
+    .sort((a, b) => b.hard - a.hard || a.n - b.n).slice(0, 10);
+  const buddyEvolve = projMatches.map((x) => ({ x, n: projNum.get(x.result.entry.id), job: x.jobs.find((j) => j.evo?.items?.some((t) => /buddy/.test(t))) }))
     .filter((b) => b.job).map((b) => ({ ...b, need: b.job.evo.items.filter((t) => /buddy/.test(t)) }));
   // buddy candy goes to the whole family, so one per family
   const xlFams = new Set();
-  const buddyXl = topList.map((x) => ({ x, n: projNum.get(x.result.entry.id) }))
+  const buddyXl = projMatches.map((x) => ({ x, n: projNum.get(x.result.entry.id) }))
     .filter(({ x }) => x.jobs.some((j) => /XL Candy is worth it|XL Candy only/.test(j.invest)) && !xlFams.has(x.result.entry.species.family) && xlFams.add(x.result.entry.species.family))
-    .slice(0, 3);
+    .slice(0, 6);
 
   async function toggleDone(b) {
     const roles = b.roles.includes("done") ? b.roles.filter((r) => r !== "done") : [...b.roles, "done"];
@@ -809,50 +825,31 @@ export default function PokemonGoPage() {
           <div>
         {rareCandy.length > 0 && (
           <div style={{ margin: "8px 0 16px" }}>
-          <div style={{ marginBottom: 6 }}><strong>Rare Candy</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>where it's worth the most</span></div>
-          <div className="card" style={{ padding: "4px 12px 10px", fontSize: "0.85rem" }}>
-            {rareCandy.map(({ x, n, use, why }) => (
-              <div key={x.result.entry.id} style={{ marginTop: 6 }}>
-                <span className="muted" style={{ display: "inline-block", minWidth: 28 }}>#{n}</span>
-                <strong>{x.result.entry.species.name}</strong> {x.result.entry.ivs.join("/")}: {use}
-                <div className="muted" style={{ marginLeft: 28, fontSize: "0.8rem" }}>{why}</div>
-              </div>
-            ))}
-            <div className="muted" style={{ marginTop: 8, fontSize: "0.8rem" }}>Lines that walk 1–3 km per candy aren't listed: walk or catch those instead.</div>
-          </div>
+            <div style={{ marginBottom: 6 }}><strong>Rare Candy</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>where it's worth the most</span></div>
+            <div className="card" style={{ padding: "2px 12px 8px" }}>
+              {rareCandy.map(({ x, n, use, why }) => <MiniRow key={x.result.entry.id} n={n} e={x.result.entry} line={use} note={why} />)}
+              <div className="muted" style={{ marginTop: 8, fontSize: "0.78rem" }}>Lines that walk 1–3 km per candy aren't listed: walk or catch those instead.</div>
+            </div>
           </div>
         )}
         {(buddyEvolve.length > 0 || buddyXl.length > 0 || buddyWalk.length > 0) && (
           <div style={{ margin: "8px 0 16px" }}>
-          <div style={{ marginBottom: 6 }}><strong>Buddy plan</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>in Top projects order</span></div>
-          <div className="card" style={{ padding: "4px 12px 10px", fontSize: "0.85rem" }}>
-            {buddyEvolve.length > 0 && <div className="muted" style={{ marginTop: 6 }}>Needs a buddy to evolve</div>}
-            {buddyEvolve.map(({ x, n, need, job }) => (
-              <div key={x.result.entry.id} style={{ marginTop: 3 }}>
-                <span className="muted" style={{ display: "inline-block", minWidth: 28 }}>#{n}</span>
-                <strong>{x.result.entry.species.name}</strong> {x.result.entry.ivs.join("/")}: {need.join(", ")}, then evolve to {job.evo.to}
-              </div>
-            ))}
-            {buddyWalk.length > 0 && <div className="muted" style={{ marginTop: 8 }}>Walk for evolution candy (type the candy you have to see how far is left)</div>}
-            {buddyWalk.map(({ x, n, job, fam, left, km, known }) => (
-              <div key={fam} style={{ marginTop: 4, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                <span className="muted" style={{ display: "inline-block", minWidth: 28 }}>#{n}</span>
-                <strong>{x.result.entry.species.name}</strong> {x.result.entry.ivs.join("/")} → {job.evo.to.replace(/, then Mega Evolve$/, "")}:
-                <span>{job.evo.candy} candy, {x.result.entry.species.buddyKm} km each</span>
-                <input inputMode="numeric" value={candyHave[fam] ?? ""} placeholder="have" aria-label={`Candy you have for ${x.result.entry.species.name}`}
-                  onChange={(e) => /^\d{0,4}$/.test(e.target.value) && setCandyHave((c) => ({ ...c, [fam]: e.target.value }))}
-                  style={{ width: 56, padding: "2px 6px", font: "inherit", textAlign: "center" }} />
-                <span className={known ? "" : "muted"}>{left === 0 ? "enough to evolve now" : `${known ? "" : "up to "}${left} candy = ${km} km`}</span>
-              </div>
-            ))}
-            {buddyXl.length > 0 && <div className="muted" style={{ marginTop: 8 }}>Walk for XL Candy (buddies earn it at trainer level 31+)</div>}
-            {buddyXl.map(({ x, n }) => (
-              <div key={x.result.entry.id} style={{ marginTop: 3 }}>
-                <span className="muted" style={{ display: "inline-block", minWidth: 28 }}>#{n}</span>
-                <strong>{x.result.entry.species.name}</strong> {x.result.entry.ivs.join("/")}: {x.jobs.map((j) => jobLabel(jobKey(j))).join(", ")}
-              </div>
-            ))}
-          </div>
+            <div style={{ marginBottom: 6 }}><strong>Buddy plan</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>in Top projects order</span></div>
+            <div className="card" style={{ padding: "2px 12px 8px" }}>
+              {buddyEvolve.length > 0 && <SubHead>Needs a buddy to evolve</SubHead>}
+              {buddyEvolve.map(({ x, n, need, job }) => <MiniRow key={x.result.entry.id} n={n} e={x.result.entry} line={`Evolve to ${job.evo.to}`} note={need.join(", ")} />)}
+              {buddyWalk.length > 0 && <SubHead>Walk for evolution candy</SubHead>}
+              {buddyWalk.map(({ x, n, job, fam, left, km, known }) => (
+                <MiniRow key={fam} n={n} e={x.result.entry}
+                  line={`→ ${job.evo.to.replace(/, then Mega Evolve$/, "")}: ${left === 0 ? "enough candy to evolve now" : `${known ? "" : "up to "}${left} candy · ${km} km`}`}
+                  note={`${job.evo.candy} candy total, ${x.result.entry.species.buddyKm} km each`}
+                  right={<input inputMode="numeric" value={candyHave[fam] ?? ""} placeholder="have" aria-label={`Candy you have for ${x.result.entry.species.name}`}
+                    onChange={(e) => /^\d{0,4}$/.test(e.target.value) && setCandyHave((c) => ({ ...c, [fam]: e.target.value }))}
+                    style={{ width: 56, padding: "2px 6px", font: "inherit", textAlign: "center" }} />} />
+              ))}
+              {buddyXl.length > 0 && <SubHead>Walk for XL Candy (trainer level 31+)</SubHead>}
+              {buddyXl.map(({ x, n }) => <MiniRow key={x.result.entry.id} n={n} e={x.result.entry} line={x.jobs.map((j) => jobLabel(jobKey(j))).join(", ")} />)}
+            </div>
           </div>
         )}
           </div>
