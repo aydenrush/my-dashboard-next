@@ -103,13 +103,18 @@ function EvolveSelect({ s, idx, onPick }) {
 
 // the whole evolution line, every branch: "Gible → Gabite (25 candy) → Garchomp (100 candy) → Mega Garchomp",
 // with this Pokémon in bold. Shadows can't Mega Evolve, so their line stops before the Mega.
-function EvoLine({ s, idx, flags }) {
+// family: every box Pokémon in this line ({ b, tags }), listed by stage under the line; selfId is the card's own one
+function EvoLine({ s, idx, flags, family = [], selfId }) {
   let root = s;
   while (root.parent && idx.byId[root.parent]) root = idx.byId[root.parent];
   const paths = (t) => { const next = t.evolutions.map((id) => idx.byId[id]).filter(Boolean); return next.length ? next.flatMap((n) => paths(n).map((p) => [t, ...p])) : [[t]]; };
   // each Mega is its own line (Charizard has X and Y)
   const lines = paths(root).flatMap((p) => { const megas = flags.shadow ? [] : idx.data.species.filter((m) => m.id.startsWith(`${p.at(-1).id}_mega`)); return megas.length ? megas.map((m) => [...p, m]) : [p]; });
-  if (lines.every((l) => l.length === 1)) return null;
+  if (lines.every((l) => l.length === 1) && family.length < 2) return null;
+  // stages in line order, then anything else in the family (regional forms...)
+  const order = [...new Set(lines.flat().map((t) => t.id))];
+  const rank = (b) => { const k = order.indexOf(b.species.id); return k < 0 ? order.length : k; };
+  const members = [...family].sort((x, y) => rank(x.b) - rank(y.b) || y.b.ivs.reduce((p, q) => p + q, 0) - x.b.ivs.reduce((p, q) => p + q, 0));
   return (
     <details style={{ marginTop: 4 }}>
       <summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Evo line</summary>
@@ -124,12 +129,26 @@ function EvoLine({ s, idx, flags }) {
           ))}
         </div>
       ))}
+      {members.length > 0 && (
+        <div style={{ marginTop: 8, fontSize: "0.82rem" }}>
+          <div className="muted" style={{ marginBottom: 2 }}>In your box ({members.length})</div>
+          {members.map(({ b, tags }) => (
+            <div key={b.id} style={{ marginTop: 3, fontWeight: b.id === selfId ? 700 : 400 }}>
+              {b.species.name} <span style={{ fontVariantNumeric: "tabular-nums" }}>{b.ivs.join("/")}</span> <span className="muted">{ivPct(b.ivs)}</span>
+              {flagNames(b.flags) && <span className="muted"> · {flagNames(b.flags, ", ")}</span>}
+              {b.roles.includes("done") && <span className="muted"> · done</span>}{" "}
+              {tags.length ? tags.map((t) => <Chip key={t} color={t.startsWith("near:") ? PALETTE.amber : t.startsWith("hold:") || t.startsWith("backup:") ? PALETTE.blue : ROLE_COLOR[t.split(":")[0]]}>{jobLabel(t)}</Chip>)
+                : <span className="muted">no job now</span>}
+            </div>
+          ))}
+        </div>
+      )}
     </details>
   );
 }
 
 // one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
-function ProjectCard({ n, x, idx, onDone, onEvolve, inBox }) {
+function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
   const e = x.result.entry, j = x.jobs[0];
   return (
     <div className="card" style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 12px", marginBottom: 6 }}>
@@ -151,7 +170,7 @@ function ProjectCard({ n, x, idx, onDone, onEvolve, inBox }) {
           )}
           <div style={{ fontSize: "0.85rem", marginTop: j.evo ? 2 : 6 }}><span className="muted">Power up:</span> {j.invest}</div>
         </>}
-        {inBox && <EvoLine s={e.species} idx={idx} flags={e.flags} />}
+        {inBox && <EvoLine s={e.species} idx={idx} flags={e.flags} family={family} selfId={e.id} />}
         <details style={{ marginTop: 4 }}><summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Why?</summary><Why entry={e} idx={idx} /></details>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -384,6 +403,7 @@ export default function PokemonGoPage() {
     const { error } = await supabase.from("pogo_box").update({ roles }).eq("id", b.id);
     if (!error) setBox((bx) => bx.map((x) => (x.id === b.id ? { ...x, roles } : x)));
   }
+  const familyRows = (fam) => boxEntries.filter((b) => b.species.family === fam).map((b) => ({ b, tags: tagsFor(b) }));
   const tagsFor = (b) => { const live = boxTags.get(b.id) || []; return live.length ? live : b.roles.filter((r) => r.startsWith("hold:")); };
 
   // the box list after search, filter and sort
@@ -592,7 +612,7 @@ export default function PokemonGoPage() {
           <div style={{ margin: "8px 0 16px" }}>
             <div style={{ marginBottom: 6 }}><strong>Top projects</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>best investment first; tap Done once it's powered up</span></div>
             {topList.map((x, i) => (
-              <ProjectCard key={x.result.entry.id} n={i + 1} x={x} idx={idx} inBox onDone={() => toggleDone(x.result.entry)} onEvolve={(id) => evolveBox(x.result.entry, id)} />
+              <ProjectCard key={x.result.entry.id} n={i + 1} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} onEvolve={(id) => evolveBox(x.result.entry, id)} />
             ))}
             {openProjects.length > 10 && (
               <button type="button" className="btn" onClick={() => setAllProjects((v) => !v)} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>
@@ -601,7 +621,7 @@ export default function PokemonGoPage() {
             )}
             {boxBorderline.length > 0 && <div style={{ margin: "12px 0 6px", color: PALETTE.amber, fontWeight: 600, fontSize: "0.9rem" }}>Borderline (your call)</div>}
             {boxBorderline.map((x, i) => (
-              <ProjectCard key={x.result.entry.id} n={topList.length + i + 1} x={x} idx={idx} inBox onDone={() => toggleDone(x.result.entry)} />
+              <ProjectCard key={x.result.entry.id} n={topList.length + i + 1} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} />
             ))}
           </div>
         )}
