@@ -168,6 +168,23 @@ function CatchLine({ t, idx }) {
   );
 }
 
+// elite = top of its job: top-5 raider, top-10 Great/Ultra League, top-5 Master League, 85%+ Max attacker or G-Max.
+// When a Pokémon can do several jobs, this says which to build it for (every elite one, else its best one).
+const ELITE = { raid: 5, gl: 10, ul: 10, ml: 5 };
+const jobRank = (j) => j.rank ?? (j.role === "raid" ? j.raidRank : j.role === "gl" || j.role === "ul" ? j.target?.[j.role] : j.role === "ml" ? j.target?.ml : null);
+const isElite = (j) => (j.role === "max" ? j.pct >= 85 || /^Gigantamax/.test(j.detail || "") : ELITE[j.role] != null && jobRank(j) != null && jobRank(j) <= ELITE[j.role]);
+function Recommend({ jobs, labelOf }) {
+  if (jobs.length < 2) return null;
+  const elite = jobs.filter(isElite);
+  const pick = elite.length ? elite : [jobs[0]];
+  return (
+    <div style={{ fontSize: "0.85rem", marginTop: 4 }}>
+      <span className="muted">{elite.length > 1 ? "Elite at:" : "Recommended:"}</span> <strong>{pick.map(labelOf).join(", ")}</strong>
+      {elite.length > 1 && <span className="muted"> (worth building for {elite.length === 2 ? "both" : "all of them"})</span>}
+    </div>
+  );
+}
+
 // one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
 function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
   const e = x.result.entry, j = x.jobs[0];
@@ -181,6 +198,7 @@ function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
           {x.result.fromBox && !inBox && <span className="muted"> · in your box</span>}
         </div>
         <div style={{ marginTop: 4 }}>{x.jobs.map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}</div>
+        {!x.near && !x.backup && <Recommend jobs={x.jobs} labelOf={(o) => jobLabel(jobKey(o))} />}
         {x.near ? x.jobs.map((c) => <div key={c.role} style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Borderline:</span> {c.detail}</div>)
           : x.backup ? <div style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Backup:</span> only if the one above goes</div> : <>
           {j.evo && !j.evo.to && <div style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Mega:</span> Mega Evolve it for raids (needs Mega Energy)</div>}
@@ -840,6 +858,7 @@ export default function PokemonGoPage() {
                   {w.rarity.length > 0 && <span className="muted"> {w.rarity.join(" · ")}</span>}
                 </div>
                 {w.jobs.map((j) => <div key={j.job} className="muted" style={{ marginLeft: 2 }}>{j.label}: {j.what}</div>)}
+                <div style={{ marginLeft: 2 }}><Recommend jobs={w.jobs} labelOf={(j) => j.label} /></div>
                 <div style={{ marginLeft: 2 }}><span className="muted">Look for:</span> {(() => {
                   // different jobs want different IVs: "15 Attack (Raids) · 15 / 14+ / 14+ (Master League)"
                   const by = {};
