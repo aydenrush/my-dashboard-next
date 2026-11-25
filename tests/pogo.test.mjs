@@ -285,3 +285,10 @@ assert.equal(projects(decideBatch([], idx, parseBatch("15/14/14 gible", idx).ent
 // moves ride along with jobs: raid moveset from the data, legacy moves marked
 const mvRaid = decideBatch(parseBatch("15/10/10 rhyperior", idx).entries, idx)[0].roles.find((c) => c.role === "raid");
 assert.equal(mvRaid.moves, "Smack Down + Rock Wrecker" + (idx.byId.rhyperior.elite.includes("ROCK_WRECKER") ? " (legacy)" : ""));
+
+// wanted: suggests top picks for jobs the box doesn't hold, skips ones it does
+const { wanted } = await import("../lib/pogo.js");
+const emptyBox = wanted([], idx);
+assert.ok(emptyBox.some((w) => w.job === "raid:dragon"));
+const gibleBox = wanted(decideBatch([], idx, parseBatch("15/15/15 gible", idx).entries, { includeBox: true }), idx);
+assert.ok(!gibleBox.some((w) => w.job === "raid:dragon"));

@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { getSetting, setSetting } from "@/lib/settings";
 import { PALETTE } from "@/lib/constants";
-import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, projects, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
+import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, projects, wanted, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, gym: PALETTE.slate, trophy: PALETTE.slate };
 const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax", "oneoff", "legacy", "xxl", "old", "keep"];
@@ -425,6 +425,8 @@ export default function PokemonGoPage() {
       const left = Math.max(0, b.job.evo.candy - (Number.isNaN(have) ? 0 : have));
       return { ...b, fam, left, km: left * b.x.result.entry.species.buddyKm, known: !Number.isNaN(have) };
     });
+  // meta picks for jobs the box doesn't cover yet
+  const wantedList = useMemo(() => (idx ? wanted(boxView, idx) : []), [idx, boxView]);
   const buddyEvolve = openProjects.map((x, i) => ({ x, n: i + 1, job: x.jobs.find((j) => j.evo?.items?.some((t) => /buddy/.test(t))) }))
     .filter((b) => b.job).map((b) => ({ ...b, need: b.job.evo.items.filter((t) => /buddy/.test(t)) }));
   // buddy candy goes to the whole family, so one per family
@@ -715,6 +717,20 @@ export default function PokemonGoPage() {
               </div>
             ))}
           </div>
+        )}
+        {wantedList.length > 0 && (
+          <details className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
+            <summary style={{ fontSize: "0.95rem" }}>Wanted ({wantedList.length}) <span className="muted" style={{ fontSize: "0.82rem", fontWeight: 400 }}>meta picks for jobs your box doesn't cover yet</span></summary>
+            {wantedList.map((w) => (
+              <div key={w.job + w.species.id} style={{ marginTop: 6 }}>
+                <strong>{w.species.name}</strong><Types s={w.species} /> <Chip color={ROLE_COLOR[w.job.split(":")[0]]}>{w.label}</Chip>
+                <span className="muted">{w.what}</span>
+                <div style={{ marginLeft: 2 }}>
+                  <span className="muted">Look for:</span> {w.lookFor}{w.rarity.length > 0 && <span className="muted"> · {w.rarity.join(" · ")}</span>}
+                </div>
+              </div>
+            ))}
+          </details>
         )}
         {boxEntries.length === 0 && <p className="empty">Keepers you save show up here, and new batches are compared against them.</p>}
         {boxEntries.length > 0 && (
