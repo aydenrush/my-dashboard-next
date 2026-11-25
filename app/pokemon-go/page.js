@@ -114,7 +114,8 @@ function ProjectCard({ n, x, onDone, onEvolve, inBox }) {
           {x.result.fromBox && !inBox && <span className="muted"> · in your box</span>}
         </div>
         <div style={{ marginTop: 4 }}>{x.jobs.map((o) => <Chip key={jobKey(o)} color={ROLE_COLOR[o.role]}>{jobLabel(jobKey(o))}</Chip>)}</div>
-        {x.backup ? <div style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Backup:</span> only if the one above goes</div> : <>
+        {x.near ? x.jobs.map((c) => <div key={c.role} style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Borderline:</span> {c.detail}</div>)
+          : x.backup ? <div style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Backup:</span> only if the one above goes</div> : <>
           {j.evo && !j.evo.to && <div style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Mega:</span> Mega Evolve it for raids (needs Mega Energy)</div>}
           {j.evo?.to && (
             <div style={{ fontSize: "0.85rem", marginTop: 6 }}>
@@ -324,14 +325,17 @@ export default function PokemonGoPage() {
 
   // box tags are worked out live from the whole box (saved roles go stale when another box row changes).
   // A saved Hold has no live job, so it keeps its saved hold tag.
+  const boxView = useMemo(() => (idx && boxEntries.length ? decideBatch([], idx, boxEntries, { includeBox: true }) : []), [idx, boxEntries]);
+  // box Pokémon that are only borderline (no real job): listed under Top projects as "your call"
+  const boxBorderline = boxView.filter((r) => r.borderline.length && !r.roles.some((c) => c.role !== "trophy") && !r.entry.roles.includes("done"))
+    .map((r) => ({ result: r, jobs: r.borderline, near: true }));
   const boxTags = useMemo(() => {
-    if (!idx || !boxEntries.length) return new Map();
-    const res = decideBatch([], idx, boxEntries, { includeBox: true });
+    const res = boxView;
     return new Map(res.map((r) => [r.entry.id, [...r.roles.map(jobKey), ...r.backup.map((c) => `backup:${jobKey(c)}`), ...r.borderline.map((c) => `near:${c.role}`)]]));
-  }, [idx, boxEntries]);
+  }, [boxView]);
   // the whole box ranked by what to power up next; ones you mark Done (stored as "done" in roles) drop off
   const boxProjects = useMemo(() => (idx && boxEntries.length
-    ? projects(decideBatch([], idx, boxEntries, { includeBox: true }), { all: true }).flatMap((p) => p.items).filter((x) => !x.backup).sort((x, y) => y.value - x.value)
+    ? projects(boxView, { all: true }).flatMap((p) => p.items).filter((x) => !x.backup).sort((x, y) => y.value - x.value)
     : []), [idx, boxEntries]);
   // you evolved a box Pokémon in the game: switch its species (IVs and flags carry over)
   async function evolveBox(b, id) {
@@ -340,6 +344,8 @@ export default function PokemonGoPage() {
     setBox((bx) => bx.map((x) => (x.id === b.id ? { ...x, species_id: id } : x)));
     setMsg(`${b.species.name} evolved to ${idx.byId[id].name}.`);
   }
+
+  const topList = boxProjects.filter((x) => !x.result.entry.roles.includes("done")).slice(0, 10);
 
   async function toggleDone(b) {
     const roles = b.roles.includes("done") ? b.roles.filter((r) => r !== "done") : [...b.roles, "done"];
@@ -550,11 +556,15 @@ export default function PokemonGoPage() {
 
       <details style={{ marginTop: "1.5rem" }}>
         <summary>Your box ({boxEntries.length})</summary>
-        {boxProjects.some((x) => !x.result.entry.roles.includes("done")) && (
+        {(topList.length > 0 || boxBorderline.length > 0) && (
           <div style={{ margin: "8px 0 16px" }}>
             <div style={{ marginBottom: 6 }}><strong>Top projects</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>best investment first; tap Done once it's powered up</span></div>
-            {boxProjects.filter((x) => !x.result.entry.roles.includes("done")).slice(0, 10).map((x, i) => (
+            {topList.map((x, i) => (
               <ProjectCard key={x.result.entry.id} n={i + 1} x={x} inBox onDone={() => toggleDone(x.result.entry)} onEvolve={(id) => evolveBox(x.result.entry, id)} />
+            ))}
+            {boxBorderline.length > 0 && <div style={{ margin: "12px 0 6px", color: PALETTE.amber, fontWeight: 600, fontSize: "0.9rem" }}>Borderline (your call)</div>}
+            {boxBorderline.map((x, i) => (
+              <ProjectCard key={x.result.entry.id} n={topList.length + i + 1} x={x} inBox onDone={() => toggleDone(x.result.entry)} />
             ))}
           </div>
         )}
