@@ -952,16 +952,22 @@ export default function PokemonGoPage() {
         )}
         {boxEntries.length > 0 && boxList.length === 0 && <p className="empty">Nothing matches.</p>}
         {boxList.map((b) => (
-          <div key={b.id} className={`row pogo-boxrow ${specialClass(b)}`} style={{ alignItems: "center", marginBottom: 4 }}>
-            <span className="pogo-boxname" style={{ minWidth: 180 }}><strong className="pogo-name">{b.species.name}</strong><Badges e={b} /><Types s={b.species} /> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
-            <span className="muted">{flagNames(b.flags)}</span>
-            {b.roles.includes("done") && <button type="button" onClick={() => toggleDone(b)} title="Powered up. Click to put it back in Top projects" style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}><Chip color={PALETTE.emerald}>Done ✓</Chip></button>}
-            {tagsFor(b).length === 0 && <span className="muted" style={{ fontSize: "0.8rem" }}>no job now (a better one in your box took it)</span>}
-            {tagsFor(b).map((r) => <Chip key={r} color={r.startsWith("near:") ? PALETTE.amber : r.startsWith("hold:") || r.startsWith("backup:") ? PALETTE.blue : ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
-            <EvolveSelect s={b.species} idx={idx} onPick={(id) => evolveBox(b, id)} />
-            <button className="btn" onClick={() => { setEditingBox(b.id); setEditing(null); }} aria-label={`Edit ${b.species.name} in box`}
-              style={{ padding: "1px 8px", fontSize: "0.75rem", borderColor: editingBox === b.id ? "var(--accent)" : undefined }}>Edit</button>
-            <button className="btn" onClick={() => removeFromBox(b)} aria-label={`Remove ${b.species.name} from box`} style={{ padding: "1px 8px", fontSize: "0.75rem" }}>✕</button>
+          <div key={b.id} className={`card ${specialClass(b)}`} style={{ padding: "10px 12px", marginBottom: 6, outline: editingBox === b.id ? "2px solid var(--accent)" : undefined }}>
+            <div>
+              <strong className="pogo-name">{b.species.name}</strong><Badges e={b} /><Types s={b.species} />{" "}
+              <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: 6 }}>{b.ivs.join("/")}</span> <span className="muted">{ivPct(b.ivs)}</span>
+              {flagNames(b.flags) && <span className="muted"> · {flagNames(b.flags, ", ")}</span>}
+            </div>
+            <div style={{ marginTop: 4 }}>
+              {b.roles.includes("done") && <button type="button" onClick={() => toggleDone(b)} title="Powered up. Click to put it back in Top projects" style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}><Chip color={PALETTE.emerald}>Done ✓</Chip></button>}
+              {tagsFor(b).map((r) => <Chip key={r} color={r.startsWith("near:") ? PALETTE.amber : r.startsWith("hold:") || r.startsWith("backup:") ? PALETTE.blue : ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
+              {tagsFor(b).length === 0 && <span className="muted" style={{ fontSize: "0.82rem" }}>No job now: a better one in your box took it. Transfer it and remove it here.</span>}
+            </div>
+            <div className="row" style={{ gap: 6, marginTop: 8, marginBottom: 0, alignItems: "center" }}>
+              <EvolveSelect s={b.species} idx={idx} onPick={(id) => evolveBox(b, id)} />
+              <button className="btn" onClick={() => { setEditingBox(b.id); setEditing(null); }} aria-label={`Edit ${b.species.name} in box`} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Edit</button>
+              <button className="btn" onClick={() => removeFromBox(b)} aria-label={`Remove ${b.species.name} from box`} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Remove</button>
+            </div>
           </div>
         ))}
         </>
