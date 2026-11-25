@@ -232,15 +232,27 @@ function CdNote({ cd }) {
   );
 }
 
+// special-Pokémon effects (styles in globals.css): shiny shimmer, Lucky gold tint, Shadow purple glow, Purified glow,
+// Mighty red edge, hundo green glow; a small badge next to the name says which
+const SPECIAL = [["shiny", "✨", "Shiny"], ["lucky", "🍀", "Lucky"], ["shadow", "🟣", "Shadow"], ["purified", "🤍", "Purified"], ["mighty", "💪", "Mighty"]];
+const isHundo = (e) => e.ivs.every((v) => v === 15);
+const specialClass = (e) => [...SPECIAL.filter(([f]) => e.flags[f]).map(([f]) => `pogo-${f}`), isHundo(e) && "pogo-hundo"].filter(Boolean).join(" ");
+const Badges = ({ e }) => (
+  <span aria-hidden="true" style={{ marginLeft: 4 }}>
+    {SPECIAL.filter(([f]) => e.flags[f]).map(([f, icon, label]) => <span key={f} title={label}>{icon}</span>)}
+    {isHundo(e) && <span title="Hundo (15/15/15)">💯</span>}
+  </span>
+);
+
 // one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
 function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
   const e = x.result.entry, j = x.jobs[0];
   return (
-    <div className="card" style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 12px", marginBottom: 6 }}>
+    <div className={`card ${specialClass(x.result.entry)}`} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 12px", marginBottom: 6 }}>
       <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--muted)", minWidth: 24, textAlign: "right", lineHeight: 1.2 }}>{n}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div>
-          <strong>{e.species.name}</strong><Types s={e.species} /> <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: 6 }}>{e.ivs.join("/")}</span> <span className="muted">{ivPct(e.ivs)}</span>
+          <strong className="pogo-name">{e.species.name}</strong><Badges e={e} /><Types s={e.species} /> <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: 6 }}>{e.ivs.join("/")}</span> <span className="muted">{ivPct(e.ivs)}</span>
           {flagNames(e.flags) && <span className="muted"> · {flagNames(e.flags, ", ")}</span>}
           {x.result.fromBox && !inBox && <span className="muted"> · in your box</span>}
         </div>
@@ -751,7 +763,7 @@ export default function PokemonGoPage() {
                   {SECTION[r.verdict]} · {results.filter((x) => x.verdict === r.verdict).length}
                 </h3>
               )}
-              <div className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}`, outline: r.entry.i != null && editing === r.entry.i ? "2px solid var(--accent)" : undefined }}>
+              <div className={`card ${specialClass(r.entry)}`} style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}`, outline: r.entry.i != null && editing === r.entry.i ? "2px solid var(--accent)" : undefined }}>
                 <div className="pogo-card-head" style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
                 <span className="pogo-break" style={{ order: 97 }} />
                   <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
@@ -769,7 +781,7 @@ export default function PokemonGoPage() {
                     <button type="button" className="btn" onClick={() => { setBatch((b) => b.filter((_, j) => j !== r.entry.i)); setEditing(null); }} aria-label={`Remove ${r.entry.species.name} from batch`}
                       style={{ order: 100, padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Remove</button>
                   )}
-                  <strong>{r.entry.species.name}</strong><Types s={r.entry.species} />
+                  <strong className="pogo-name">{r.entry.species.name}</strong><Badges e={r.entry} /><Types s={r.entry.species} />
                   <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
                   <span className="muted">{ivPct(r.entry.ivs)}</span>
                   <span className="muted">{flagNames(r.entry.flags)}</span>
@@ -940,8 +952,8 @@ export default function PokemonGoPage() {
         )}
         {boxEntries.length > 0 && boxList.length === 0 && <p className="empty">Nothing matches.</p>}
         {boxList.map((b) => (
-          <div key={b.id} className="row pogo-boxrow" style={{ alignItems: "center", marginBottom: 4 }}>
-            <span className="pogo-boxname" style={{ minWidth: 180 }}><strong>{b.species.name}</strong><Types s={b.species} /> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
+          <div key={b.id} className={`row pogo-boxrow ${specialClass(b)}`} style={{ alignItems: "center", marginBottom: 4 }}>
+            <span className="pogo-boxname" style={{ minWidth: 180 }}><strong className="pogo-name">{b.species.name}</strong><Badges e={b} /><Types s={b.species} /> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
             <span className="muted">{flagNames(b.flags)}</span>
             {b.roles.includes("done") && <button type="button" onClick={() => toggleDone(b)} title="Powered up. Click to put it back in Top projects" style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}><Chip color={PALETTE.emerald}>Done ✓</Chip></button>}
             {tagsFor(b).length === 0 && <span className="muted" style={{ fontSize: "0.8rem" }}>no job now (a better one in your box took it)</span>}
