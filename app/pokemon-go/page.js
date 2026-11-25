@@ -346,7 +346,10 @@ export default function PokemonGoPage() {
     setMsg(`${b.species.name} evolved to ${idx.byId[id].name}.`);
   }
 
-  const topList = boxProjects.filter((x) => !x.result.entry.roles.includes("done")).slice(0, 10);
+  // first 10 by value; the rest (gym walls score lowest, so they're usually there) behind "Show more"
+  const [allProjects, setAllProjects] = useState(false);
+  const openProjects = boxProjects.filter((x) => !x.result.entry.roles.includes("done"));
+  const topList = allProjects ? openProjects : openProjects.slice(0, 10);
 
   async function toggleDone(b) {
     const roles = b.roles.includes("done") ? b.roles.filter((r) => r !== "done") : [...b.roles, "done"];
@@ -563,6 +566,11 @@ export default function PokemonGoPage() {
             {topList.map((x, i) => (
               <ProjectCard key={x.result.entry.id} n={i + 1} x={x} idx={idx} inBox onDone={() => toggleDone(x.result.entry)} onEvolve={(id) => evolveBox(x.result.entry, id)} />
             ))}
+            {openProjects.length > 10 && (
+              <button type="button" className="btn" onClick={() => setAllProjects((v) => !v)} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>
+                {allProjects ? "Show top 10" : `Show ${openProjects.length - 10} more (${[...new Set(openProjects.slice(10).flatMap((x) => x.jobs.map((j) => ROLE_LABEL[j.role])))].join(", ")})`}
+              </button>
+            )}
             {boxBorderline.length > 0 && <div style={{ margin: "12px 0 6px", color: PALETTE.amber, fontWeight: 600, fontSize: "0.9rem" }}>Borderline (your call)</div>}
             {boxBorderline.map((x, i) => (
               <ProjectCard key={x.result.entry.id} n={topList.length + i + 1} x={x} idx={idx} inBox onDone={() => toggleDone(x.result.entry)} />
