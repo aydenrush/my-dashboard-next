@@ -529,7 +529,7 @@ export default function PokemonGoPage() {
   const walkFams = new Set();
   const buddyWalk = projMatches.map((x) => ({ x, n: projNum.get(x.result.entry.id), job: x.jobs.find((j) => j.evo?.to && j.evo.candy > 0) }))
     .filter(({ x, job }) => job && x.result.entry.species.buddyKm && !walkFams.has(x.result.entry.species.family) && walkFams.add(x.result.entry.species.family))
-    .slice(0, 8)
+    .slice(0, 10)
     .map((b) => {
       const fam = b.x.result.entry.species.family, have = parseInt(candyHave[fam]);
       const left = Math.max(0, b.job.evo.candy - (Number.isNaN(have) ? 0 : have));
@@ -552,14 +552,14 @@ export default function PokemonGoPage() {
       : xl ? "Rare Candy XL to power it past level 40" : "Rare Candy for power-ups";
     return { x, n: projNum.get(x.result.entry.id), hard, use, why: hard === 2 ? "candy only comes from raids / 20 km walks" : "5 km per candy" };
   }).filter((r) => r.hard > 0 && planMatch(r.x.result.entry.species.name, r.x.jobs.map((j) => j.role)))
-    .sort((a, b) => b.hard - a.hard || a.n - b.n).slice(0, 10);
+    .sort((a, b) => b.hard - a.hard || a.n - b.n).slice(0, 12);
   const buddyEvolve = projMatches.map((x) => ({ x, n: projNum.get(x.result.entry.id), job: x.jobs.find((j) => j.evo?.items?.some((t) => /buddy/.test(t))) }))
     .filter((b) => b.job).map((b) => ({ ...b, need: b.job.evo.items.filter((t) => /buddy/.test(t)) }));
   // buddy candy goes to the whole family, so one per family
   const xlFams = new Set();
   const buddyXl = projMatches.map((x) => ({ x, n: projNum.get(x.result.entry.id) }))
     .filter(({ x }) => x.jobs.some((j) => /XL Candy is worth it|XL Candy only/.test(j.invest)) && !xlFams.has(x.result.entry.species.family) && xlFams.add(x.result.entry.species.family))
-    .slice(0, 6);
+    .slice(0, 8);
 
   async function toggleDone(b) {
     const roles = b.roles.includes("done") ? b.roles.filter((r) => r !== "done") : [...b.roles, "done"];
