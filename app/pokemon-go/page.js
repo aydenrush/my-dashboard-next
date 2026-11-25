@@ -458,6 +458,7 @@ export default function PokemonGoPage() {
   const [planQ, setPlanQ] = useState("");
   const [planJob, setPlanJob] = useState("all");
   const [planSort, setPlanSort] = useState("rank");
+  const [planLimit, setPlanLimit] = useState(10); // projects + borderline rows shown; "Show 10 more" raises it
   const JOB_GROUPS = { all: "All jobs", raid: "Raids", pvp: "Great / Ultra", ml: "Master League", max: "Max Battles", gym: "Gym" };
   const inGroup = (role) => planJob === "all" || (planJob === "pvp" ? role === "gl" || role === "ul" : role === planJob);
   const planMatch = (name, roles) => (!planQ.trim() || name.toLowerCase().includes(planQ.trim().toLowerCase())) && roles.some(inGroup);
@@ -465,9 +466,12 @@ export default function PokemonGoPage() {
   const planSorted = (list) => (planSort === "rank" ? list
     : [...list].sort(planSort === "name" ? (x, y) => x.result.entry.species.name.localeCompare(y.result.entry.species.name) : (x, y) => ivSum(y.result.entry) - ivSum(x.result.entry)));
   const projNum = new Map(openProjects.map((x, i) => [x.result.entry.id, i + 1]));
-  const topList = planSorted(openProjects.filter((x) => planMatch(x.result.entry.species.name, x.jobs.map((j) => j.role)))).slice(0, 10);
+  const projMatches = planSorted(openProjects.filter((x) => planMatch(x.result.entry.species.name, x.jobs.map((j) => j.role))));
+  const topList = projMatches.slice(0, planLimit);
   const borderNum = new Map(boxBorderline.map((x, i) => [x.result.entry.id, openProjects.length + i + 1]));
-  const borderShown = planSorted(boxBorderline.filter((x) => planMatch(x.result.entry.species.name, x.jobs.map((j) => j.role)))).slice(0, 10 - topList.length); // projects + borderline share 10 slots; borderline only fills what projects leave
+  const borderMatches = planSorted(boxBorderline.filter((x) => planMatch(x.result.entry.species.name, x.jobs.map((j) => j.role))));
+  const borderShown = borderMatches.slice(0, planLimit - topList.length); // projects + borderline share the rows; borderline only fills what projects leave
+  const planHidden = projMatches.length + borderMatches.length - topList.length - borderShown.length;
 
   // buddy plan: projects whose evolution needs a buddy (walk km, hearts, buddy quests), then the top projects that
   // want XL Candy (walking a buddy earns it). Numbers match Top projects.
@@ -793,6 +797,12 @@ export default function PokemonGoPage() {
             {borderShown.map((x) => (
               <ProjectCard key={x.result.entry.id} n={borderNum.get(x.result.entry.id)} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} />
             ))}
+            {(planHidden > 0 || planLimit > 10) && (
+              <div className="row" style={{ gap: 6 }}>
+                {planHidden > 0 && <button type="button" className="btn" onClick={() => setPlanLimit((n) => n + 10)} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Show {Math.min(10, planHidden)} more ({planHidden} left)</button>}
+                {planLimit > 10 && <button type="button" className="btn" onClick={() => setPlanLimit(10)} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Back to top 10</button>}
+              </div>
+            )}
           </div>
         )}
           </div>
