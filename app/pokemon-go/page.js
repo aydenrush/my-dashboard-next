@@ -780,8 +780,9 @@ export default function PokemonGoPage() {
           </div>
           <div>
         {rareCandy.length > 0 && (
-          <div className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
-            <strong style={{ fontSize: "0.95rem" }}>Rare Candy</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>where it's worth the most</span>
+          <div style={{ margin: "8px 0 16px" }}>
+          <div style={{ marginBottom: 6 }}><strong>Rare Candy</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>where it's worth the most</span></div>
+          <div className="card" style={{ padding: "4px 12px 10px", fontSize: "0.85rem" }}>
             {rareCandy.map(({ x, n, use, why }) => (
               <div key={x.result.entry.id} style={{ marginTop: 6 }}>
                 <span className="muted" style={{ display: "inline-block", minWidth: 28 }}>#{n}</span>
@@ -791,10 +792,12 @@ export default function PokemonGoPage() {
             ))}
             <div className="muted" style={{ marginTop: 8, fontSize: "0.8rem" }}>Lines that walk 1–3 km per candy aren't listed: walk or catch those instead.</div>
           </div>
+          </div>
         )}
         {(buddyEvolve.length > 0 || buddyXl.length > 0 || buddyWalk.length > 0) && (
-          <div className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
-            <strong style={{ fontSize: "0.95rem" }}>Buddy plan</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>in Top projects order</span>
+          <div style={{ margin: "8px 0 16px" }}>
+          <div style={{ marginBottom: 6 }}><strong>Buddy plan</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>in Top projects order</span></div>
+          <div className="card" style={{ padding: "4px 12px 10px", fontSize: "0.85rem" }}>
             {buddyEvolve.length > 0 && <div className="muted" style={{ marginTop: 6 }}>Needs a buddy to evolve</div>}
             {buddyEvolve.map(({ x, n, need, job }) => (
               <div key={x.result.entry.id} style={{ marginTop: 3 }}>
@@ -821,6 +824,7 @@ export default function PokemonGoPage() {
                 <strong>{x.result.entry.species.name}</strong> {x.result.entry.ivs.join("/")}: {x.jobs.map((j) => jobLabel(jobKey(j))).join(", ")}
               </div>
             ))}
+          </div>
           </div>
         )}
           </div>
