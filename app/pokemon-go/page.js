@@ -468,6 +468,20 @@ export default function PokemonGoPage() {
   const wantedList = useMemo(() => (idx ? wanted(boxView, idx) : []), [idx, boxView]);
   const shownWanted = wantedList.filter((w) => planMatch(w.species.name, w.jobs.map((j) => j.job.split(":")[0])))
     .sort((x, y) => (planSort === "name" ? x.species.name.localeCompare(y.species.name) : 0));
+  // Rare Candy (and XL) turns into any species' candy, so spend it where candy is hard to farm: legendaries, mythicals,
+  // Ultra Beasts and 20 km buddies first (raid-only candy), then 5 km lines; common 1-3 km lines you can just walk.
+  const rareCandy = openProjects.map((x) => {
+    const sp = x.result.entry.species, fam = sp.family;
+    const hard = ["legendary", "mythical", "ultrabeast"].some((t) => sp.tags.includes(t)) || sp.buddyKm >= 20 ? 2 : sp.buddyKm >= 5 ? 1 : 0;
+    const evoJob = x.jobs.find((j) => j.evo?.to && j.evo.candy > 0);
+    const have = parseInt(candyHave[fam]);
+    const left = evoJob ? Math.max(0, evoJob.evo.candy - (Number.isNaN(have) ? 0 : have)) : 0;
+    const xl = x.jobs.some((j) => /XL Candy is worth it|XL Candy only/.test(j.invest)) && !x.result.entry.flags.mighty;
+    const use = left > 0 ? `Rare Candy for the evolution (${Number.isNaN(have) ? "up to " : ""}${left} more to ${evoJob.evo.to.replace(/, then Mega Evolve$/, "")})`
+      : xl ? "Rare Candy XL to power it past level 40" : "Rare Candy for power-ups";
+    return { x, n: projNum.get(x.result.entry.id), hard, use, why: hard === 2 ? "candy only comes from raids / 20 km walks" : "5 km per candy" };
+  }).filter((r) => r.hard > 0 && planMatch(r.x.result.entry.species.name, r.x.jobs.map((j) => j.role)))
+    .sort((a, b) => b.hard - a.hard || a.n - b.n).slice(0, 5);
   const buddyEvolve = topList.map((x) => ({ x, n: projNum.get(x.result.entry.id), job: x.jobs.find((j) => j.evo?.items?.some((t) => /buddy/.test(t))) }))
     .filter((b) => b.job).map((b) => ({ ...b, need: b.job.evo.items.filter((t) => /buddy/.test(t)) }));
   // buddy candy goes to the whole family, so one per family
@@ -765,6 +779,19 @@ export default function PokemonGoPage() {
         )}
           </div>
           <div>
+        {rareCandy.length > 0 && (
+          <div className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
+            <strong style={{ fontSize: "0.95rem" }}>Rare Candy</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>where it's worth the most</span>
+            {rareCandy.map(({ x, n, use, why }) => (
+              <div key={x.result.entry.id} style={{ marginTop: 6 }}>
+                <span className="muted" style={{ display: "inline-block", minWidth: 28 }}>#{n}</span>
+                <strong>{x.result.entry.species.name}</strong> {x.result.entry.ivs.join("/")}: {use}
+                <div className="muted" style={{ marginLeft: 28, fontSize: "0.8rem" }}>{why}</div>
+              </div>
+            ))}
+            <div className="muted" style={{ marginTop: 8, fontSize: "0.8rem" }}>Lines that walk 1–3 km per candy aren't listed: walk or catch those instead.</div>
+          </div>
+        )}
         {(buddyEvolve.length > 0 || buddyXl.length > 0 || buddyWalk.length > 0) && (
           <div className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
             <strong style={{ fontSize: "0.95rem" }}>Buddy plan</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>in Top projects order</span>
