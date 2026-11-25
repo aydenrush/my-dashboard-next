@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
+import { getSetting, setSetting } from "@/lib/settings";
 import { PALETTE } from "@/lib/constants";
 import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, projects, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
@@ -296,6 +297,16 @@ export default function PokemonGoPage() {
   const [msg, setMsg] = useState("");
   const [editing, setEditing] = useState(null); // index of the batch row loaded into the form
   const [editingBox, setEditingBox] = useState(null); // or the id of the box row loaded into it
+  // candy you have per family ({ FAMILY_GIBLE: "87" }), typed in the Buddy plan; strings so an empty box stays empty.
+  // Saved to the settings table so it follows you between devices.
+  const [candyHave, setCandyHave] = useState({});
+  const candyLoaded = useRef(false);
+  useEffect(() => { getSetting("pogo_candy").then((v) => { if (v) setCandyHave(v); candyLoaded.current = true; }); }, []);
+  useEffect(() => {
+    if (!candyLoaded.current) return;
+    const t = setTimeout(() => setSetting("pogo_candy", Object.fromEntries(Object.entries(candyHave).filter(([, v]) => v !== ""))), 600);
+    return () => clearTimeout(t);
+  }, [candyHave]);
   const [boxQ, setBoxQ] = useState(""); // box search / filter / sort
   const [boxFilter, setBoxFilter] = useState("all");
   const [boxSort, setBoxSort] = useState("newest");
@@ -403,6 +414,17 @@ export default function PokemonGoPage() {
 
   // buddy plan: projects whose evolution needs a buddy (walk km, hearts, buddy quests), then the top projects that
   // want XL Candy (walking a buddy earns it). Numbers match Top projects.
+  // walk for evolution candy: the top projects that still need to evolve (one per family; buddy candy goes to the
+  // whole family). km = candy still needed x the walker's km per candy (Magikarp 1, Gible 5).
+  const walkFams = new Set();
+  const buddyWalk = openProjects.map((x, i) => ({ x, n: i + 1, job: x.jobs.find((j) => j.evo?.to && j.evo.candy > 0) }))
+    .filter(({ x, job }) => job && x.result.entry.species.buddyKm && !walkFams.has(x.result.entry.species.family) && walkFams.add(x.result.entry.species.family))
+    .slice(0, 5)
+    .map((b) => {
+      const fam = b.x.result.entry.species.family, have = parseInt(candyHave[fam]);
+      const left = Math.max(0, b.job.evo.candy - (Number.isNaN(have) ? 0 : have));
+      return { ...b, fam, left, km: left * b.x.result.entry.species.buddyKm, known: !Number.isNaN(have) };
+    });
   const buddyEvolve = openProjects.map((x, i) => ({ x, n: i + 1, job: x.jobs.find((j) => j.evo?.items?.some((t) => /buddy/.test(t))) }))
     .filter((b) => b.job).map((b) => ({ ...b, need: b.job.evo.items.filter((t) => /buddy/.test(t)) }));
   // buddy candy goes to the whole family, so one per family
@@ -663,7 +685,7 @@ export default function PokemonGoPage() {
             ))}
           </div>
         )}
-        {(buddyEvolve.length > 0 || buddyXl.length > 0) && (
+        {(buddyEvolve.length > 0 || buddyXl.length > 0 || buddyWalk.length > 0) && (
           <div className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
             <strong style={{ fontSize: "0.95rem" }}>Buddy plan</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>in Top projects order</span>
             {buddyEvolve.length > 0 && <div className="muted" style={{ marginTop: 6 }}>Needs a buddy to evolve</div>}
@@ -671,6 +693,18 @@ export default function PokemonGoPage() {
               <div key={x.result.entry.id} style={{ marginTop: 3 }}>
                 <span className="muted" style={{ display: "inline-block", minWidth: 28 }}>#{n}</span>
                 <strong>{x.result.entry.species.name}</strong> {x.result.entry.ivs.join("/")}: {need.join(", ")}, then evolve to {job.evo.to}
+              </div>
+            ))}
+            {buddyWalk.length > 0 && <div className="muted" style={{ marginTop: 8 }}>Walk for evolution candy (type the candy you have to see how far is left)</div>}
+            {buddyWalk.map(({ x, n, job, fam, left, km, known }) => (
+              <div key={fam} style={{ marginTop: 4, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                <span className="muted" style={{ display: "inline-block", minWidth: 28 }}>#{n}</span>
+                <strong>{x.result.entry.species.name}</strong> {x.result.entry.ivs.join("/")} → {job.evo.to.replace(/, then Mega Evolve$/, "")}:
+                <span>{job.evo.candy} candy, {x.result.entry.species.buddyKm} km each</span>
+                <input inputMode="numeric" value={candyHave[fam] ?? ""} placeholder="have" aria-label={`Candy you have for ${x.result.entry.species.name}`}
+                  onChange={(e) => /^\d{0,4}$/.test(e.target.value) && setCandyHave((c) => ({ ...c, [fam]: e.target.value }))}
+                  style={{ width: 56, padding: "2px 6px", font: "inherit", textAlign: "center" }} />
+                <span className={known ? "" : "muted"}>{left === 0 ? "enough to evolve now" : `${known ? "" : "up to "}${left} candy = ${km} km`}</span>
               </div>
             ))}
             {buddyXl.length > 0 && <div className="muted" style={{ marginTop: 8 }}>Walk for XL Candy (buddies earn it at trainer level 31+)</div>}

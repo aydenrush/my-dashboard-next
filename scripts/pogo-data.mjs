@@ -77,6 +77,13 @@ async function main() {
     ...(b.questDisplay || []).map((q) => quests[q.questRequirementTemplateId]).filter((q) => q && !(b.kmBuddyDistanceRequirement && /buddy walk/.test(q))),
     b.noCandyCostViaTrade && "free if traded first",
   ].filter(Boolean);
+  // buddy walking: km per candy ("magikarp" -> 1), keyed like the candy map
+  const buddyKm = {};
+  for (const e of game) {
+    const km = e.data?.pokemonSettings?.kmBuddyDistance;
+    const m = e.templateId.match(/^V\d+_POKEMON_([A-Z0-9_]+)$/);
+    if (km && m) buddyKm[m[1].toLowerCase().replace(/_normal$/, "")] ??= km;
+  }
   const candy = {};
   for (const e of game) {
     const ps = e.data?.pokemonSettings;
@@ -179,6 +186,7 @@ async function main() {
       candyPurified: candy[p.speciesId]?.purified ?? candy[base]?.purified ?? null,
       evoItem: candy[p.speciesId]?.item ?? candy[base]?.item ?? null, // e.g. "Metal Coat" to evolve into this
       evoNotes: (candy[p.speciesId] ?? candy[base])?.notes || [], // e.g. "night only", "walk 10 km as buddy"
+      buddyKm: buddyKm[p.speciesId] ?? buddyKm[base] ?? buddyKm[p.speciesId.split("_")[0]] ?? null, // km walked per candy
     };
   });
 
