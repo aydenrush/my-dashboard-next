@@ -221,6 +221,17 @@ function MiniRow({ n, e, line, note, right }) {
 }
 const SubHead = ({ children }) => <div className="muted" style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.04em", margin: "10px 0 2px" }}>{children}</div>;
 
+// "Wait to evolve" when the job's best moveset needs a Community Day move
+function CdNote({ cd }) {
+  if (!cd) return null;
+  return (
+    <div style={{ fontSize: "0.85rem", marginTop: 4, color: PALETTE.amber }}>
+      Wait to evolve: {cd.moves.join(" and ")} {cd.moves.length > 1 ? "are" : "is a"} Community Day move{cd.moves.length > 1 ? "s" : ""}.{" "}
+      <span className="muted">Evolve it during a Community Day, CD Classic or the December recap (or teach it later with an Elite TM; regular TMs can't).{cd.shadow ? " As a Shadow, remove Frustration with a Charged TM first (only possible during Rocket events)." : ""}</span>
+    </div>
+  );
+}
+
 // one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
 function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
   const e = x.result.entry, j = x.jobs[0];
@@ -238,6 +249,7 @@ function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
         {x.near ? x.jobs.map((c) => <div key={c.role} style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Borderline:</span> {c.detail}</div>)
           : x.backup ? <div style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Backup:</span> only if the one above goes</div> : <>
           {j.evo && !j.evo.to && <div style={{ fontSize: "0.85rem", marginTop: 6 }}><span className="muted">Mega:</span> Mega Evolve it for raids (needs Mega Energy)</div>}
+          <CdNote cd={x.jobs.find((o) => o.cd)?.cd} />
           {j.evo?.to && (
             <div style={{ fontSize: "0.85rem", marginTop: 6 }}>
               <span className="muted">Evolve:</span> {j.evo.to}{j.evo.candy ? ` · ${j.evo.candy} candy` : ""}{j.evo.items?.length ? ` · ${j.evo.items.join(", ")}` : ""}
@@ -768,6 +780,7 @@ export default function PokemonGoPage() {
                     <span style={{ color: ROLE_COLOR[c.role] }}>{jobLabel(jobKey(c))}:</span> {c.detail}. <span className="muted">{c.invest}.</span>
                     {(c.moveSet || c.moves) && <span> Moves: {c.moveSet ? <MoveSet m={c.moveSet} /> : c.moves}</span>}
                     {c.evo && !c.evo.to && <span className="muted"> Mega Evolve it for raids (needs Mega Energy).</span>}
+                    <CdNote cd={c.cd} />
                     {c.evo?.to && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? `; don't evolve until you have all ${c.evo.candy} candy (one go)` : ""}{c.evo.items?.length ? `; needs ${c.evo.items.join(" + ")}` : ""}.</span>}
                     {c.note && <span style={{ color: PALETTE.amber }}> {c.note}.</span>}
                   </div>

@@ -303,3 +303,11 @@ const primIdx = indexSpecies(primData);
 const prim = decideBatch(parseBatch("15/15/15 groudon", primIdx).entries, primIdx)[0].roles.find((c) => c.role === "raid");
 assert.equal(prim?.target.id, "groudon_primal");
 assert.equal(prim.evo.to, null); // already Groudon: just Primal Revert
+
+// Community Day moves: an unevolved Pokémon whose job needs a legacy move is told to wait
+const cdData = { ...data, species: data.species.map((s) => (s.id === "rhyperior" ? { ...s, elite: ["ROCK_WRECKER"] } : s)).concat([sp("rhyhorn", "Rhyhorn", { family: "R", evolutions: ["rhyperior"] })]) };
+cdData.species = cdData.species.map((s) => (s.id === "rhyperior" ? { ...s, parent: "rhyhorn" } : s));
+const cdIdx = indexSpecies(cdData);
+const cdRaid = decideBatch(parseBatch("15/10/10 rhyhorn", cdIdx).entries, cdIdx)[0].roles.find((c) => c.role === "raid");
+assert.deepEqual(cdRaid?.cd?.moves, ["Rock Wrecker"]);
+assert.equal(decideBatch(parseBatch("15/10/10 rhyperior", cdIdx).entries, cdIdx)[0].roles.find((c) => c.role === "raid")?.cd, undefined); // already evolved
