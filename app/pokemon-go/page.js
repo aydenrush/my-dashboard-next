@@ -87,8 +87,22 @@ const VARIANT = ["costume", "background"]; // these carry a number: which costum
 // { costume: 2, shiny: true } -> "Shiny · Costume 2"
 const flagNames = (flags, sep = " · ") => FLAG_ORDER.filter((f) => flags[f]).map((f) => FLAG_LABEL[f] + (flags[f] === true ? "" : ` ${flags[f]}`)).join(sep);
 
+// "Evolve…" picker listing every later stage (all branches); picking one records that you evolved it in the game
+function EvolveSelect({ s, idx, onPick }) {
+  const opts = [];
+  const walk = (x) => { for (const id of x.evolutions) { const t = idx.byId[id]; if (t && !opts.includes(t)) { opts.push(t); walk(t); } } };
+  walk(s);
+  if (!opts.length) return null;
+  return (
+    <select value="" onChange={(e) => e.target.value && onPick(e.target.value)} aria-label={`Evolve ${s.name}`} style={{ fontSize: "0.75rem", order: 97 }}>
+      <option value="">Evolve…</option>
+      {opts.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+    </select>
+  );
+}
+
 // one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
-function ProjectCard({ n, x, onDone, inBox }) {
+function ProjectCard({ n, x, onDone, onEvolve, inBox }) {
   const e = x.result.entry, j = x.jobs[0];
   return (
     <div className="card" style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 12px", marginBottom: 6 }}>
@@ -110,7 +124,13 @@ function ProjectCard({ n, x, onDone, inBox }) {
           <div style={{ fontSize: "0.85rem", marginTop: j.evo ? 2 : 6 }}><span className="muted">Power up:</span> {j.invest}</div>
         </>}
       </div>
-      {onDone && <button type="button" className="btn" onClick={onDone} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Done</button>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {onEvolve && j.evo?.to && !x.backup && (
+          <button type="button" className="btn" onClick={() => onEvolve(j.target.id.replace(/_shadow$|_mega.*$/, ""))} title={`Mark it evolved to ${j.evo.to.replace(/, then Mega Evolve$/, "")}`}
+            style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Evolved</button>
+        )}
+        {onDone && <button type="button" className="btn" onClick={onDone} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Done</button>}
+      </div>
     </div>
   );
 }
@@ -313,6 +333,14 @@ export default function PokemonGoPage() {
   const boxProjects = useMemo(() => (idx && boxEntries.length
     ? projects(decideBatch([], idx, boxEntries, { includeBox: true }), { all: true }).flatMap((p) => p.items).filter((x) => !x.backup).sort((x, y) => y.value - x.value)
     : []), [idx, boxEntries]);
+  // you evolved a box Pokémon in the game: switch its species (IVs and flags carry over)
+  async function evolveBox(b, id) {
+    const { error } = await supabase.from("pogo_box").update({ species_id: id }).eq("id", b.id);
+    if (error) return;
+    setBox((bx) => bx.map((x) => (x.id === b.id ? { ...x, species_id: id } : x)));
+    setMsg(`${b.species.name} evolved to ${idx.byId[id].name}.`);
+  }
+
   async function toggleDone(b) {
     const roles = b.roles.includes("done") ? b.roles.filter((r) => r !== "done") : [...b.roles, "done"];
     const { error } = await supabase.from("pogo_box").update({ roles }).eq("id", b.id);
@@ -463,6 +491,9 @@ export default function PokemonGoPage() {
                     style={{ order: 99, marginLeft: 0, padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Edit</button>
                 )}
                 {r.entry.i != null && (
+                  <EvolveSelect s={r.entry.species} idx={idx} onPick={(id) => setBatch((b) => b.map((x, j) => (j === r.entry.i ? { ...x, id } : x)))} />
+                )}
+                {r.entry.i != null && (
                   <button type="button" className="btn" onClick={() => { setBatch((b) => b.filter((_, j) => j !== r.entry.i)); setEditing(null); }} aria-label={`Remove ${r.entry.species.name} from batch`}
                     style={{ order: 100, padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Remove</button>
                 )}
@@ -523,7 +554,7 @@ export default function PokemonGoPage() {
           <div style={{ margin: "8px 0 16px" }}>
             <div style={{ marginBottom: 6 }}><strong>Top projects</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>best investment first; tap Done once it's powered up</span></div>
             {boxProjects.filter((x) => !x.result.entry.roles.includes("done")).slice(0, 10).map((x, i) => (
-              <ProjectCard key={x.result.entry.id} n={i + 1} x={x} inBox onDone={() => toggleDone(x.result.entry)} />
+              <ProjectCard key={x.result.entry.id} n={i + 1} x={x} inBox onDone={() => toggleDone(x.result.entry)} onEvolve={(id) => evolveBox(x.result.entry, id)} />
             ))}
           </div>
         )}
@@ -548,6 +579,7 @@ export default function PokemonGoPage() {
             {b.roles.includes("done") && <button type="button" onClick={() => toggleDone(b)} title="Powered up. Click to put it back in Top projects" style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}><Chip color={PALETTE.emerald}>Done ✓</Chip></button>}
             {tagsFor(b).length === 0 && <span className="muted" style={{ fontSize: "0.8rem" }}>no job now (a better one in your box took it)</span>}
             {tagsFor(b).map((r) => <Chip key={r} color={r.startsWith("near:") ? PALETTE.amber : r.startsWith("hold:") || r.startsWith("backup:") ? PALETTE.blue : ROLE_COLOR[r.split(":")[0]]}>{jobLabel(r)}</Chip>)}
+            <EvolveSelect s={b.species} idx={idx} onPick={(id) => evolveBox(b, id)} />
             <button className="btn" onClick={() => { setEditingBox(b.id); setEditing(null); }} aria-label={`Edit ${b.species.name} in box`}
               style={{ padding: "1px 8px", fontSize: "0.75rem", borderColor: editingBox === b.id ? "var(--accent)" : undefined }}>Edit</button>
             <button className="btn" onClick={() => removeFromBox(b)} aria-label={`Remove ${b.species.name} from box`} style={{ padding: "1px 8px", fontSize: "0.75rem" }}>✕</button>
