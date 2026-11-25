@@ -103,7 +103,7 @@ function EvolveSelect({ s, idx, onPick }) {
 
 // the whole evolution line, every branch: "Gible → Gabite (25 candy) → Garchomp (100 candy) → Mega Garchomp",
 // with this Pokémon in bold. Shadows can't Mega Evolve, so their line stops before the Mega.
-// family: every box Pokémon in this line ({ b, tags }), listed by stage under the line; selfId is the card's own one
+// family: every box Pokémon in this line ({ b, tags, n }), already in Top projects order; n = its Top projects number
 function EvoLine({ s, idx, flags, family = [], selfId }) {
   let root = s;
   while (root.parent && idx.byId[root.parent]) root = idx.byId[root.parent];
@@ -111,10 +111,7 @@ function EvoLine({ s, idx, flags, family = [], selfId }) {
   // each Mega is its own line (Charizard has X and Y)
   const lines = paths(root).flatMap((p) => { const megas = flags.shadow ? [] : idx.data.species.filter((m) => m.id.startsWith(`${p.at(-1).id}_mega`)); return megas.length ? megas.map((m) => [...p, m]) : [p]; });
   if (lines.every((l) => l.length === 1) && family.length < 2) return null;
-  // stages in line order, then anything else in the family (regional forms...)
-  const order = [...new Set(lines.flat().map((t) => t.id))];
-  const rank = (b) => { const k = order.indexOf(b.species.id); return k < 0 ? order.length : k; };
-  const members = [...family].sort((x, y) => rank(x.b) - rank(y.b) || y.b.ivs.reduce((p, q) => p + q, 0) - x.b.ivs.reduce((p, q) => p + q, 0));
+  const members = family;
   return (
     <details style={{ marginTop: 4 }}>
       <summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Evo line</summary>
@@ -132,8 +129,9 @@ function EvoLine({ s, idx, flags, family = [], selfId }) {
       {members.length > 0 && (
         <div style={{ marginTop: 8, fontSize: "0.82rem" }}>
           <div className="muted" style={{ marginBottom: 2 }}>In your box ({members.length})</div>
-          {members.map(({ b, tags }) => (
+          {members.map(({ b, tags, n }) => (
             <div key={b.id} style={{ marginTop: 3, fontWeight: b.id === selfId ? 700 : 400 }}>
+              <span className="muted" style={{ display: "inline-block", minWidth: 28 }}>{n ? `#${n}` : "–"}</span>
               {b.species.name} <span style={{ fontVariantNumeric: "tabular-nums" }}>{b.ivs.join("/")}</span> <span className="muted">{ivPct(b.ivs)}</span>
               {flagNames(b.flags) && <span className="muted"> · {flagNames(b.flags, ", ")}</span>}
               {b.roles.includes("done") && <span className="muted"> · done</span>}{" "}
@@ -403,7 +401,15 @@ export default function PokemonGoPage() {
     const { error } = await supabase.from("pogo_box").update({ roles }).eq("id", b.id);
     if (!error) setBox((bx) => bx.map((x) => (x.id === b.id ? { ...x, roles } : x)));
   }
-  const familyRows = (fam) => boxEntries.filter((b) => b.species.family === fam).map((b) => ({ b, tags: tagsFor(b) }));
+  // a family's box Pokémon in Top projects order (projects, then borderline, then the rest by IVs), with their numbers
+  const familyRows = (fam) => {
+    const num = new Map([...openProjects, ...boxBorderline].map((x, i) => [x.result.entry.id, i + 1]));
+    const pos = new Map([...boxProjects, ...boxBorderline].map((x, i) => [x.result.entry.id, i]));
+    const sum = (b) => b.ivs.reduce((p, q) => p + q, 0);
+    return boxEntries.filter((b) => b.species.family === fam)
+      .sort((x, y) => (pos.get(x.id) ?? 1e9) - (pos.get(y.id) ?? 1e9) || sum(y) - sum(x))
+      .map((b) => ({ b, tags: tagsFor(b), n: num.get(b.id) }));
+  };
   const tagsFor = (b) => { const live = boxTags.get(b.id) || []; return live.length ? live : b.roles.filter((r) => r.startsWith("hold:")); };
 
   // the box list after search, filter and sort
@@ -621,7 +627,7 @@ export default function PokemonGoPage() {
             )}
             {boxBorderline.length > 0 && <div style={{ margin: "12px 0 6px", color: PALETTE.amber, fontWeight: 600, fontSize: "0.9rem" }}>Borderline (your call)</div>}
             {boxBorderline.map((x, i) => (
-              <ProjectCard key={x.result.entry.id} n={topList.length + i + 1} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} />
+              <ProjectCard key={x.result.entry.id} n={openProjects.length + i + 1} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} />
             ))}
           </div>
         )}
