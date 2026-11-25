@@ -211,7 +211,7 @@ function MiniRow({ n, e, line, note, right }) {
     <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid var(--border)" }}>
       <div style={{ fontWeight: 700, color: "var(--muted)", minWidth: 30, textAlign: "right" }}>#{n}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div><strong>{e.species.name}</strong> <span className="muted" style={{ fontSize: "0.82rem", fontVariantNumeric: "tabular-nums" }}>{e.ivs.join("/")}</span></div>
+        <div><strong className="pogo-name">{e.species.name}</strong><Badges e={e} /><Types s={e.species} /> <span className="muted" style={{ fontSize: "0.82rem", fontVariantNumeric: "tabular-nums" }}>{e.ivs.join("/")}</span></div>
         <div style={{ fontSize: "0.85rem" }}>{line}</div>
         {note && <div className="muted" style={{ fontSize: "0.78rem" }}>{note}</div>}
       </div>
