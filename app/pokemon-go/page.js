@@ -88,7 +88,7 @@ const evoCost = (t) => [t.candy ? `${t.candy} candy` : t.candy == null ? "? cand
 const light = (hex) => { const n = parseInt(hex.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 150; };
 function TypePill({ type, children, title }) {
   const bg = TYPE_COLORS[type] || PALETTE.slate;
-  return <span title={title} style={{ display: "inline-block", fontSize: "0.72rem", padding: "1px 7px", borderRadius: 999, background: bg, color: light(bg) ? "rgba(0, 0, 0, 0.85)" : "white", marginRight: 3, fontWeight: 600, lineHeight: 1.5, whiteSpace: "nowrap" }}>{children}</span>;
+  return <span title={title} style={{ display: "inline-block", fontSize: "0.72rem", padding: "1px 7px", borderRadius: 999, background: bg, color: light(bg) || type === "psychic" ? "rgba(0, 0, 0, 0.85)" : "white", /* Psychic pink reads better dark too */ marginRight: 3, fontWeight: 600, lineHeight: 1.5, whiteSpace: "nowrap" }}>{children}</span>;
 }
 const Types = ({ s }) => <span style={{ marginLeft: 6 }}>{s.types.filter((t) => t && t !== "none").map((t) => <TypePill key={t} type={t}>{cap(t)}</TypePill>)}</span>;
 // "Mud Shot + Earthquake / Rock Slide" as pills colored by move type; ★ = legacy (Elite TM / Community Day)
