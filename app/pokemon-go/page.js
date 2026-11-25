@@ -101,6 +101,33 @@ function EvolveSelect({ s, idx, onPick }) {
   );
 }
 
+// the whole evolution line, every branch: "Gible → Gabite (25 candy) → Garchomp (100 candy) → Mega Garchomp",
+// with this Pokémon in bold. Shadows can't Mega Evolve, so their line stops before the Mega.
+function EvoLine({ s, idx, flags }) {
+  let root = s;
+  while (root.parent && idx.byId[root.parent]) root = idx.byId[root.parent];
+  const paths = (t) => { const next = t.evolutions.map((id) => idx.byId[id]).filter(Boolean); return next.length ? next.flatMap((n) => paths(n).map((p) => [t, ...p])) : [[t]]; };
+  // each Mega is its own line (Charizard has X and Y)
+  const lines = paths(root).flatMap((p) => { const megas = flags.shadow ? [] : idx.data.species.filter((m) => m.id.startsWith(`${p.at(-1).id}_mega`)); return megas.length ? megas.map((m) => [...p, m]) : [p]; });
+  if (lines.every((l) => l.length === 1)) return null;
+  return (
+    <details style={{ marginTop: 4 }}>
+      <summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Evo line</summary>
+      {lines.map((l, i) => (
+        <div key={i} style={{ fontSize: "0.82rem", marginTop: 4 }}>
+          {l.map((t, k) => (
+            <Fragment key={t.id}>
+              {k > 0 && " → "}
+              <span style={{ fontWeight: t.id === s.id ? 700 : 400 }}>{t.name}</span>
+              {k > 0 && <span className="muted"> ({t.tags.includes("mega") ? "Mega Energy" : evoCost(t) || "free"})</span>}
+            </Fragment>
+          ))}
+        </div>
+      ))}
+    </details>
+  );
+}
+
 // one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
 function ProjectCard({ n, x, idx, onDone, onEvolve, inBox }) {
   const e = x.result.entry, j = x.jobs[0];
@@ -124,6 +151,7 @@ function ProjectCard({ n, x, idx, onDone, onEvolve, inBox }) {
           )}
           <div style={{ fontSize: "0.85rem", marginTop: j.evo ? 2 : 6 }}><span className="muted">Power up:</span> {j.invest}</div>
         </>}
+        {inBox && <EvoLine s={e.species} idx={idx} flags={e.flags} />}
         <details style={{ marginTop: 4 }}><summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Why?</summary><Why entry={e} idx={idx} /></details>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
