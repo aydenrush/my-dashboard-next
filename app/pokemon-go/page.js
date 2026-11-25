@@ -102,7 +102,7 @@ function EvolveSelect({ s, idx, onPick }) {
 }
 
 // one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
-function ProjectCard({ n, x, onDone, onEvolve, inBox }) {
+function ProjectCard({ n, x, idx, onDone, onEvolve, inBox }) {
   const e = x.result.entry, j = x.jobs[0];
   return (
     <div className="card" style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "10px 12px", marginBottom: 6 }}>
@@ -124,6 +124,7 @@ function ProjectCard({ n, x, onDone, onEvolve, inBox }) {
           )}
           <div style={{ fontSize: "0.85rem", marginTop: j.evo ? 2 : 6 }}><span className="muted">Power up:</span> {j.invest}</div>
         </>}
+        <details style={{ marginTop: 4 }}><summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Why?</summary><Why entry={e} idx={idx} /></details>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {onEvolve && j.evo?.to && !x.backup && (
@@ -470,7 +471,7 @@ export default function PokemonGoPage() {
           {projectList.map((p) => (
             <div key={p.family} style={{ marginBottom: 10 }}>
               <div style={{ fontWeight: 600, margin: "4px 0 6px" }}>{p.items[0].jobs[0].target.name.replace(/ \(.*\)$/, "")} line</div>
-              {p.items.map((x, i) => <ProjectCard key={i} n={i + 1} x={x} />)}
+              {p.items.map((x, i) => <ProjectCard key={i} n={i + 1} x={x} idx={idx} />)}
             </div>
           ))}
         </details>
@@ -560,11 +561,11 @@ export default function PokemonGoPage() {
           <div style={{ margin: "8px 0 16px" }}>
             <div style={{ marginBottom: 6 }}><strong>Top projects</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>best investment first; tap Done once it's powered up</span></div>
             {topList.map((x, i) => (
-              <ProjectCard key={x.result.entry.id} n={i + 1} x={x} inBox onDone={() => toggleDone(x.result.entry)} onEvolve={(id) => evolveBox(x.result.entry, id)} />
+              <ProjectCard key={x.result.entry.id} n={i + 1} x={x} idx={idx} inBox onDone={() => toggleDone(x.result.entry)} onEvolve={(id) => evolveBox(x.result.entry, id)} />
             ))}
             {boxBorderline.length > 0 && <div style={{ margin: "12px 0 6px", color: PALETTE.amber, fontWeight: 600, fontSize: "0.9rem" }}>Borderline (your call)</div>}
             {boxBorderline.map((x, i) => (
-              <ProjectCard key={x.result.entry.id} n={topList.length + i + 1} x={x} inBox onDone={() => toggleDone(x.result.entry)} />
+              <ProjectCard key={x.result.entry.id} n={topList.length + i + 1} x={x} idx={idx} inBox onDone={() => toggleDone(x.result.entry)} />
             ))}
           </div>
         )}
