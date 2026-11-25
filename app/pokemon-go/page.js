@@ -233,7 +233,7 @@ function CdNote({ cd }) {
 }
 
 // special-Pokémon effects (styles in globals.css): shiny shimmer, Lucky gold tint, Shadow purple glow, Purified glow,
-// Mighty red edge, hundo green glow; a small badge next to the name says which
+// Mighty orange edge, hundo red glow (like the appraisal bars); a small badge next to the name says which
 const SPECIAL = [["shiny", "✨", "Shiny"], ["lucky", "🍀", "Lucky"], ["shadow", "🟣", "Shadow"], ["purified", "🤍", "Purified"], ["mighty", "💪", "Mighty"]];
 const isHundo = (e) => e.ivs.every((v) => v === 15);
 const specialClass = (e) => [...SPECIAL.filter(([f]) => e.flags[f]).map(([f]) => `pogo-${f}`), isHundo(e) && "pogo-hundo"].filter(Boolean).join(" ");

@@ -336,7 +336,7 @@ details > summary { cursor: pointer; font-weight: 600; margin-bottom: 0.5rem; }
   .pogo-boxname { min-width: 0 !important; flex-basis: 100%; }
 }
 
-/* Pokémon GO special-Pokémon effects (hsl colors match PALETTE: amber, violet, emerald, rose) */
+/* Pokémon GO special-Pokémon effects (hsl colors match PALETTE: amber, violet, rose; Mighty orange) */
 .pogo-shiny .pogo-name {
   background: linear-gradient(90deg, currentColor 0%, hsl(38 92% 55%) 25%, hsl(48 100% 70%) 50%, hsl(38 92% 55%) 75%, currentColor 100%);
   background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -346,8 +346,8 @@ details > summary { cursor: pointer; font-weight: 600; margin-bottom: 0.5rem; }
 .card.pogo-lucky { background-image: linear-gradient(135deg, hsl(43 96% 56% / 0.16), transparent 60%); }
 .card.pogo-shadow { box-shadow: inset 0 0 0 1px hsl(258 90% 66% / 0.5), 0 0 14px hsl(258 90% 66% / 0.25); }
 .card.pogo-purified { box-shadow: 0 0 12px hsl(210 100% 85% / 0.45); }
-.card.pogo-mighty { box-shadow: inset 0 0 0 1px hsl(350 89% 60% / 0.55); }
-.card.pogo-hundo { box-shadow: 0 0 0 1px hsl(160 84% 39% / 0.6), 0 0 14px hsl(160 84% 39% / 0.3); }
+.card.pogo-mighty { box-shadow: inset 0 0 0 1px hsl(20 90% 55% / 0.6); }
+.card.pogo-hundo { box-shadow: 0 0 0 1px hsl(350 89% 60% / 0.7), 0 0 16px hsl(350 89% 60% / 0.35); } /* red like the in-game appraisal bars */
 .pogo-boxrow.pogo-lucky { background: linear-gradient(90deg, hsl(43 96% 56% / 0.14), transparent 70%); border-radius: 6px; }
 .pogo-boxrow.pogo-shadow { background: linear-gradient(90deg, hsl(258 90% 66% / 0.12), transparent 70%); border-radius: 6px; }
 @media (prefers-reduced-motion: reduce) { .pogo-shiny .pogo-name { animation: none; } }
