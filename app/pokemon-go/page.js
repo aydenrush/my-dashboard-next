@@ -467,7 +467,7 @@ export default function PokemonGoPage() {
   const projNum = new Map(openProjects.map((x, i) => [x.result.entry.id, i + 1]));
   const topList = planSorted(openProjects.filter((x) => planMatch(x.result.entry.species.name, x.jobs.map((j) => j.role)))).slice(0, 10);
   const borderNum = new Map(boxBorderline.map((x, i) => [x.result.entry.id, openProjects.length + i + 1]));
-  const borderShown = planSorted(boxBorderline.filter((x) => planMatch(x.result.entry.species.name, x.jobs.map((j) => j.role)))).slice(0, 10);
+  const borderShown = planSorted(boxBorderline.filter((x) => planMatch(x.result.entry.species.name, x.jobs.map((j) => j.role)))).slice(0, 10 - topList.length); // projects + borderline share 10 slots; borderline only fills what projects leave
 
   // buddy plan: projects whose evolution needs a buddy (walk km, hearts, buddy quests), then the top projects that
   // want XL Candy (walking a buddy earns it). Numbers match Top projects.
