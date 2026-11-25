@@ -289,6 +289,17 @@ assert.equal(mvRaid.moves, "Smack Down + Rock Wrecker" + (idx.byId.rhyperior.eli
 // wanted: suggests top picks for jobs the box doesn't hold, skips ones it does
 const { wanted } = await import("../lib/pogo.js");
 const emptyBox = wanted([], idx);
-assert.ok(emptyBox.some((w) => w.job === "raid:dragon"));
+assert.ok(emptyBox.some((w) => w.jobs.some((j) => j.job === "raid:dragon")));
 const gibleBox = wanted(decideBatch([], idx, parseBatch("15/15/15 gible", idx).entries, { includeBox: true }), idx);
-assert.ok(!gibleBox.some((w) => w.job === "raid:dragon"));
+assert.ok(!gibleBox.some((w) => w.jobs.some((j) => j.job === "raid:dragon")));
+// overlap: Garchomp and Mega Garchomp are one catch, listed once
+assert.equal(emptyBox.filter((w) => w.species.id === "garchomp").length, 1);
+
+// Primal forms count like Megas for the base Pokémon (Groudon -> Primal Groudon)
+const primData = { ...data, species: [...data.species,
+  sp("groudon", "Groudon", { family: "GR", tags: ["legendary"] }),
+  sp("groudon_primal", "Groudon (Primal)", { family: "groudon_primal", tags: ["legendary", "mega"], raid: { type: "grass", rank: 3, pct: 95, fast: "MUD_SHOT", charged: "SOLAR_BEAM", elite: false } })] };
+const primIdx = indexSpecies(primData);
+const prim = decideBatch(parseBatch("15/15/15 groudon", primIdx).entries, primIdx)[0].roles.find((c) => c.role === "raid");
+assert.equal(prim?.target.id, "groudon_primal");
+assert.equal(prim.evo.to, null); // already Groudon: just Primal Revert

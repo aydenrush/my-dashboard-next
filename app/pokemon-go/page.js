@@ -110,7 +110,7 @@ function EvoLine({ s, idx, flags, family = [], selfId }) {
   while (root.parent && idx.byId[root.parent]) root = idx.byId[root.parent];
   const paths = (t) => { const next = t.evolutions.map((id) => idx.byId[id]).filter(Boolean); return next.length ? next.flatMap((n) => paths(n).map((p) => [t, ...p])) : [[t]]; };
   // each Mega is its own line (Charizard has X and Y)
-  const lines = paths(root).flatMap((p) => { const megas = flags.shadow ? [] : idx.data.species.filter((m) => m.id.startsWith(`${p.at(-1).id}_mega`)); return megas.length ? megas.map((m) => [...p, m]) : [p]; });
+  const lines = paths(root).flatMap((p) => { const megas = flags.shadow ? [] : idx.data.species.filter((m) => (m.id.startsWith(`${p.at(-1).id}_mega`) || m.id === `${p.at(-1).id}_primal`)); return megas.length ? megas.map((m) => [...p, m]) : [p]; });
   if (lines.every((l) => l.length === 1) && family.length < 2) return null;
   const members = family;
   return (
@@ -201,7 +201,7 @@ function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {onEvolve && j.evo?.to && !x.backup && (
-          <button type="button" className="btn" onClick={() => onEvolve(j.target.id.replace(/_shadow$|_mega.*$/, ""))} title={`Mark it evolved to ${j.evo.to.replace(/, then Mega Evolve$/, "")}`}
+          <button type="button" className="btn" onClick={() => onEvolve(j.target.id.replace(/_shadow$|_(mega|primal).*$/, ""))} title={`Mark it evolved to ${j.evo.to.replace(/, then Mega Evolve$/, "")}`}
             style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Evolved</button>
         )}
         {onDone && <button type="button" className="btn" onClick={onDone} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Done</button>}
@@ -466,7 +466,7 @@ export default function PokemonGoPage() {
     });
   // meta picks for jobs the box doesn't cover yet
   const wantedList = useMemo(() => (idx ? wanted(boxView, idx) : []), [idx, boxView]);
-  const shownWanted = wantedList.filter((w) => planMatch(w.species.name, [w.job.split(":")[0]]))
+  const shownWanted = wantedList.filter((w) => planMatch(w.species.name, w.jobs.map((j) => j.job.split(":")[0])))
     .sort((x, y) => (planSort === "name" ? x.species.name.localeCompare(y.species.name) : 0));
   const buddyEvolve = topList.map((x) => ({ x, n: projNum.get(x.result.entry.id), job: x.jobs.find((j) => j.evo?.items?.some((t) => /buddy/.test(t))) }))
     .filter((b) => b.job).map((b) => ({ ...b, need: b.job.evo.items.filter((t) => /buddy/.test(t)) }));
@@ -802,12 +802,20 @@ export default function PokemonGoPage() {
           <details open className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
             <summary style={{ fontSize: "0.95rem" }}>Wanted ({shownWanted.length}) <span className="muted" style={{ fontSize: "0.82rem", fontWeight: 400 }}>meta picks for jobs your box doesn't cover yet</span></summary>
             {shownWanted.map((w) => (
-              <div key={w.job + w.species.id} style={{ marginTop: 6 }}>
-                <strong>{w.species.name}</strong><Types s={w.species} /> <Chip color={ROLE_COLOR[w.job.split(":")[0]]}>{w.label}</Chip>
-                <span className="muted">{w.what}</span>
-                <div style={{ marginLeft: 2 }}>
-                  <span className="muted">Look for:</span> {w.lookFor}{w.rarity.length > 0 && <span className="muted"> · {w.rarity.join(" · ")}</span>}
+              <div key={w.species.id} style={{ marginTop: 10 }}>
+                <div>
+                  <strong>{w.species.name}</strong><Types s={w.species} />{" "}
+                  {w.jobs.map((j) => <Chip key={j.job} color={ROLE_COLOR[j.job.split(":")[0]]}>{j.label}</Chip>)}
+                  {w.rarity.length > 0 && <span className="muted"> {w.rarity.join(" · ")}</span>}
                 </div>
+                {w.jobs.map((j) => <div key={j.job} className="muted" style={{ marginLeft: 2 }}>{j.label}: {j.what}</div>)}
+                <div style={{ marginLeft: 2 }}><span className="muted">Look for:</span> {(() => {
+                  // different jobs want different IVs: "15 Attack (Raids) · 15 / 14+ / 14+ (Master League)"
+                  const by = {};
+                  for (const j of w.jobs) (by[j.lookFor] ||= []).push(j.job.split(":")[0] === "raid" ? "Raids" : j.label);
+                  const groups = Object.entries(by);
+                  return groups.length === 1 ? groups[0][0] : groups.map(([look, jobs]) => `${look} (${[...new Set(jobs)].join(", ")})`).join(" · ");
+                })()}</div>
                 <CatchLine t={w.species} idx={idx} />
               </div>
             ))}
