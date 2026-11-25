@@ -435,14 +435,28 @@ export default function PokemonGoPage() {
 
   // Plan shows the top 10 projects and top 10 borderline; Buddy plan and numbers follow what's shown
   const openProjects = boxProjects.filter((x) => !x.result.entry.roles.includes("done"));
-  const topList = openProjects.slice(0, 10);
+  // one search / job filter / sort bar for the whole Plan tab; lists filter first, then show their top 10.
+  // Numbers stay each Pokémon's overall rank, so #14 is still #14 when a filter puts it on screen.
+  const [planQ, setPlanQ] = useState("");
+  const [planJob, setPlanJob] = useState("all");
+  const [planSort, setPlanSort] = useState("rank");
+  const JOB_GROUPS = { all: "All jobs", raid: "Raids", pvp: "Great / Ultra", ml: "Master League", max: "Max Battles", gym: "Gym" };
+  const inGroup = (role) => planJob === "all" || (planJob === "pvp" ? role === "gl" || role === "ul" : role === planJob);
+  const planMatch = (name, roles) => (!planQ.trim() || name.toLowerCase().includes(planQ.trim().toLowerCase())) && roles.some(inGroup);
+  const ivSum = (e) => e.ivs.reduce((p, q) => p + q, 0);
+  const planSorted = (list) => (planSort === "rank" ? list
+    : [...list].sort(planSort === "name" ? (x, y) => x.result.entry.species.name.localeCompare(y.result.entry.species.name) : (x, y) => ivSum(y.result.entry) - ivSum(x.result.entry)));
+  const projNum = new Map(openProjects.map((x, i) => [x.result.entry.id, i + 1]));
+  const topList = planSorted(openProjects.filter((x) => planMatch(x.result.entry.species.name, x.jobs.map((j) => j.role)))).slice(0, 10);
+  const borderNum = new Map(boxBorderline.map((x, i) => [x.result.entry.id, openProjects.length + i + 1]));
+  const borderShown = planSorted(boxBorderline.filter((x) => planMatch(x.result.entry.species.name, x.jobs.map((j) => j.role)))).slice(0, 10);
 
   // buddy plan: projects whose evolution needs a buddy (walk km, hearts, buddy quests), then the top projects that
   // want XL Candy (walking a buddy earns it). Numbers match Top projects.
   // walk for evolution candy: the top projects that still need to evolve (one per family; buddy candy goes to the
   // whole family). km = candy still needed x the walker's km per candy (Magikarp 1, Gible 5).
   const walkFams = new Set();
-  const buddyWalk = topList.map((x, i) => ({ x, n: i + 1, job: x.jobs.find((j) => j.evo?.to && j.evo.candy > 0) }))
+  const buddyWalk = topList.map((x) => ({ x, n: projNum.get(x.result.entry.id), job: x.jobs.find((j) => j.evo?.to && j.evo.candy > 0) }))
     .filter(({ x, job }) => job && x.result.entry.species.buddyKm && !walkFams.has(x.result.entry.species.family) && walkFams.add(x.result.entry.species.family))
     .slice(0, 5)
     .map((b) => {
@@ -452,11 +466,13 @@ export default function PokemonGoPage() {
     });
   // meta picks for jobs the box doesn't cover yet
   const wantedList = useMemo(() => (idx ? wanted(boxView, idx) : []), [idx, boxView]);
-  const buddyEvolve = topList.map((x, i) => ({ x, n: i + 1, job: x.jobs.find((j) => j.evo?.items?.some((t) => /buddy/.test(t))) }))
+  const shownWanted = wantedList.filter((w) => planMatch(w.species.name, [w.job.split(":")[0]]))
+    .sort((x, y) => (planSort === "name" ? x.species.name.localeCompare(y.species.name) : 0));
+  const buddyEvolve = topList.map((x) => ({ x, n: projNum.get(x.result.entry.id), job: x.jobs.find((j) => j.evo?.items?.some((t) => /buddy/.test(t))) }))
     .filter((b) => b.job).map((b) => ({ ...b, need: b.job.evo.items.filter((t) => /buddy/.test(t)) }));
   // buddy candy goes to the whole family, so one per family
   const xlFams = new Set();
-  const buddyXl = topList.map((x, i) => ({ x, n: i + 1 }))
+  const buddyXl = topList.map((x) => ({ x, n: projNum.get(x.result.entry.id) }))
     .filter(({ x }) => x.jobs.some((j) => /XL Candy is worth it|XL Candy only/.test(j.invest)) && !xlFams.has(x.result.entry.species.family) && xlFams.add(x.result.entry.species.family))
     .slice(0, 3);
 
@@ -467,7 +483,7 @@ export default function PokemonGoPage() {
   }
   // a family's box Pokémon in Top projects order (projects, then borderline, then the rest by IVs), with their numbers
   const familyRows = (fam) => {
-    const num = new Map([...topList, ...boxBorderline.slice(0, 10)].map((x, i) => [x.result.entry.id, i + 1]));
+    const num = new Map([...projNum, ...borderNum]);
     const pos = new Map([...boxProjects, ...boxBorderline].map((x, i) => [x.result.entry.id, i]));
     const sum = (b) => b.ivs.reduce((p, q) => p + q, 0);
     return boxEntries.filter((b) => b.species.family === fam)
@@ -720,18 +736,30 @@ export default function PokemonGoPage() {
 
       {tab === "plan" && (
         <>
-          {!topList.length && !boxBorderline.length && <p className="empty">Save keepers to your box and your projects show up here.</p>}
+          {(openProjects.length > 0 || boxBorderline.length > 0 || wantedList.length > 0) && (
+            <div className="row" style={{ alignItems: "center", marginBottom: 10 }}>
+              <input value={planQ} onChange={(e) => setPlanQ(e.target.value)} placeholder="Search projects, buddy, wanted" aria-label="Search the plan" style={{ padding: "6px 8px", font: "inherit", flex: "1 1 180px", minWidth: 0 }} />
+              <select value={planJob} onChange={(e) => setPlanJob(e.target.value)} aria-label="Filter by job">
+                {Object.entries(JOB_GROUPS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+              <select value={planSort} onChange={(e) => setPlanSort(e.target.value)} aria-label="Sort the plan">
+                <option value="rank">Best first</option><option value="iv">IV %</option><option value="name">Name</option>
+              </select>
+            </div>
+          )}
+          {!openProjects.length && !boxBorderline.length && <p className="empty">Save keepers to your box and your projects show up here.</p>}
+          {(openProjects.length > 0 || boxBorderline.length > 0) && !topList.length && !borderShown.length && <p className="empty">No projects match.</p>}
           <div className="plan-grid">
           <div>
-        {(topList.length > 0 || boxBorderline.length > 0) && (
+        {(topList.length > 0 || borderShown.length > 0) && (
           <div style={{ margin: "8px 0 16px" }}>
             <div style={{ marginBottom: 6 }}><strong>Top projects</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>best investment first; tap Done once it's powered up</span></div>
             {topList.map((x, i) => (
-              <ProjectCard key={x.result.entry.id} n={i + 1} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} onEvolve={(id) => evolveBox(x.result.entry, id)} />
+              <ProjectCard key={x.result.entry.id} n={projNum.get(x.result.entry.id)} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} onEvolve={(id) => evolveBox(x.result.entry, id)} />
             ))}
-            {boxBorderline.length > 0 && <div style={{ margin: "12px 0 6px", color: PALETTE.amber, fontWeight: 600, fontSize: "0.9rem" }}>Borderline (your call)</div>}
-            {boxBorderline.slice(0, 10).map((x, i) => (
-              <ProjectCard key={x.result.entry.id} n={topList.length + i + 1} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} />
+            {borderShown.length > 0 && <div style={{ margin: "12px 0 6px", color: PALETTE.amber, fontWeight: 600, fontSize: "0.9rem" }}>Borderline (your call)</div>}
+            {borderShown.map((x) => (
+              <ProjectCard key={x.result.entry.id} n={borderNum.get(x.result.entry.id)} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} />
             ))}
           </div>
         )}
@@ -770,10 +798,10 @@ export default function PokemonGoPage() {
         )}
           </div>
           </div>
-        {wantedList.length > 0 && (
+        {shownWanted.length > 0 && (
           <details open className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
-            <summary style={{ fontSize: "0.95rem" }}>Wanted ({wantedList.length}) <span className="muted" style={{ fontSize: "0.82rem", fontWeight: 400 }}>meta picks for jobs your box doesn't cover yet</span></summary>
-            {wantedList.map((w) => (
+            <summary style={{ fontSize: "0.95rem" }}>Wanted ({shownWanted.length}) <span className="muted" style={{ fontSize: "0.82rem", fontWeight: 400 }}>meta picks for jobs your box doesn't cover yet</span></summary>
+            {shownWanted.map((w) => (
               <div key={w.job + w.species.id} style={{ marginTop: 6 }}>
                 <strong>{w.species.name}</strong><Types s={w.species} /> <Chip color={ROLE_COLOR[w.job.split(":")[0]]}>{w.label}</Chip>
                 <span className="muted">{w.what}</span>
