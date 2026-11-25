@@ -401,6 +401,16 @@ export default function PokemonGoPage() {
   const openProjects = boxProjects.filter((x) => !x.result.entry.roles.includes("done"));
   const topList = allProjects ? openProjects : openProjects.slice(0, 10);
 
+  // buddy plan: projects whose evolution needs a buddy (walk km, hearts, buddy quests), then the top projects that
+  // want XL Candy (walking a buddy earns it). Numbers match Top projects.
+  const buddyEvolve = openProjects.map((x, i) => ({ x, n: i + 1, job: x.jobs.find((j) => j.evo?.items?.some((t) => /buddy/.test(t))) }))
+    .filter((b) => b.job).map((b) => ({ ...b, need: b.job.evo.items.filter((t) => /buddy/.test(t)) }));
+  // buddy candy goes to the whole family, so one per family
+  const xlFams = new Set();
+  const buddyXl = openProjects.map((x, i) => ({ x, n: i + 1 }))
+    .filter(({ x }) => x.jobs.some((j) => /XL Candy is worth it|XL Candy only/.test(j.invest)) && !xlFams.has(x.result.entry.species.family) && xlFams.add(x.result.entry.species.family))
+    .slice(0, 3);
+
   async function toggleDone(b) {
     const roles = b.roles.includes("done") ? b.roles.filter((r) => r !== "done") : [...b.roles, "done"];
     const { error } = await supabase.from("pogo_box").update({ roles }).eq("id", b.id);
@@ -650,6 +660,25 @@ export default function PokemonGoPage() {
             {boxBorderline.length > 0 && <div style={{ margin: "12px 0 6px", color: PALETTE.amber, fontWeight: 600, fontSize: "0.9rem" }}>Borderline (your call)</div>}
             {boxBorderline.map((x, i) => (
               <ProjectCard key={x.result.entry.id} n={openProjects.length + i + 1} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} />
+            ))}
+          </div>
+        )}
+        {(buddyEvolve.length > 0 || buddyXl.length > 0) && (
+          <div className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
+            <strong style={{ fontSize: "0.95rem" }}>Buddy plan</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>in Top projects order</span>
+            {buddyEvolve.length > 0 && <div className="muted" style={{ marginTop: 6 }}>Needs a buddy to evolve</div>}
+            {buddyEvolve.map(({ x, n, need, job }) => (
+              <div key={x.result.entry.id} style={{ marginTop: 3 }}>
+                <span className="muted" style={{ display: "inline-block", minWidth: 28 }}>#{n}</span>
+                <strong>{x.result.entry.species.name}</strong> {x.result.entry.ivs.join("/")}: {need.join(", ")}, then evolve to {job.evo.to}
+              </div>
+            ))}
+            {buddyXl.length > 0 && <div className="muted" style={{ marginTop: 8 }}>Walk for XL Candy (buddies earn it at trainer level 31+)</div>}
+            {buddyXl.map(({ x, n }) => (
+              <div key={x.result.entry.id} style={{ marginTop: 3 }}>
+                <span className="muted" style={{ display: "inline-block", minWidth: 28 }}>#{n}</span>
+                <strong>{x.result.entry.species.name}</strong> {x.result.entry.ivs.join("/")}: {x.jobs.map((j) => jobLabel(jobKey(j))).join(", ")}
+              </div>
             ))}
           </div>
         )}
