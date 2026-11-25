@@ -313,3 +313,7 @@ details > summary { cursor: pointer; font-weight: 600; margin-bottom: 0.5rem; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .confirm-danger { background: var(--error); border-color: var(--error); color: #fff; }
 .confirm-danger:hover { filter: brightness(1.1); }
+
+/* Pokémon GO Plan tab: Top projects | Buddy plan side by side, stacked on narrow screens */
+.plan-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .plan-grid { grid-template-columns: minmax(0, 1fr); } }

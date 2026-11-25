@@ -433,17 +433,16 @@ export default function PokemonGoPage() {
     setMsg(`${b.species.name} evolved to ${idx.byId[id].name}.`);
   }
 
-  // first 10 by value; the rest (gym walls score lowest, so they're usually there) behind "Show more"
-  const [allProjects, setAllProjects] = useState(false);
+  // Plan shows the top 10 projects and top 10 borderline; Buddy plan and numbers follow what's shown
   const openProjects = boxProjects.filter((x) => !x.result.entry.roles.includes("done"));
-  const topList = allProjects ? openProjects : openProjects.slice(0, 10);
+  const topList = openProjects.slice(0, 10);
 
   // buddy plan: projects whose evolution needs a buddy (walk km, hearts, buddy quests), then the top projects that
   // want XL Candy (walking a buddy earns it). Numbers match Top projects.
   // walk for evolution candy: the top projects that still need to evolve (one per family; buddy candy goes to the
   // whole family). km = candy still needed x the walker's km per candy (Magikarp 1, Gible 5).
   const walkFams = new Set();
-  const buddyWalk = openProjects.map((x, i) => ({ x, n: i + 1, job: x.jobs.find((j) => j.evo?.to && j.evo.candy > 0) }))
+  const buddyWalk = topList.map((x, i) => ({ x, n: i + 1, job: x.jobs.find((j) => j.evo?.to && j.evo.candy > 0) }))
     .filter(({ x, job }) => job && x.result.entry.species.buddyKm && !walkFams.has(x.result.entry.species.family) && walkFams.add(x.result.entry.species.family))
     .slice(0, 5)
     .map((b) => {
@@ -453,11 +452,11 @@ export default function PokemonGoPage() {
     });
   // meta picks for jobs the box doesn't cover yet
   const wantedList = useMemo(() => (idx ? wanted(boxView, idx) : []), [idx, boxView]);
-  const buddyEvolve = openProjects.map((x, i) => ({ x, n: i + 1, job: x.jobs.find((j) => j.evo?.items?.some((t) => /buddy/.test(t))) }))
+  const buddyEvolve = topList.map((x, i) => ({ x, n: i + 1, job: x.jobs.find((j) => j.evo?.items?.some((t) => /buddy/.test(t))) }))
     .filter((b) => b.job).map((b) => ({ ...b, need: b.job.evo.items.filter((t) => /buddy/.test(t)) }));
   // buddy candy goes to the whole family, so one per family
   const xlFams = new Set();
-  const buddyXl = openProjects.map((x, i) => ({ x, n: i + 1 }))
+  const buddyXl = topList.map((x, i) => ({ x, n: i + 1 }))
     .filter(({ x }) => x.jobs.some((j) => /XL Candy is worth it|XL Candy only/.test(j.invest)) && !xlFams.has(x.result.entry.species.family) && xlFams.add(x.result.entry.species.family))
     .slice(0, 3);
 
@@ -468,7 +467,7 @@ export default function PokemonGoPage() {
   }
   // a family's box Pokémon in Top projects order (projects, then borderline, then the rest by IVs), with their numbers
   const familyRows = (fam) => {
-    const num = new Map([...openProjects, ...boxBorderline].map((x, i) => [x.result.entry.id, i + 1]));
+    const num = new Map([...topList, ...boxBorderline.slice(0, 10)].map((x, i) => [x.result.entry.id, i + 1]));
     const pos = new Map([...boxProjects, ...boxBorderline].map((x, i) => [x.result.entry.id, i]));
     const sum = (b) => b.ivs.reduce((p, q) => p + q, 0);
     return boxEntries.filter((b) => b.species.family === fam)
@@ -722,23 +721,22 @@ export default function PokemonGoPage() {
       {tab === "plan" && (
         <>
           {!topList.length && !boxBorderline.length && <p className="empty">Save keepers to your box and your projects show up here.</p>}
+          <div className="plan-grid">
+          <div>
         {(topList.length > 0 || boxBorderline.length > 0) && (
           <div style={{ margin: "8px 0 16px" }}>
             <div style={{ marginBottom: 6 }}><strong>Top projects</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>best investment first; tap Done once it's powered up</span></div>
             {topList.map((x, i) => (
               <ProjectCard key={x.result.entry.id} n={i + 1} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} onEvolve={(id) => evolveBox(x.result.entry, id)} />
             ))}
-            {openProjects.length > 10 && (
-              <button type="button" className="btn" onClick={() => setAllProjects((v) => !v)} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>
-                {allProjects ? "Show top 10" : `Show ${openProjects.length - 10} more (${[...new Set(openProjects.slice(10).flatMap((x) => x.jobs.map((j) => ROLE_LABEL[j.role])))].join(", ")})`}
-              </button>
-            )}
             {boxBorderline.length > 0 && <div style={{ margin: "12px 0 6px", color: PALETTE.amber, fontWeight: 600, fontSize: "0.9rem" }}>Borderline (your call)</div>}
-            {boxBorderline.map((x, i) => (
-              <ProjectCard key={x.result.entry.id} n={openProjects.length + i + 1} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} />
+            {boxBorderline.slice(0, 10).map((x, i) => (
+              <ProjectCard key={x.result.entry.id} n={topList.length + i + 1} x={x} idx={idx} inBox family={familyRows(x.result.entry.species.family)} onDone={() => toggleDone(x.result.entry)} />
             ))}
           </div>
         )}
+          </div>
+          <div>
         {(buddyEvolve.length > 0 || buddyXl.length > 0 || buddyWalk.length > 0) && (
           <div className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
             <strong style={{ fontSize: "0.95rem" }}>Buddy plan</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>in Top projects order</span>
@@ -770,6 +768,8 @@ export default function PokemonGoPage() {
             ))}
           </div>
         )}
+          </div>
+          </div>
         {wantedList.length > 0 && (
           <details open className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
             <summary style={{ fontSize: "0.95rem" }}>Wanted ({wantedList.length}) <span className="muted" style={{ fontSize: "0.82rem", fontWeight: 400 }}>meta picks for jobs your box doesn't cover yet</span></summary>
