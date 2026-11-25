@@ -317,3 +317,21 @@ details > summary { cursor: pointer; font-weight: 600; margin-bottom: 0.5rem; }
 /* Pokémon GO Plan tab: Top projects | Buddy plan side by side, stacked on narrow screens */
 .plan-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 860px) { .plan-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Pokémon GO on phones: bigger tap targets, readable small text, controls on their own lines */
+.pogo-phone-only { display: none; }
+.pogo-actions { display: contents; }
+.pogo-break { display: none; }
+@media (max-width: 640px) {
+  .pogo .btn { min-height: 40px !important; padding: 6px 12px !important; font-size: 0.9rem !important; }
+  .pogo select, .pogo input, .pogo textarea { min-height: 40px; font-size: 16px !important; } /* 16px stops iOS zooming in */
+  .pogo [style*="0.72rem"], .pogo [style*="0.75rem"], .pogo [style*="0.78rem"], .pogo [style*="0.8rem"] { font-size: 0.85rem !important; }
+  .pogo-phone-only { display: inline-flex; }
+  .pogo-actions { display: none; }
+  .pogo-actions.open { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; }
+  .pogo-chips { flex-wrap: nowrap !important; overflow-x: auto; padding-bottom: 2px; }
+  .pogo-chips .btn { flex: 0 0 auto; }
+  .pogo-break { display: block; flex-basis: 100%; height: 0; }
+  .pogo-card-head > .btn, .pogo-card-head > select { margin-left: 0 !important; }
+  .pogo-boxname { min-width: 0 !important; flex-basis: 100%; }
+}

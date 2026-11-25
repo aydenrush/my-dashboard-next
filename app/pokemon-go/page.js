@@ -56,6 +56,7 @@ function Why({ entry, idx }) {
       ))}
       {w.max && <><div style={{ fontWeight: 600, marginTop: 6 }}>Max Battles</div><div className="muted">{w.max}</div></>}
       <div style={{ fontWeight: 600, marginTop: 6 }}>PvP</div>
+      <div style={{ overflowX: "auto" }}>
       <table style={{ borderCollapse: "collapse" }}>
         <thead><tr className="muted">{["", "League", "As", "Species rank", "Your IV rank", "Stats", "Level", "CP"].map((h) => <th key={h} style={{ ...td, textAlign: "left", fontWeight: 400 }}>{h}</th>)}</tr></thead>
         <tbody>
@@ -73,6 +74,7 @@ function Why({ entry, idx }) {
           )))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -367,6 +369,7 @@ export default function PokemonGoPage() {
   useEffect(() => { const t = localStorage.getItem("pogo_tab"); if (t) setTabState(t); }, []);
   const setTab = (t) => { setTabState(t); localStorage.setItem("pogo_tab", t); };
   const [verdictFilter, setVerdictFilter] = useState("all");
+  const [showActions, setShowActions] = useState(false); // phones: batch actions folded behind "Actions"
   const [boxQ, setBoxQ] = useState(""); // box search / filter / sort
   const [boxFilter, setBoxFilter] = useState("all");
   const [boxSort, setBoxSort] = useState("newest");
@@ -636,7 +639,7 @@ export default function PokemonGoPage() {
   const TABS = [["check", `Check${batch.length ? ` (${batch.length})` : ""}`], ["plan", `Plan${openProjects.length ? ` (${openProjects.length})` : ""}`], ["box", `Box (${boxEntries.length})`]];
 
   return (
-    <div>
+    <div className="pogo">
       <h1 className="page-title">Pokémon GO</h1>
       <div className="row" role="tablist" style={{ marginBottom: 12, gap: 6 }}>
         {TABS.map(([k, label]) => (
@@ -673,14 +676,17 @@ export default function PokemonGoPage() {
               <div className="row" style={{ alignItems: "center", marginBottom: 6 }}>
                 <strong>Batch ({batch.length})</strong>
                 {keepers.length > 0 && <button type="button" className="btn" onClick={saveKeepers}>Save {keepers.length} keeper{keepers.length > 1 ? "s" : ""}</button>}
-                {results?.length > keepers.length && <button type="button" className="btn" onClick={saveAll}>Save all {results.length}</button>}
-                {tradeBait.length > 0 && <button type="button" className="btn" onClick={copyTrades}>Copy trade list</button>}
-                {transfers.length > 0 && <button type="button" className="btn" onClick={copyTransfers}>Copy transfer list</button>}
-                <button type="button" className="btn" onClick={() => { setBatch([]); setEditing(null); }}>Clear batch</button>
+                <button type="button" className="btn pogo-phone-only" aria-expanded={showActions} onClick={() => setShowActions((v) => !v)}>Actions {showActions ? "▴" : "▾"}</button>
+                <span className={`pogo-actions${showActions ? " open" : ""}`}>
+                  {results?.length > keepers.length && <button type="button" className="btn" onClick={saveAll}>Save all {results.length}</button>}
+                  {tradeBait.length > 0 && <button type="button" className="btn" onClick={copyTrades}>Copy trade list</button>}
+                  {transfers.length > 0 && <button type="button" className="btn" onClick={copyTransfers}>Copy transfer list</button>}
+                  <button type="button" className="btn" onClick={() => { setBatch([]); setEditing(null); }}>Clear batch</button>
+                </span>
                 {msg && <span className="muted">{msg}</span>}
               </div>
               {results?.length > 0 && (
-                <div className="row" style={{ gap: 6, marginBottom: 0 }}>
+                <div className="row pogo-chips" style={{ gap: 6, marginBottom: 0 }}>
                   {[["all", "All", results.length], ...ORDER.map((v) => [v, VERDICT[v].label, results.filter((r) => r.verdict === v).length])].filter(([, , n]) => n > 0).map(([v, label, n]) => (
                     <button key={v} type="button" aria-pressed={verdictFilter === v} onClick={() => setVerdictFilter(v)}
                       className={`btn${verdictFilter === v ? " btn-primary" : ""}`} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0, color: verdictFilter === v ? undefined : (VERDICT[v]?.color) }}>
@@ -716,7 +722,8 @@ export default function PokemonGoPage() {
                 </h3>
               )}
               <div className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}`, outline: r.entry.i != null && editing === r.entry.i ? "2px solid var(--accent)" : undefined }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                <div className="pogo-card-head" style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                <span className="pogo-break" style={{ order: 97 }} />
                   <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
                   {r.entry.i != null && (
                     <button type="button" className="btn" onClick={() => saveToBox([r])} style={{ order: 98, marginLeft: "auto", padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Save to box</button>
@@ -902,8 +909,8 @@ export default function PokemonGoPage() {
         )}
         {boxEntries.length > 0 && boxList.length === 0 && <p className="empty">Nothing matches.</p>}
         {boxList.map((b) => (
-          <div key={b.id} className="row" style={{ alignItems: "center", marginBottom: 4 }}>
-            <span style={{ minWidth: 180 }}><strong>{b.species.name}</strong><Types s={b.species} /> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
+          <div key={b.id} className="row pogo-boxrow" style={{ alignItems: "center", marginBottom: 4 }}>
+            <span className="pogo-boxname" style={{ minWidth: 180 }}><strong>{b.species.name}</strong><Types s={b.species} /> {b.ivs.join("/")} <span className="muted">{ivPct(b.ivs)}</span></span>
             <span className="muted">{flagNames(b.flags)}</span>
             {b.roles.includes("done") && <button type="button" onClick={() => toggleDone(b)} title="Powered up. Click to put it back in Top projects" style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}><Chip color={PALETTE.emerald}>Done ✓</Chip></button>}
             {tagsFor(b).length === 0 && <span className="muted" style={{ fontSize: "0.8rem" }}>no job now (a better one in your box took it)</span>}
