@@ -311,3 +311,5 @@ const cdIdx = indexSpecies(cdData);
 const cdRaid = decideBatch(parseBatch("15/10/10 rhyhorn", cdIdx).entries, cdIdx)[0].roles.find((c) => c.role === "raid");
 assert.deepEqual(cdRaid?.cd?.moves, ["Rock Wrecker"]);
 assert.equal(decideBatch(parseBatch("15/10/10 rhyperior", cdIdx).entries, cdIdx)[0].roles.find((c) => c.role === "raid")?.cd, undefined); // already evolved
+// easy mode leaves out legendaries and Megas
+assert.ok(!wanted([], idx, { easy: true }).some((w) => w.species.tags.includes("mega") || w.species.tags.includes("legendary")));

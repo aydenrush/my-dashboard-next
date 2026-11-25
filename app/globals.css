@@ -333,7 +333,6 @@ details > summary { cursor: pointer; font-weight: 600; margin-bottom: 0.5rem; }
   .pogo-chips .btn { flex: 0 0 auto; }
   .pogo-break { display: block; flex-basis: 100%; height: 0; }
   .pogo-card-head > .btn, .pogo-card-head > select { margin-left: 0 !important; }
-  .pogo-boxname { min-width: 0 !important; flex-basis: 100%; }
 }
 
 /* Pokémon GO special-Pokémon effects (hsl colors match PALETTE: amber, violet, rose; Mighty orange) */
@@ -344,8 +343,6 @@ details > summary { cursor: pointer; font-weight: 600; margin-bottom: 0.5rem; }
 }
 @keyframes pogo-shimmer { from { background-position: 200% 0; } to { background-position: 0% 0; } }
 .card.pogo-lucky { background-image: linear-gradient(135deg, hsl(43 96% 56% / 0.16), transparent 60%); }
-.pogo-boxrow.pogo-lucky { background: linear-gradient(90deg, hsl(43 96% 56% / 0.14), transparent 70%); border-radius: 6px; }
-.pogo-boxrow.pogo-shadow { background: linear-gradient(90deg, hsl(258 90% 66% / 0.12), transparent 70%); border-radius: 6px; }
 /* edge effects stack: each special sets its own layer and .pogo-fx draws them all, so a Shadow Mighty hundo shows
    the red outer ring (hundo), purple inner ring + glow (Shadow) and an orange band inside that (Mighty) */
 .card.pogo-fx {

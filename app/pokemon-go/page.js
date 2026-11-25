@@ -548,7 +548,9 @@ export default function PokemonGoPage() {
       return { ...b, fam, left, km: left * b.x.result.entry.species.buddyKm, known: !Number.isNaN(have) };
     });
   // meta picks for jobs the box doesn't cover yet
-  const wantedList = useMemo(() => (idx ? wanted(boxView, idx) : []), [idx, boxView]);
+  // Wanted starts on easy-to-get picks (no legendaries / Megas): fits a level-43 box still filling out
+  const [wantedEasy, setWantedEasy] = useState(true);
+  const wantedList = useMemo(() => (idx ? wanted(boxView, idx, { easy: wantedEasy }) : []), [idx, boxView, wantedEasy]);
   const shownWanted = wantedList.filter((w) => planMatch(w.species.name, w.jobs.map((j) => j.job.split(":")[0])))
     .sort((x, y) => (planSort === "name" ? x.species.name.localeCompare(y.species.name) : 0));
   // Rare Candy (and XL) turns into any species' candy, so spend it where candy is hard to farm: legendaries, mythicals,
@@ -907,6 +909,10 @@ export default function PokemonGoPage() {
         {shownWanted.length > 0 && (
           <details open className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
             <summary style={{ fontSize: "0.95rem" }}>Wanted ({shownWanted.length}) <span className="muted" style={{ fontSize: "0.82rem", fontWeight: 400 }}>meta picks for jobs your box doesn't cover yet</span></summary>
+            <label className="muted" style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: "0.82rem", marginTop: 4 }}>
+              <input type="checkbox" checked={wantedEasy} onChange={(e) => setWantedEasy(e.target.checked)} />
+              Easy to get only (no legendaries, Ultra Beasts or Megas)
+            </label>
             {shownWanted.map((w) => (
               <div key={w.species.id} style={{ marginTop: 10 }}>
                 <div>
