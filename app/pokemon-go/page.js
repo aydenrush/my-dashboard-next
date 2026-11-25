@@ -146,6 +146,28 @@ function EvoLine({ s, idx, flags, family = [], selfId }) {
   );
 }
 
+// what to catch for a Wanted pick: the line from its first stage up to it, with each step's cost.
+// Any stage counts (evolve it up); a Shadow pick needs Shadow ones, a Mega/Primal needs the base form plus Mega Energy.
+function CatchLine({ t, idx }) {
+  const base = idx.byId[t.id.replace(/_shadow$|_(mega|primal).*$/, "")] || t;
+  const chain = [base];
+  while (chain[0].parent && idx.byId[chain[0].parent]) chain.unshift(idx.byId[chain[0].parent]);
+  const shadow = t.tags.includes("shadow"), mega = !shadow && t.id !== base.id;
+  return (
+    <div style={{ fontSize: "0.82rem", marginLeft: 2 }}>
+      <span className="muted">Catch{chain.length > 1 ? " any stage" : ""}:</span>{" "}
+      {chain.map((c, k) => (
+        <Fragment key={c.id}>
+          {k > 0 && " → "}
+          <span style={{ fontWeight: k === 0 ? 600 : 400 }}>{shadow ? "Shadow " : ""}{c.name}</span>
+          {k > 0 && <span className="muted"> ({evoCost(c) || "free"})</span>}
+        </Fragment>
+      ))}
+      {mega && <> → {t.name} <span className="muted">(Mega Energy)</span></>}
+    </div>
+  );
+}
+
 // one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
 function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
   const e = x.result.entry, j = x.jobs[0];
@@ -758,6 +780,7 @@ export default function PokemonGoPage() {
                 <div style={{ marginLeft: 2 }}>
                   <span className="muted">Look for:</span> {w.lookFor}{w.rarity.length > 0 && <span className="muted"> · {w.rarity.join(" · ")}</span>}
                 </div>
+                <CatchLine t={w.species} idx={idx} />
               </div>
             ))}
           </details>
