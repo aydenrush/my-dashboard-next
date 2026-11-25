@@ -307,6 +307,10 @@ export default function PokemonGoPage() {
     const t = setTimeout(() => setSetting("pogo_candy", Object.fromEntries(Object.entries(candyHave).filter(([, v]) => v !== ""))), 600);
     return () => clearTimeout(t);
   }, [candyHave]);
+  const [tab, setTabState] = useState("check"); // Check / Plan / Box, remembered on this device
+  useEffect(() => { const t = localStorage.getItem("pogo_tab"); if (t) setTabState(t); }, []);
+  const setTab = (t) => { setTabState(t); localStorage.setItem("pogo_tab", t); };
+  const [verdictFilter, setVerdictFilter] = useState("all");
   const [boxQ, setBoxQ] = useState(""); // box search / filter / sort
   const [boxFilter, setBoxFilter] = useState("all");
   const [boxSort, setBoxSort] = useState("newest");
@@ -538,138 +542,164 @@ export default function PokemonGoPage() {
   }
   for (const { r, paths } of Object.values(best)) dexHint.set(r, paths);
 
+  // which verdicts the Check tab shows ("all" or one verdict)
+  const shownResults = results ? (verdictFilter === "all" ? results : results.filter((r) => r.verdict === verdictFilter)) : null;
+  const TABS = [["check", `Check${batch.length ? ` (${batch.length})` : ""}`], ["plan", `Plan${openProjects.length ? ` (${openProjects.length})` : ""}`], ["box", `Box (${boxEntries.length})`]];
+
   return (
     <div>
       <h1 className="page-title">Pokémon GO</h1>
-      {!idx ? <p className="muted">{msg || "Loading Pokémon data…"}</p> : <QuickEntry idx={idx} edit={editing === null ? boxEdit : batch[editing]} onCancel={() => { setEditing(null); setEditingBox(null); }}
-        onAdd={(e) => {
-          if (editingBox) return saveBoxEdit(e);
-          if (editing === null) return addRows([e]);
-          setBatch((b) => b.map((r, j) => (j === editing ? { id: e.species.id, ivs: e.ivs, flags: flagsToList(e.flags) } : r)));
-          setEditing(null);
-        }} />}
+      <div className="row" role="tablist" style={{ marginBottom: 12, gap: 6 }}>
+        {TABS.map(([k, label]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} className={`btn${tab === k ? " btn-primary" : ""}`} onClick={() => setTab(k)}>{label}</button>
+        ))}
+      </div>
 
-      {idx && batch.length > 0 && (
-        <div style={{ marginTop: 10 }}>
-          <div className="row" style={{ alignItems: "center" }}>
-            <strong>Batch ({batch.length})</strong>
-            {keepers.length > 0 && <button type="button" className="btn" onClick={saveKeepers}>Save {keepers.length} keeper{keepers.length > 1 ? "s" : ""}</button>}
-            {results?.length > keepers.length && <button type="button" className="btn" onClick={saveAll}>Save all {results.length}</button>}
-            {tradeBait.length > 0 && <button type="button" className="btn" onClick={copyTrades}>Copy trade list</button>}
-            {transfers.length > 0 && <button type="button" className="btn" onClick={copyTransfers}>Copy transfer list</button>}
-            <button type="button" className="btn" onClick={() => { setBatch([]); setEditing(null); }}>Clear batch</button>
-            {msg && <span className="muted">{msg}</span>}
-          </div>
-        </div>
+      {(tab === "check" || editingBox) && (
+        <>
+        {!idx ? <p className="muted">{msg || "Loading Pokémon data…"}</p> : <QuickEntry idx={idx} edit={editing === null ? boxEdit : batch[editing]} onCancel={() => { setEditing(null); setEditingBox(null); }}
+          onAdd={(e) => {
+            if (editingBox) return saveBoxEdit(e);
+            if (editing === null) return addRows([e]);
+            setBatch((b) => b.map((r, j) => (j === editing ? { id: e.species.id, ivs: e.ivs, flags: flagsToList(e.flags) } : r)));
+            setEditing(null);
+          }} />}
+          {editingBox && tab !== "check" && <p className="muted" style={{ fontSize: "0.82rem", marginTop: 4 }}>Editing a box Pokémon: Save updates it in your box.</p>}
+        </>
       )}
 
-      <details style={{ marginTop: 8 }}>
-        <summary className="muted" style={{ fontWeight: 400 }}>Paste a list instead</summary>
-        <p className="muted" style={{ marginBottom: 6 }}>e.g. <code>phantump 8/15/15 purified, 14/10/15, 8/13/11 shadow</code> (a piece with no name reuses the last one)</p>
-        <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={3} style={{ width: "100%", padding: "8px 10px", font: "inherit" }}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addPasted(); } }} aria-label="Paste Pokémon" />
-        <button type="button" className="btn" onClick={addPasted} disabled={!idx}>Add to batch</button>
-      </details>
-      {errors.length > 0 && <p className="status error">{errors.join(" · ")}</p>}
-
-      {projectList.length > 0 && (
-        <details open style={{ marginTop: "1rem" }}>
-          <summary>Projects: what to power up first</summary>
-          <p className="muted" style={{ fontSize: "0.82rem", marginTop: 0 }}>Per family, best investment first (your box included). Already done #1? Look at the next one.</p>
-          {projectList.map((p) => (
-            <div key={p.family} style={{ marginBottom: 10 }}>
-              <div style={{ fontWeight: 600, margin: "4px 0 6px" }}>{p.items[0].jobs[0].target.name.replace(/ \(.*\)$/, "")} line</div>
-              {p.items.map((x, i) => <ProjectCard key={i} n={i + 1} x={x} idx={idx} />)}
-            </div>
-          ))}
+      {tab === "check" && (
+        <>
+        <details style={{ marginTop: 8 }}>
+          <summary className="muted" style={{ fontWeight: 400 }}>Paste a list instead</summary>
+          <p className="muted" style={{ marginBottom: 6 }}>e.g. <code>phantump 8/15/15 purified, 14/10/15, 8/13/11 shadow</code> (a piece with no name reuses the last one)</p>
+          <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={3} style={{ width: "100%", padding: "8px 10px", font: "inherit" }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addPasted(); } }} aria-label="Paste Pokémon" />
+          <button type="button" className="btn" onClick={addPasted} disabled={!idx}>Add to batch</button>
         </details>
-      )}
+        {errors.length > 0 && <p className="status error">{errors.join(" · ")}</p>}
 
-      {results && (
-        <div style={{ marginTop: "1rem" }}>
-          {results.length === 0 && <p className="empty">Nothing recognized.</p>}
-          {results.map((r, i) => (
-            <Fragment key={i}>
-            {(i === 0 || results[i - 1].verdict !== r.verdict) && (
-              <h3 style={{ fontSize: "0.9rem", color: VERDICT[r.verdict].color, margin: "14px 0 6px" }}>
-                {SECTION[r.verdict]} · {results.filter((x) => x.verdict === r.verdict).length}
-              </h3>
-            )}
-            <div className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}`, outline: r.entry.i != null && editing === r.entry.i ? "2px solid var(--accent)" : undefined }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-                <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
-                {r.entry.i != null && (
-                  <button type="button" className="btn" onClick={() => saveToBox([r])} style={{ order: 98, marginLeft: "auto", padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Save to box</button>
-                )}
-                {r.entry.i != null && (
-                  <button type="button" className="btn" onClick={() => { setEditing(r.entry.i); setEditingBox(null); }} aria-label={`Edit ${r.entry.species.name}`}
-                    style={{ order: 99, marginLeft: 0, padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Edit</button>
-                )}
-                {r.entry.i != null && (
-                  <EvolveSelect s={r.entry.species} idx={idx} onPick={(id) => setBatch((b) => b.map((x, j) => (j === r.entry.i ? { ...x, id } : x)))} />
-                )}
-                {r.entry.i != null && (
-                  <button type="button" className="btn" onClick={() => { setBatch((b) => b.filter((_, j) => j !== r.entry.i)); setEditing(null); }} aria-label={`Remove ${r.entry.species.name} from batch`}
-                    style={{ order: 100, padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Remove</button>
-                )}
-                <strong>{r.entry.species.name}</strong><Types s={r.entry.species} />
-                <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
-                <span className="muted">{ivPct(r.entry.ivs)}</span>
-                <span className="muted">{flagNames(r.entry.flags)}</span>
-                {r.roles.map((c) => <Chip key={jobKey(c)} color={ROLE_COLOR[c.role]}>{jobLabel(jobKey(c))}</Chip>)}
+          {idx && batch.length > 0 && (
+            <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "8px 0", marginTop: 10 }}>
+              <div className="row" style={{ alignItems: "center", marginBottom: 6 }}>
+                <strong>Batch ({batch.length})</strong>
+                {keepers.length > 0 && <button type="button" className="btn" onClick={saveKeepers}>Save {keepers.length} keeper{keepers.length > 1 ? "s" : ""}</button>}
+                {results?.length > keepers.length && <button type="button" className="btn" onClick={saveAll}>Save all {results.length}</button>}
+                {tradeBait.length > 0 && <button type="button" className="btn" onClick={copyTrades}>Copy trade list</button>}
+                {transfers.length > 0 && <button type="button" className="btn" onClick={copyTransfers}>Copy transfer list</button>}
+                <button type="button" className="btn" onClick={() => { setBatch([]); setEditing(null); }}>Clear batch</button>
+                {msg && <span className="muted">{msg}</span>}
               </div>
-              {r.roles.map((c) => (
-                <div key={jobKey(c)} style={{ fontSize: "0.85rem", marginTop: 4 }}>
-                  <span style={{ color: ROLE_COLOR[c.role] }}>{jobLabel(jobKey(c))}:</span> {c.detail}. <span className="muted">{c.invest}.</span>
-                  {c.moves && <span> Moves: {c.moves}.</span>}
-                  {c.evo && !c.evo.to && <span className="muted"> Mega Evolve it for raids (needs Mega Energy).</span>}
-                  {c.evo?.to && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? `; don't evolve until you have all ${c.evo.candy} candy (one go)` : ""}{c.evo.items?.length ? `; needs ${c.evo.items.join(" + ")}` : ""}.</span>}
-                  {c.note && <span style={{ color: PALETTE.amber }}> {c.note}.</span>}
-                </div>
-              ))}
-              {r.backup.map((c) => (
-                <div key={jobKey(c)} style={{ fontSize: "0.85rem", marginTop: 4 }}>
-                  <span style={{ color: PALETTE.blue }}>Backup for {jobLabel(jobKey(c))}</span> behind {c.behind}: {c.detail}. <span className="muted">Hold untouched; promote it if the keeper goes.</span>
-                </div>
-              ))}
-              {r.trade.map((c) => (
-                <div key={c.kind} style={{ fontSize: "0.85rem", marginTop: 4 }}>
-                  <span style={{ color: PALETTE.violet }}>Trade bait:</span> {c.behind ? <>duplicate {c.kind}, you already keep {c.behind}.</> : <>{c.note}.</>} <span className="muted">Don't power it up; trade it.</span>
-                </div>
-              ))}
-              {r.hold.map((g) => (
-                <div key={g.job} style={{ fontSize: "0.85rem", marginTop: 4 }}>
-                  <span style={{ color: PALETTE.blue }}>Good species for {g.label}</span> ({g.what}), but it needs {g.needs}. <span className="muted">Nothing better yet: hold it untouched (no candy or Stardust) and transfer it once a better one turns up.</span>
-                  {g.replaces && <span style={{ color: PALETTE.amber }}> Better than your box's {g.replaces}: transfer that one and remove it from your box.</span>}
-                </div>
-              ))}
-              {r.speciesNote && <div style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.speciesNote}</div>}
-              {r.borderline.map((c) => (
-                <div key={c.role} style={{ fontSize: "0.85rem", marginTop: 4 }}>
-                  <span style={{ color: PALETTE.amber }}>Borderline for {ROLE_LABEL[c.role]}:</span> {c.detail}. <span className="muted">Your call; hold untouched if unsure.</span>
-                </div>
-              ))}
-              {r.reasons.length > 0 && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.reasons.join(" · ")}</div>}
-              {dexHint.has(r) && (
-                <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>
-                  {dexHint.get(r).length === 1
-                    ? <>Dex: if {dexHint.get(r)[0].map((t) => t.name).join(" or ")} {dexHint.get(r)[0].length > 1 ? "aren't" : "isn't"} registered yet, evolve this one to {dexHint.get(r)[0].at(-1).name} first ({dexHint.get(r)[0].map(evoCost).join(", then ")}), then transfer.</>
-                    : <>Dex: evolve spares into any you haven't registered, then transfer: {dexHint.get(r).map((p) => `${p.at(-1).name} (${p.map(evoCost).join(", then ")})`).join("; ")}.</>}
+              {results?.length > 0 && (
+                <div className="row" style={{ gap: 6, marginBottom: 0 }}>
+                  {[["all", "All", results.length], ...ORDER.map((v) => [v, VERDICT[v].label, results.filter((r) => r.verdict === v).length])].filter(([, , n]) => n > 0).map(([v, label, n]) => (
+                    <button key={v} type="button" aria-pressed={verdictFilter === v} onClick={() => setVerdictFilter(v)}
+                      className={`btn${verdictFilter === v ? " btn-primary" : ""}`} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0, color: verdictFilter === v ? undefined : (VERDICT[v]?.color) }}>
+                      {label} {n}
+                    </button>
+                  ))}
                 </div>
               )}
-              <details style={{ marginTop: 4 }}><summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Why?</summary><Why entry={r.entry} idx={idx} /></details>
             </div>
-            </Fragment>
-          ))}
-        </div>
+          )}
+
+        {projectList.length > 0 && (
+          <details style={{ marginTop: "1rem" }}>
+            <summary>Projects: what to power up first</summary>
+            <p className="muted" style={{ fontSize: "0.82rem", marginTop: 0 }}>Per family, best investment first (your box included). Already done #1? Look at the next one.</p>
+            {projectList.map((p) => (
+              <div key={p.family} style={{ marginBottom: 10 }}>
+                <div style={{ fontWeight: 600, margin: "4px 0 6px" }}>{p.items[0].jobs[0].target.name.replace(/ \(.*\)$/, "")} line</div>
+                {p.items.map((x, i) => <ProjectCard key={i} n={i + 1} x={x} idx={idx} />)}
+              </div>
+            ))}
+          </details>
+        )}
+
+        {results && (
+          <div style={{ marginTop: "1rem" }}>
+            {results.length === 0 && <p className="empty">Nothing recognized.</p>}
+            {shownResults.map((r, i) => (
+              <Fragment key={i}>
+              {(i === 0 || shownResults[i - 1].verdict !== r.verdict) && (
+                <h3 style={{ fontSize: "0.9rem", color: VERDICT[r.verdict].color, margin: "14px 0 6px" }}>
+                  {SECTION[r.verdict]} · {results.filter((x) => x.verdict === r.verdict).length}
+                </h3>
+              )}
+              <div className="card" style={{ marginBottom: 8, padding: "10px 12px", borderLeft: `4px solid ${VERDICT[r.verdict].color}`, outline: r.entry.i != null && editing === r.entry.i ? "2px solid var(--accent)" : undefined }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                  <strong style={{ color: VERDICT[r.verdict].color }}>{VERDICT[r.verdict].label}</strong>
+                  {r.entry.i != null && (
+                    <button type="button" className="btn" onClick={() => saveToBox([r])} style={{ order: 98, marginLeft: "auto", padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Save to box</button>
+                  )}
+                  {r.entry.i != null && (
+                    <button type="button" className="btn" onClick={() => { setEditing(r.entry.i); setEditingBox(null); }} aria-label={`Edit ${r.entry.species.name}`}
+                      style={{ order: 99, marginLeft: 0, padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Edit</button>
+                  )}
+                  {r.entry.i != null && (
+                    <EvolveSelect s={r.entry.species} idx={idx} onPick={(id) => setBatch((b) => b.map((x, j) => (j === r.entry.i ? { ...x, id } : x)))} />
+                  )}
+                  {r.entry.i != null && (
+                    <button type="button" className="btn" onClick={() => { setBatch((b) => b.filter((_, j) => j !== r.entry.i)); setEditing(null); }} aria-label={`Remove ${r.entry.species.name} from batch`}
+                      style={{ order: 100, padding: "1px 10px", fontSize: "0.75rem", minHeight: 0 }}>Remove</button>
+                  )}
+                  <strong>{r.entry.species.name}</strong><Types s={r.entry.species} />
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.entry.ivs.join("/")}</span>
+                  <span className="muted">{ivPct(r.entry.ivs)}</span>
+                  <span className="muted">{flagNames(r.entry.flags)}</span>
+                  {r.roles.map((c) => <Chip key={jobKey(c)} color={ROLE_COLOR[c.role]}>{jobLabel(jobKey(c))}</Chip>)}
+                </div>
+                {r.roles.map((c) => (
+                  <div key={jobKey(c)} style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                    <span style={{ color: ROLE_COLOR[c.role] }}>{jobLabel(jobKey(c))}:</span> {c.detail}. <span className="muted">{c.invest}.</span>
+                    {c.moves && <span> Moves: {c.moves}.</span>}
+                    {c.evo && !c.evo.to && <span className="muted"> Mega Evolve it for raids (needs Mega Energy).</span>}
+                    {c.evo?.to && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? `; don't evolve until you have all ${c.evo.candy} candy (one go)` : ""}{c.evo.items?.length ? `; needs ${c.evo.items.join(" + ")}` : ""}.</span>}
+                    {c.note && <span style={{ color: PALETTE.amber }}> {c.note}.</span>}
+                  </div>
+                ))}
+                {r.backup.map((c) => (
+                  <div key={jobKey(c)} style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                    <span style={{ color: PALETTE.blue }}>Backup for {jobLabel(jobKey(c))}</span> behind {c.behind}: {c.detail}. <span className="muted">Hold untouched; promote it if the keeper goes.</span>
+                  </div>
+                ))}
+                {r.trade.map((c) => (
+                  <div key={c.kind} style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                    <span style={{ color: PALETTE.violet }}>Trade bait:</span> {c.behind ? <>duplicate {c.kind}, you already keep {c.behind}.</> : <>{c.note}.</>} <span className="muted">Don't power it up; trade it.</span>
+                  </div>
+                ))}
+                {r.hold.map((g) => (
+                  <div key={g.job} style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                    <span style={{ color: PALETTE.blue }}>Good species for {g.label}</span> ({g.what}), but it needs {g.needs}. <span className="muted">Nothing better yet: hold it untouched (no candy or Stardust) and transfer it once a better one turns up.</span>
+                    {g.replaces && <span style={{ color: PALETTE.amber }}> Better than your box's {g.replaces}: transfer that one and remove it from your box.</span>}
+                  </div>
+                ))}
+                {r.speciesNote && <div style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.speciesNote}</div>}
+                {r.borderline.map((c) => (
+                  <div key={c.role} style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                    <span style={{ color: PALETTE.amber }}>Borderline for {ROLE_LABEL[c.role]}:</span> {c.detail}. <span className="muted">Your call; hold untouched if unsure.</span>
+                  </div>
+                ))}
+                {r.reasons.length > 0 && <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.reasons.join(" · ")}</div>}
+                {dexHint.has(r) && (
+                  <div className="muted" style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                    {dexHint.get(r).length === 1
+                      ? <>Dex: if {dexHint.get(r)[0].map((t) => t.name).join(" or ")} {dexHint.get(r)[0].length > 1 ? "aren't" : "isn't"} registered yet, evolve this one to {dexHint.get(r)[0].at(-1).name} first ({dexHint.get(r)[0].map(evoCost).join(", then ")}), then transfer.</>
+                      : <>Dex: evolve spares into any you haven't registered, then transfer: {dexHint.get(r).map((p) => `${p.at(-1).name} (${p.map(evoCost).join(", then ")})`).join("; ")}.</>}
+                  </div>
+                )}
+                <details style={{ marginTop: 4 }}><summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Why?</summary><Why entry={r.entry} idx={idx} /></details>
+              </div>
+              </Fragment>
+            ))}
+          </div>
+        )}
+        </>
       )}
 
-      <details style={{ marginTop: "1.5rem" }}>
-        <summary>Your box ({boxEntries.length})</summary>
-        <div className="row" style={{ alignItems: "center", margin: "6px 0" }}>
-          <button type="button" className="btn" onClick={refreshBox} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Refresh box</button>
-          {boxMsg && <span className="muted" style={{ fontSize: "0.82rem" }}>{boxMsg}</span>}
-        </div>
+      {tab === "plan" && (
+        <>
+          {!topList.length && !boxBorderline.length && <p className="empty">Save keepers to your box and your projects show up here.</p>}
         {(topList.length > 0 || boxBorderline.length > 0) && (
           <div style={{ margin: "8px 0 16px" }}>
             <div style={{ marginBottom: 6 }}><strong>Top projects</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>best investment first; tap Done once it's powered up</span></div>
@@ -719,7 +749,7 @@ export default function PokemonGoPage() {
           </div>
         )}
         {wantedList.length > 0 && (
-          <details className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
+          <details open className="card" style={{ padding: "10px 12px", margin: "0 0 16px", fontSize: "0.85rem" }}>
             <summary style={{ fontSize: "0.95rem" }}>Wanted ({wantedList.length}) <span className="muted" style={{ fontSize: "0.82rem", fontWeight: 400 }}>meta picks for jobs your box doesn't cover yet</span></summary>
             {wantedList.map((w) => (
               <div key={w.job + w.species.id} style={{ marginTop: 6 }}>
@@ -732,6 +762,15 @@ export default function PokemonGoPage() {
             ))}
           </details>
         )}
+        </>
+      )}
+
+      {tab === "box" && (
+        <>
+        <div className="row" style={{ alignItems: "center", margin: "6px 0" }}>
+          <button type="button" className="btn" onClick={refreshBox} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Refresh box</button>
+          {boxMsg && <span className="muted" style={{ fontSize: "0.82rem" }}>{boxMsg}</span>}
+        </div>
         {boxEntries.length === 0 && <p className="empty">Keepers you save show up here, and new batches are compared against them.</p>}
         {boxEntries.length > 0 && (
           <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
@@ -759,9 +798,10 @@ export default function PokemonGoPage() {
             <button className="btn" onClick={() => removeFromBox(b)} aria-label={`Remove ${b.species.name} from box`} style={{ padding: "1px 8px", fontSize: "0.75rem" }}>✕</button>
           </div>
         ))}
-      </details>
+        </>
+      )}
 
-      {idx && <p className="muted" style={{ marginTop: "1rem" }}>Data: PvPoke rankings from {idx.data.pvpokeTimestamp?.slice(0, 10)}, built {idx.data.built?.slice(0, 10)}. Raid picks = top {RULES.raidTop} in an attacking type (top {RULES.raidXl} = worth XL); PvP = species top {RULES.pvpTop} + IVs top {RULES.ivTop}; Master League = top {RULES.mlTop}. Raid ranks are an estimate, not a full sim.</p>}
+      {idx && <p className="muted" style={{ marginTop: "2rem", fontSize: "0.75rem" }}>Data: PvPoke rankings from {idx.data.pvpokeTimestamp?.slice(0, 10)}, built {idx.data.built?.slice(0, 10)}. Raid picks = top {RULES.raidTop} in an attacking type (top {RULES.raidXl} = worth XL); PvP = species top {RULES.pvpTop} + IVs top {RULES.ivTop}; Master League = top {RULES.mlTop}. Raid ranks are an estimate, not a full sim.</p>}
     </div>
   );
 }
