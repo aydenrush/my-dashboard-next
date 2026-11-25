@@ -417,6 +417,17 @@ export default function PokemonGoPage() {
   };
   const tagsFor = (b) => { const live = boxTags.get(b.id) || []; return live.length ? live : b.roles.filter((r) => r.startsWith("hold:")); };
 
+  // reload the box from Supabase and rewrite each row's saved tags to what the rules say now (Done marks kept)
+  const [boxMsg, setBoxMsg] = useState("");
+  async function refreshBox() {
+    setBoxMsg("Refreshing…");
+    const stale = boxEntries.map((b) => ({ b, roles: [...tagsFor(b), ...(b.roles.includes("done") ? ["done"] : [])] }))
+      .filter(({ b, roles }) => roles.join() !== b.roles.join());
+    const res = await Promise.all(stale.map(({ b, roles }) => supabase.from("pogo_box").update({ roles }).eq("id", b.id)));
+    await loadBox();
+    setBoxMsg(res.some((r) => r.error) ? "Some rows didn't save; try again." : `Refreshed: ${stale.length} row${stale.length === 1 ? "" : "s"} had old tags.`);
+  }
+
   // the box list after search, filter and sort
   const BOX_FILTERS = {
     all: ["All", () => true],
@@ -621,6 +632,10 @@ export default function PokemonGoPage() {
 
       <details style={{ marginTop: "1.5rem" }}>
         <summary>Your box ({boxEntries.length})</summary>
+        <div className="row" style={{ alignItems: "center", margin: "6px 0" }}>
+          <button type="button" className="btn" onClick={refreshBox} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>Refresh box</button>
+          {boxMsg && <span className="muted" style={{ fontSize: "0.82rem" }}>{boxMsg}</span>}
+        </div>
         {(topList.length > 0 || boxBorderline.length > 0) && (
           <div style={{ margin: "8px 0 16px" }}>
             <div style={{ marginBottom: 6 }}><strong>Top projects</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>best investment first; tap Done once it's powered up</span></div>
