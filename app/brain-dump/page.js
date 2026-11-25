@@ -39,6 +39,18 @@ function toggleLine(content, i) {
 
 function grow(el) { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }
 
+// "just now", "5m ago", "3h ago", "yesterday", "4d ago", then "Sep 14" (with the year once it's a different year)
+function ago(iso) {
+  const d = new Date(iso), mins = (Date.now() - d) / 60000;
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${Math.floor(mins)}m ago`;
+  if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
+  const days = Math.floor(mins / 1440);
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(d.getFullYear() !== new Date().getFullYear() && { year: "numeric" }) });
+}
+
 function NoteCard({ note, tags, onSave, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -85,6 +97,16 @@ function NoteCard({ note, tags, onSave, onDelete }) {
           <option value="">No tag</option>
           {tags.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
         </select>
+        {(() => {
+          // edited if it changed more than a minute after it was made; hover shows both exact times
+          const edited = note.updated_at && new Date(note.updated_at) - new Date(note.created_at) > 60000;
+          const full = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+          return (
+            <span className="nd-date" title={`Created ${full(note.created_at)}${edited ? ` · Edited ${full(note.updated_at)}` : ""}`}>
+              {edited ? `Edited ${ago(note.updated_at)}` : ago(note.created_at)}
+            </span>
+          );
+        })()}
         <span className="nd-actions">
           {note.tag === "To Do" && <button className="on" onClick={() => onDelete(note)} title="Done (removes the to-do)" aria-label="Mark to-do done">✓</button>}
           <button className={copied ? "on" : ""} onClick={copy} title={copied ? "Copied" : "Copy text"} aria-label="Copy note text">{copied ? "✓" : "⧉"}</button>

@@ -35,6 +35,7 @@
 .nd-foot { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px 6px; gap: 6px; }
 .nd-foot select { font-size: 0.75rem; padding: 1px 4px; background: transparent; color: var(--muted); border: 1px solid transparent; border-radius: 4px; max-width: 60%; }
 .nd-foot select:hover, .nd-foot select:focus { border-color: var(--border); }
+.nd-date { margin-left: auto; font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
 .nd-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.1s; }
 .nd-card:hover .nd-actions, .nd-card:focus-within .nd-actions, .nd-actions .on { opacity: 1; }
 @media (hover: none) { .nd-actions { opacity: 1; } }
