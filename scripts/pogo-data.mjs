@@ -193,6 +193,7 @@ async function main() {
   const data = {
     built: new Date().toISOString(), pvpokeTimestamp: pv.timestamp, gameMasterEntries: game.length,
     raidTop: RAID_TOP, cpm: cpm.map((c) => +c.toFixed(8)), species,
+    moveTypes: Object.fromEntries(Object.entries(pve).map(([id, m]) => [id, m.type])), // "MUD_SHOT" -> "ground", for colored move pills
   };
   writeFileSync(OUT, JSON.stringify(data));
   console.log(`pogo-data: ${species.length} species, ${species.filter((s) => s.raid && s.raid.rank <= RAID_TOP).length} raid-relevant (top ${RAID_TOP} of a type), ${cpm.length} CP levels`);

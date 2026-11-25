@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { getSetting, setSetting } from "@/lib/settings";
-import { PALETTE } from "@/lib/constants";
+import { PALETTE, TYPE_COLORS } from "@/lib/constants";
 import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, projects, wanted, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, gym: PALETTE.slate, trophy: PALETTE.slate };
@@ -84,7 +84,25 @@ const FLAG_LABEL = { mighty: "Mighty", shadow: "Shadow", purified: "Purified", l
 // what one evolution step costs: "100 candy", "50 candy + Metal Coat", "999 Gimmighoul Coins"; "?" when the data doesn't say
 const evoCost = (t) => [t.candy ? `${t.candy} candy` : t.candy == null ? "? candy" : null, t.evoItem, ...(t.evoNotes || [])].filter(Boolean).join(" + ");
 // "Dragon / Ground" next to a name (the data pads single types with "none")
-const Types = ({ s }) => <span className="muted" style={{ fontSize: "0.78rem" }}> {s.types.filter((t) => t && t !== "none").map(cap).join(" / ")}</span>;
+// a pill in its type's color; dark text on the light colors (Electric, Ice, Ground...) so it stays readable
+const light = (hex) => { const n = parseInt(hex.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 150; };
+function TypePill({ type, children, title }) {
+  const bg = TYPE_COLORS[type] || PALETTE.slate;
+  return <span title={title} style={{ display: "inline-block", fontSize: "0.72rem", padding: "1px 7px", borderRadius: 999, background: bg, color: light(bg) ? "rgba(0, 0, 0, 0.85)" : "white", marginRight: 3, fontWeight: 600, lineHeight: 1.5, whiteSpace: "nowrap" }}>{children}</span>;
+}
+const Types = ({ s }) => <span style={{ marginLeft: 6 }}>{s.types.filter((t) => t && t !== "none").map((t) => <TypePill key={t} type={t}>{cap(t)}</TypePill>)}</span>;
+// "Mud Shot + Earthquake / Rock Slide" as pills colored by move type; ★ = legacy (Elite TM / Community Day)
+function MoveSet({ m }) {
+  const pill = (mv) => <TypePill key={mv.name} type={mv.type} title={mv.legacy ? "Legacy move: Elite TM or Community Day" : mv.type ? cap(mv.type) : undefined}>{mv.name}{mv.legacy ? " ★" : ""}</TypePill>;
+  return (
+    <span>
+      {pill(m.fast)}
+      {m.charged.length > 0 && <span className="muted"> + </span>}
+      {m.charged.map((c, i) => <Fragment key={c.name}>{i > 0 && <span className="muted">/ </span>}{pill(c)}</Fragment>)}
+      {m.max && <><span className="muted">→ </span><TypePill type={m.max}>Max {cap(m.max)}</TypePill></>}
+    </span>
+  );
+}
 const ivPct = (ivs) => `${Math.round(ivs.reduce((x, y) => x + y, 0) / 0.45)}%`;
 const VARIANT = ["costume", "background"]; // these carry a number: which costume/background it is
 // { costume: 2, shiny: true } -> "Shiny · Costume 2"
@@ -228,7 +246,7 @@ function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
           <div style={{ fontSize: "0.85rem", marginTop: j.evo ? 2 : 6 }}><span className="muted">Power up:</span> {j.invest}</div>
           {x.jobs.filter((o) => o.moves).map((o) => (
             <div key={jobKey(o)} style={{ fontSize: "0.85rem", marginTop: 2 }}>
-              <span className="muted">Moves{x.jobs.filter((q) => q.moves).length > 1 ? ` (${jobLabel(jobKey(o))})` : ""}:</span> {o.moves}
+              <span className="muted">Moves{x.jobs.filter((q) => q.moves).length > 1 ? ` (${jobLabel(jobKey(o))})` : ""}:</span> {o.moveSet ? <MoveSet m={o.moveSet} /> : o.moves}
             </div>
           ))}
         </>}
@@ -748,7 +766,7 @@ export default function PokemonGoPage() {
                 {r.roles.map((c) => (
                   <div key={jobKey(c)} style={{ fontSize: "0.85rem", marginTop: 4 }}>
                     <span style={{ color: ROLE_COLOR[c.role] }}>{jobLabel(jobKey(c))}:</span> {c.detail}. <span className="muted">{c.invest}.</span>
-                    {c.moves && <span> Moves: {c.moves}.</span>}
+                    {(c.moveSet || c.moves) && <span> Moves: {c.moveSet ? <MoveSet m={c.moveSet} /> : c.moves}</span>}
                     {c.evo && !c.evo.to && <span className="muted"> Mega Evolve it for raids (needs Mega Energy).</span>}
                     {c.evo?.to && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? `; don't evolve until you have all ${c.evo.candy} candy (one go)` : ""}{c.evo.items?.length ? `; needs ${c.evo.items.join(" + ")}` : ""}.</span>}
                     {c.note && <span style={{ color: PALETTE.amber }}> {c.note}.</span>}
