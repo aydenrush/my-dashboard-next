@@ -484,7 +484,8 @@ export default function PokemonGoPage() {
   const owned = new Set([...(results || []), ...boxEntries.map((entry) => ({ entry }))].map((r) => r.entry.species.id));
   const dexHint = new Map(); // result -> [path of stages, ...]
   const best = {};
-  for (const r of transfers) {
+  // a good species with the wrong IVs gets no hint: its candy belongs to the one you keep, which registers the Dex anyway
+  for (const r of transfers.filter((t) => !t.good.length)) {
     const paths = branches(r.entry.species).map((p) => p.slice(0, p.findLastIndex((t) => !owned.has(t.id)) + 1)).filter((p) => p.length);
     const size = paths.reduce((n, p) => n + p.length, 0);
     const cur = best[r.entry.species.family];
