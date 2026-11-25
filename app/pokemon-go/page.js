@@ -308,7 +308,7 @@ export default function PokemonGoPage() {
   useEffect(() => { localStorage.setItem("pogo_batch", JSON.stringify(batch)); }, [batch]);
 
   async function loadBox() {
-    const { data } = await supabase.from("pogo_box").select("*").order("created_at");
+    const { data } = await supabase.from("pogo_box").select("*").order("created_at").order("id"); // id breaks ties: rows saved in one click share a timestamp
     if (data) setBox(data);
   }
 
