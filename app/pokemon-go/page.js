@@ -889,7 +889,7 @@ export default function PokemonGoPage() {
                   {w.jobs.map((j) => <Chip key={j.job} color={ROLE_COLOR[j.job.split(":")[0]]}>{j.label}</Chip>)}
                   {w.rarity.length > 0 && <span className="muted"> {w.rarity.join(" · ")}</span>}
                 </div>
-                {w.jobs.map((j) => <div key={j.job} className="muted" style={{ marginLeft: 2 }}>{j.label}: {j.what}</div>)}
+                {w.jobs.map((j) => <div key={j.job} style={{ marginLeft: 2 }}><span className="muted">{j.label}: {j.what}</span>{j.moveSet && <> <MoveSet m={j.moveSet} /></>}</div>)}
                 <div style={{ marginLeft: 2 }}><Recommend jobs={w.jobs} labelOf={(j) => j.label} /></div>
                 <div style={{ marginLeft: 2 }}><span className="muted">Look for:</span> {(() => {
                   // different jobs want different IVs: "15 Attack (Raids) · 15 / 14+ / 14+ (Master League)"
