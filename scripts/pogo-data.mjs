@@ -91,6 +91,9 @@ async function main() {
 
   const rankOf = (list) => Object.fromEntries(list.map((r, i) => [r.speciesId, i + 1]));
   const ranks = { gl: rankOf(gl), ul: rankOf(ul), ml: rankOf(ml) };
+  // PvPoke's recommended moveset per league: [fast, charged, charged]
+  const movesOf = (list) => Object.fromEntries(list.map((r) => [r.speciesId, r.moveset]));
+  const pvpMoves = { gl: movesOf(gl), ul: movesOf(ul), ml: movesOf(ml) };
 
   const released = pv.pokemon.filter((p) => p.released !== false);
   const cpm40 = cpm[78]; // level 40
@@ -140,13 +143,15 @@ async function main() {
   for (const p of maxPool) {
     const atk = (p.baseStats.atk + 15) * cpm40, bulk = (p.baseStats.def + 15) * (p.baseStats.hp + 15) * cpm40 * cpm40;
     for (const T of new Set(p.fastMoves.map((m) => pve[m]?.type).filter(Boolean))) {
-      (maxByType[T] ||= []).push([p.speciesId, atk * (p.types.includes(T) ? STAB : 1) * Math.pow(bulk, 0.125)]);
+      // the fast move to run for that Max move type: the hardest-hitting one of that type
+      const fast = p.fastMoves.filter((m) => pve[m]?.type === T).sort((x, y) => pve[y].power / pve[y].dur - pve[x].power / pve[x].dur)[0];
+      (maxByType[T] ||= []).push([p.speciesId, atk * (p.types.includes(T) ? STAB : 1) * Math.pow(bulk, 0.125), fast]);
     }
   }
   const maxRank = {};
   for (const [T, list] of Object.entries(maxByType)) {
     list.sort((a, b) => b[1] - a[1]);
-    list.forEach(([id, sc], i) => (maxRank[id] ||= []).push({ type: T, rank: i + 1, pct: Math.round((sc / list[0][1]) * 100) }));
+    list.forEach(([id, sc, fast], i) => (maxRank[id] ||= []).push({ type: T, rank: i + 1, pct: Math.round((sc / list[0][1]) * 100), fast }));
   }
   const tankList = maxPool.map((p) => [p.speciesId, (p.baseStats.def + 15) * (p.baseStats.hp + 15)]).sort((a, b) => b[1] - a[1]);
   const tankRank = Object.fromEntries(tankList.map(([id], i) => [id, i + 1]));
@@ -165,6 +170,7 @@ async function main() {
       tags: p.tags || [], family: p.family?.id || p.speciesId, parent: p.family?.parent || null,
       evolutions: p.family?.evolutions || [], elite: p.eliteMoves || [],
       gl: ranks.gl[p.speciesId] || null, ul: ranks.ul[p.speciesId] || null, ml: ranks.ml[p.speciesId] || null,
+      pvpMoves: Object.fromEntries(["gl", "ul", "ml"].map((lg) => [lg, pvpMoves[lg][p.speciesId] || null])),
       raid: best, // the page decides what counts as raid-relevant (raidTop)
       raidTypes,
       maxTypes: (maxRank[p.speciesId] || []).sort((x, y) => x.rank - y.rank).slice(0, 3), // Max attacker rank per Max move type

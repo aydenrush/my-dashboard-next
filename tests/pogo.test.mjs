@@ -281,3 +281,7 @@ assert.ok(!decideBatch(parseBatch("12/10/10 mighty rhyperior", idx).entries, idx
 
 // projects over the whole box ({ all: true }) include box-only families
 assert.equal(projects(decideBatch([], idx, parseBatch("15/14/14 gible", idx).entries, { includeBox: true }), { all: true }).length, 1);
+
+// moves ride along with jobs: raid moveset from the data, legacy moves marked
+const mvRaid = decideBatch(parseBatch("15/10/10 rhyperior", idx).entries, idx)[0].roles.find((c) => c.role === "raid");
+assert.equal(mvRaid.moves, "Smack Down + Rock Wrecker" + (idx.byId.rhyperior.elite.includes("ROCK_WRECKER") ? " (legacy)" : ""));

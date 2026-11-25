@@ -167,6 +167,11 @@ function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
             </div>
           )}
           <div style={{ fontSize: "0.85rem", marginTop: j.evo ? 2 : 6 }}><span className="muted">Power up:</span> {j.invest}</div>
+          {x.jobs.filter((o) => o.moves).map((o) => (
+            <div key={jobKey(o)} style={{ fontSize: "0.85rem", marginTop: 2 }}>
+              <span className="muted">Moves{x.jobs.filter((q) => q.moves).length > 1 ? ` (${jobLabel(jobKey(o))})` : ""}:</span> {o.moves}
+            </div>
+          ))}
         </>}
         {inBox && <EvoLine s={e.species} idx={idx} flags={e.flags} family={family} selfId={e.id} />}
         <details style={{ marginTop: 4 }}><summary className="muted" style={{ fontWeight: 400, marginBottom: 0 }}>Why?</summary><Why entry={e} idx={idx} /></details>
@@ -570,6 +575,7 @@ export default function PokemonGoPage() {
               {r.roles.map((c) => (
                 <div key={jobKey(c)} style={{ fontSize: "0.85rem", marginTop: 4 }}>
                   <span style={{ color: ROLE_COLOR[c.role] }}>{jobLabel(jobKey(c))}:</span> {c.detail}. <span className="muted">{c.invest}.</span>
+                  {c.moves && <span> Moves: {c.moves}.</span>}
                   {c.evo && !c.evo.to && <span className="muted"> Mega Evolve it for raids (needs Mega Energy).</span>}
                   {c.evo?.to && <span className="muted"> Evolve to {c.evo.to}{c.evo.candy ? `; don't evolve until you have all ${c.evo.candy} candy (one go)` : ""}{c.evo.items?.length ? `; needs ${c.evo.items.join(" + ")}` : ""}.</span>}
                   {c.note && <span style={{ color: PALETTE.amber }}> {c.note}.</span>}
