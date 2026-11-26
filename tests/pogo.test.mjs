@@ -318,3 +318,9 @@ assert.ok(!wanted([], idx, { easy: true }).some((w) => w.species.tags.includes("
 const nun = decideBatch(parseBatch("0/0/0 alolan ninetales, 0/0/0 alolan ninetales", idx).entries, idx);
 assert.deepEqual(nun.map((r) => r.verdict), ["keep", "trade"]);
 assert.equal(nun[1].trade[0].kind, "nundo");
+
+// shiny odds: P(at least one) = 1 - (1 - p)^n; 1/20 needs 14 tries for 50%, 1/512 needs 355
+const { chanceIn, encountersFor } = await import("../lib/pogo.js");
+assert.equal(encountersFor(20, 0.5), 14);
+assert.equal(encountersFor(512, 0.5), 355);
+assert.ok(Math.abs(chanceIn(20, 14) - 0.5123) < 0.001);

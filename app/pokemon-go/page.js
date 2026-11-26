@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { getSetting, setSetting } from "@/lib/settings";
 import { PALETTE, TYPE_COLORS } from "@/lib/constants";
-import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, projects, wanted, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
+import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, projects, wanted, SHINY_RATES, chanceIn, encountersFor, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, gym: PALETTE.slate, trophy: PALETTE.slate };
 const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax", "oneoff", "legacy", "xxl", "old", "keep"];
@@ -413,6 +413,8 @@ export default function PokemonGoPage() {
   useEffect(() => { const t = localStorage.getItem("pogo_tab"); if (t) setTabState(t); }, []);
   const setTab = (t) => { setTabState(t); localStorage.setItem("pogo_tab", t); };
   const [verdictFilter, setVerdictFilter] = useState("all");
+  const [oddsCustom, setOddsCustom] = useState(""); // Shiny odds: your own "1 in N" (empty until you type)
+  const [oddsAfter, setOddsAfter] = useState(""); // and "after N encounters"
   const [boxQ, setBoxQ] = useState(""); // box search / filter / sort
   const [boxFilter, setBoxFilter] = useState("all");
   const [boxSort, setBoxSort] = useState("newest");
@@ -681,7 +683,7 @@ export default function PokemonGoPage() {
 
   // which verdicts the Check tab shows ("all" or one verdict)
   const shownResults = results ? (verdictFilter === "all" ? results : results.filter((r) => r.verdict === verdictFilter)) : null;
-  const TABS = [["check", `Check${batch.length ? ` (${batch.length})` : ""}`], ["plan", `Plan${openProjects.length ? ` (${openProjects.length})` : ""}`], ["box", `Box (${boxEntries.length})`]];
+  const TABS = [["check", `Check${batch.length ? ` (${batch.length})` : ""}`], ["plan", `Plan${openProjects.length ? ` (${openProjects.length})` : ""}`], ["box", `Box (${boxEntries.length})`], ["odds", "Shiny odds"]];
 
   return (
     <div className="pogo">
@@ -939,6 +941,56 @@ export default function PokemonGoPage() {
         )}
         </>
       )}
+
+      {tab === "odds" && (() => {
+        // encounters needed for a 50/75/90/95/99% chance of at least one shiny; nothing ever guarantees one
+        const TARGETS = [0.5, 0.75, 0.9, 0.95, 0.99];
+        const custom = parseInt(oddsCustom), after = parseInt(oddsAfter);
+        const rows = [...SHINY_RATES, ...(custom > 1 ? [{ label: "Your rate", oneIn: custom, note: "typed above" }] : [])];
+        const th = { textAlign: "right", padding: "6px 10px", fontWeight: 600, whiteSpace: "nowrap", borderBottom: "1px solid var(--border)" };
+        const td = { textAlign: "right", padding: "6px 10px", fontVariantNumeric: "tabular-nums", borderBottom: "1px solid var(--border)" };
+        return (
+          <>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Each encounter is an independent roll, so the chance of at least one shiny in <em>n</em> encounters is 1 − (1 − 1/N)<sup>n</sup>.
+              No number of encounters guarantees one; the columns show how many give you that chance. Rates are community estimates (Niantic doesn't publish them).
+            </p>
+            <div className="row" style={{ alignItems: "center", marginBottom: 10 }}>
+              <label className="muted" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>Your own rate: 1 in
+                <input inputMode="numeric" value={oddsCustom} onChange={(e) => /^\d{0,5}$/.test(e.target.value) && setOddsCustom(e.target.value)} placeholder="N" aria-label="Your shiny rate, 1 in N" style={{ width: 80, padding: "4px 8px", font: "inherit" }} />
+              </label>
+              <label className="muted" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>Chance after
+                <input inputMode="numeric" value={oddsAfter} onChange={(e) => /^\d{0,5}$/.test(e.target.value) && setOddsAfter(e.target.value)} placeholder="n" aria-label="Number of encounters" style={{ width: 80, padding: "4px 8px", font: "inherit" }} />
+                encounters
+              </label>
+            </div>
+            <div className="card" style={{ padding: 0, overflowX: "auto" }}>
+              <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "0.88rem" }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...th, textAlign: "left" }}>Encounter</th>
+                    <th style={th}>Rate</th>
+                    <th style={th} title="On average you see one shiny every N encounters">Average</th>
+                    {TARGETS.map((t) => <th key={t} style={th}>{Math.round(t * 100)}% chance</th>)}
+                    {after > 0 && <th style={th}>After {after}</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.label}>
+                      <td style={{ ...td, textAlign: "left" }}><strong>{r.label}</strong><div className="muted" style={{ fontSize: "0.78rem" }}>{r.note}</div></td>
+                      <td style={td}>1 in {r.oneIn}</td>
+                      <td style={td}>{r.oneIn}</td>
+                      {TARGETS.map((t) => <td key={t} style={td}>{encountersFor(r.oneIn, t).toLocaleString()}</td>)}
+                      {after > 0 && <td style={{ ...td, fontWeight: 600 }}>{(chanceIn(r.oneIn, after) * 100).toFixed(1)}%</td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        );
+      })()}
 
       {tab === "box" && (
         <>
