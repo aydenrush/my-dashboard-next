@@ -411,7 +411,6 @@ export default function PokemonGoPage() {
   useEffect(() => { const t = localStorage.getItem("pogo_tab"); if (t) setTabState(t); }, []);
   const setTab = (t) => { setTabState(t); localStorage.setItem("pogo_tab", t); };
   const [verdictFilter, setVerdictFilter] = useState("all");
-  const [showActions, setShowActions] = useState(false); // phones: batch actions folded behind "Actions"
   const [boxQ, setBoxQ] = useState(""); // box search / filter / sort
   const [boxFilter, setBoxFilter] = useState("all");
   const [boxSort, setBoxSort] = useState("newest");
@@ -717,16 +716,13 @@ export default function PokemonGoPage() {
 
           {idx && batch.length > 0 && (
             <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "8px 0", marginTop: 10 }}>
-              <div className="row" style={{ alignItems: "center", marginBottom: 6 }}>
+              <div className="row pogo-batchbar" style={{ alignItems: "center", marginBottom: 6 }}>
                 <strong>Batch ({batch.length})</strong>
                 {keepers.length > 0 && <button type="button" className="btn" onClick={saveKeepers}>Save {keepers.length} keeper{keepers.length > 1 ? "s" : ""}</button>}
-                <button type="button" className="btn pogo-phone-only" aria-expanded={showActions} onClick={() => setShowActions((v) => !v)}>Actions {showActions ? "▴" : "▾"}</button>
-                <span className={`pogo-actions${showActions ? " open" : ""}`}>
-                  {results?.length > keepers.length && <button type="button" className="btn" onClick={saveAll}>Save all {results.length}</button>}
-                  {tradeBait.length > 0 && <button type="button" className="btn" onClick={copyTrades}>Copy trade list</button>}
-                  {transfers.length > 0 && <button type="button" className="btn" onClick={copyTransfers}>Copy transfer list</button>}
-                  <button type="button" className="btn" onClick={() => { setBatch([]); setEditing(null); }}>Clear batch</button>
-                </span>
+                {results?.length > keepers.length && <button type="button" className="btn" onClick={saveAll}>Save all {results.length}</button>}
+                {tradeBait.length > 0 && <button type="button" className="btn" onClick={copyTrades}>Copy trade list</button>}
+                {transfers.length > 0 && <button type="button" className="btn" onClick={copyTransfers}>Copy transfer list</button>}
+                <button type="button" className="btn" onClick={() => { setBatch([]); setEditing(null); }}>Clear batch</button>
                 {msg && <span className="muted">{msg}</span>}
               </div>
               {results?.length > 0 && (
