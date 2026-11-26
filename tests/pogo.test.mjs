@@ -195,7 +195,7 @@ assert.equal(cos[0].trade[0].kind, "costume 2");
 assert.deepEqual(listToFlags(flagsToList({ costume: 2, shiny: true })), { costume: 2, shiny: true });
 
 // mythicals: one per family is always kept, whatever the IVs; a second one is judged normally, never trade bait
-const myth = decideBatch(parseBatch("1/2/3 celebi, 0/0/0 celebi", idx).entries, idx);
+const myth = decideBatch(parseBatch("1/2/3 celebi, 0/0/1 celebi", idx).entries, idx);
 assert.deepEqual(myth.map((r) => r.verdict), ["keep", "transfer"]);
 assert.match(myth[0].roles[0].detail, /mythical/);
 // One-off flag (a research legendary): kept whatever the IVs, like a mythical
