@@ -344,11 +344,12 @@ details > summary { cursor: pointer; font-weight: 600; margin-bottom: 0.5rem; }
    the red outer ring (hundo), purple inner ring + glow (Shadow) and an orange band inside that (Mighty) */
 .card.pogo-fx {
   --fx-hundo: 0 0 0 transparent; --fx-hundo-glow: 0 0 0 transparent; --fx-shadow: 0 0 0 transparent;
-  --fx-shadow-glow: 0 0 0 transparent; --fx-mighty: 0 0 0 transparent; --fx-purified: 0 0 0 transparent;
-  box-shadow: var(--fx-shadow), var(--fx-mighty), var(--fx-hundo), var(--fx-hundo-glow), var(--fx-shadow-glow), var(--fx-purified);
+  --fx-shadow-glow: 0 0 0 transparent; --fx-mighty: 0 0 0 transparent; --fx-purified: 0 0 0 transparent; --fx-nundo: 0 0 0 transparent;
+  box-shadow: var(--fx-shadow), var(--fx-mighty), var(--fx-hundo), var(--fx-nundo), var(--fx-hundo-glow), var(--fx-shadow-glow), var(--fx-purified);
 }
 .card.pogo-hundo { --fx-hundo: 0 0 0 2px hsl(350 89% 60% / 0.75); --fx-hundo-glow: 0 0 16px hsl(350 89% 60% / 0.35); } /* red like the in-game appraisal bars */
 .card.pogo-shadow { --fx-shadow: inset 0 0 0 2px hsl(258 90% 66% / 0.55); --fx-shadow-glow: 0 0 22px hsl(258 90% 66% / 0.25); }
 .card.pogo-mighty { --fx-mighty: inset 0 0 0 4px hsl(20 90% 55% / 0.55); }
+.card.pogo-nundo { --fx-nundo: 0 0 0 2px hsl(215 16% 47% / 0.8), 0 0 12px hsl(215 16% 47% / 0.35); } /* slate: the anti-hundo */
 .card.pogo-purified { --fx-purified: 0 0 12px 2px hsl(210 100% 85% / 0.45); }
 @media (prefers-reduced-motion: reduce) { .pogo-shiny .pogo-name { animation: none; } }

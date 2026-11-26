@@ -313,3 +313,8 @@ assert.deepEqual(cdRaid?.cd?.moves, ["Rock Wrecker"]);
 assert.equal(decideBatch(parseBatch("15/10/10 rhyperior", cdIdx).entries, cdIdx)[0].roles.find((c) => c.role === "raid")?.cd, undefined); // already evolved
 // easy mode leaves out legendaries and Megas
 assert.ok(!wanted([], idx, { easy: true }).some((w) => w.species.tags.includes("mega") || w.species.tags.includes("legendary")));
+
+// nundos (0/0/0) are trophies like hundos: one per species kept, extras are trade bait
+const nun = decideBatch(parseBatch("0/0/0 alolan ninetales, 0/0/0 alolan ninetales", idx).entries, idx);
+assert.deepEqual(nun.map((r) => r.verdict), ["keep", "trade"]);
+assert.equal(nun[1].trade[0].kind, "nundo");

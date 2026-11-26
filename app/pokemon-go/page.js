@@ -236,11 +236,13 @@ function CdNote({ cd }) {
 // Mighty orange edge, hundo red glow (like the appraisal bars); a small badge next to the name says which
 const SPECIAL = [["shiny", "✨", "Shiny"], ["lucky", "🍀", "Lucky"], ["shadow", "🟣", "Shadow"], ["purified", "🤍", "Purified"], ["mighty", "💪", "Mighty"]];
 const isHundo = (e) => e.ivs.every((v) => v === 15);
-const specialClass = (e) => { const c = [...SPECIAL.filter(([f]) => e.flags[f]).map(([f]) => `pogo-${f}`), isHundo(e) && "pogo-hundo"].filter(Boolean); return c.length ? `${c.join(" ")} pogo-fx` : ""; };
+const isNundo = (e) => e.ivs.every((v) => v === 0);
+const specialClass = (e) => { const c = [...SPECIAL.filter(([f]) => e.flags[f]).map(([f]) => `pogo-${f}`), isHundo(e) && "pogo-hundo", isNundo(e) && "pogo-nundo"].filter(Boolean); return c.length ? `${c.join(" ")} pogo-fx` : ""; };
 const Badges = ({ e }) => (
   <span aria-hidden="true" style={{ marginLeft: 4 }}>
     {SPECIAL.filter(([f]) => e.flags[f]).map(([f, icon, label]) => <span key={f} title={label}>{icon}</span>)}
     {isHundo(e) && <span title="Hundo (15/15/15)">💯</span>}
+    {isNundo(e) && <span title="Nundo (0/0/0)">0️⃣</span>}
   </span>
 );
 
