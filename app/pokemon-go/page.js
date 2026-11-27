@@ -257,7 +257,7 @@ function tradeTip(good) {
 }
 
 // one side of the fairness check: a name box (partial names work) and the traits that survive a trade
-const FAIR_FLAGS = [["shiny", "Shiny"], ["costume", "Costume"], ["background", "Background"], ["xxl", "XXL"], ["shadow", "Shadow"]];
+const FAIR_FLAGS = [["shiny", "Shiny"], ["costume", "Costume"], ["background", "Background"], ["xxl", "XXL"]]; // no Shadow: they can't be traded at all
 function TradeSide({ title, side, set, idx }) {
   const species = side.name.trim() ? lookupSpecies(side.name, idx) : null;
   const v = species && tradeValue(species, side.flags, idx);
