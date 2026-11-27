@@ -264,8 +264,7 @@ function TradeSide({ title, side, set, idx }) {
   return (
     <div className="card" style={{ padding: "10px 12px" }}>
       <strong>{title}</strong>
-      <input value={side.name} onChange={(e) => set({ ...side, name: e.target.value })} placeholder="Pokémon" aria-label={`${title}: Pokémon`}
-        style={{ display: "block", width: "100%", boxSizing: "border-box", padding: "6px 8px", font: "inherit", margin: "6px 0" }} />
+      <NameSearch idx={idx} value={side.name} onChange={(name) => set({ ...side, name })} label={`${title}: Pokémon`} style={{ margin: "6px 0" }} />
       <div className="row" style={{ gap: 4, marginBottom: 6 }}>
         {FAIR_FLAGS.map(([k, label]) => (
           <button key={k} type="button" aria-pressed={!!side.flags[k]} onClick={() => set({ ...side, flags: { ...side.flags, [k]: !side.flags[k] } })}
@@ -332,33 +331,53 @@ function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
 
 // quick entry: name (suggested as you type), three IV boxes that jump ahead as you type, tap-to-toggle flags.
 // Enter adds to the batch and keeps the name, so a run of the same Pokémon is just IVs + Enter.
+// Pokémon name box with our own suggestion list (the browser's datalist pops up in odd places and matches mid-word).
+// Names starting with what you typed come first, then word matches. Arrows move, Enter picks (then onPick, e.g. jump to
+// Attack), Escape closes. Used by the checker's quick entry and the trade fairness check.
+function NameSearch({ idx, value, onChange, onPick, autoFocus, label = "Pokémon", style }) {
+  const names = useMemo(() => pickableNames(idx), [idx]);
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const sugg = useMemo(() => {
+    const q = value.trim().toLowerCase();
+    if (!q) return [];
+    const starts = names.filter((n) => n.toLowerCase().startsWith(q));
+    const words = names.filter((n) => !starts.includes(n) && n.toLowerCase().split(/[ (]/).some((w) => w.startsWith(q)));
+    return [...starts, ...words].slice(0, 8);
+  }, [value, names]);
+  const pick = (n) => { onChange(n); setOpen(false); onPick?.(n); };
+  function onKey(e) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); setOpen(true);
+      setHi((h) => (sugg.length ? (h + (e.key === "ArrowDown" ? 1 : -1) + sugg.length) % sugg.length : 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault(); // Enter picks the name, never submits a form
+      pick(open && sugg[hi] ? sugg[hi] : value);
+    } else if (e.key === "Escape") setOpen(false);
+  }
+  return (
+    <div style={{ position: "relative", minWidth: 0, ...style }}>
+      <input value={value} onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }} onKeyDown={onKey} onBlur={() => setOpen(false)}
+        placeholder="Pokémon" aria-label={label} autoFocus={autoFocus} autoComplete="off" role="combobox" aria-expanded={open && sugg.length > 0}
+        style={{ padding: "6px 8px", font: "inherit", width: "100%", boxSizing: "border-box" }} />
+      {open && sugg.length > 0 && (
+        <ul role="listbox" style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, margin: "2px 0 0", padding: 4, listStyle: "none", background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 6 }}>
+          {sugg.map((n, i) => (
+            <li key={n} role="option" aria-selected={i === hi} onMouseDown={(e) => { e.preventDefault(); pick(n); }} onMouseEnter={() => setHi(i)}
+              style={{ padding: "4px 8px", borderRadius: 4, cursor: "pointer", background: i === hi ? "var(--bg-secondary)" : "transparent" }}>{n}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function QuickEntry({ idx, onAdd, edit, onCancel }) {
   const [name, setName] = useState("");
   const [ivs, setIvs] = useState(["", "", ""]); // strings: empty stays empty
   const [flags, setFlags] = useState({});
   const [err, setErr] = useState("");
   const refs = [useRef(null), useRef(null), useRef(null)];
-  const names = useMemo(() => pickableNames(idx), [idx]);
-  // our own suggestion list (the browser's datalist pops up in odd places and matches mid-word)
-  const [open, setOpen] = useState(false);
-  const [hi, setHi] = useState(0);
-  const sugg = useMemo(() => {
-    const q = name.trim().toLowerCase();
-    if (!q) return [];
-    const starts = names.filter((n) => n.toLowerCase().startsWith(q));
-    const words = names.filter((n) => !starts.includes(n) && n.toLowerCase().split(/[ (]/).some((w) => w.startsWith(q)));
-    return [...starts, ...words].slice(0, 8);
-  }, [name, names]);
-  const pick = (n) => { setName(n); setOpen(false); refs[0].current?.focus(); };
-  function nameKey(e) {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault(); setOpen(true);
-      setHi((h) => (sugg.length ? (h + (e.key === "ArrowDown" ? 1 : -1) + sugg.length) % sugg.length : 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault(); // Enter here picks the name and moves on to Attack, never submits
-      pick(open && sugg[hi] ? sugg[hi] : name);
-    } else if (e.key === "Escape") setOpen(false);
-  }
 
   // editing a batch row: load it into the form
   useEffect(() => {
@@ -388,19 +407,7 @@ function QuickEntry({ idx, onAdd, edit, onCancel }) {
   return (
     <form onSubmit={add} className="card" style={{ padding: "10px 12px" }}>
       <div className="row" style={{ alignItems: "center", marginBottom: 8 }}>
-        <div style={{ position: "relative", flex: "1 1 180px", minWidth: 0 }}>
-          <input value={name} onChange={(e) => { setName(e.target.value); setOpen(true); setHi(0); }} onKeyDown={nameKey} onBlur={() => setOpen(false)}
-            placeholder="Pokémon" aria-label="Pokémon" autoFocus autoComplete="off" role="combobox" aria-expanded={open && sugg.length > 0}
-            style={{ ...field, width: "100%", boxSizing: "border-box" }} />
-          {open && sugg.length > 0 && (
-            <ul role="listbox" style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, margin: "2px 0 0", padding: 4, listStyle: "none", background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 6 }}>
-              {sugg.map((n, i) => (
-                <li key={n} role="option" aria-selected={i === hi} onMouseDown={(e) => { e.preventDefault(); pick(n); }} onMouseEnter={() => setHi(i)}
-                  style={{ padding: "4px 8px", borderRadius: 4, cursor: "pointer", background: i === hi ? "var(--bg-secondary)" : "transparent" }}>{n}</li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <NameSearch idx={idx} value={name} onChange={setName} onPick={() => refs[0].current?.focus()} autoFocus style={{ flex: "1 1 180px" }} />
         {["Atk", "Def", "HP"].map((label, i) => (
           <input key={label} ref={refs[i]} inputMode="numeric" value={ivs[i]} onChange={(e) => setIv(i, e.target.value)} enterKeyHint={i === 2 ? "done" : "next"}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); i === 2 ? add() : refs[i + 1].current?.focus(); } }} placeholder={label} aria-label={`${label} IV`}
