@@ -867,6 +867,12 @@ export default function PokemonGoPage() {
                   </div>
                 ))}
                 {r.speciesNote && <div style={{ fontSize: "0.85rem", marginTop: 4 }}>{r.speciesNote}</div>}
+              {["transfer", "borderline", "hold"].includes(r.verdict) && r.good.length > 0 && (
+                <div style={{ fontSize: "0.85rem", marginTop: 4 }}>
+                  <span className="muted">IVs to look for:</span>
+                  {r.good.map((g) => <div key={g.job} style={{ marginLeft: 10 }}><span className="muted">{g.label}:</span> {g.target}</div>)}
+                </div>
+              )}
                 {r.borderline.map((c) => (
                   <div key={c.role} style={{ fontSize: "0.85rem", marginTop: 4 }}>
                     <span style={{ color: PALETTE.amber }}>Borderline for {ROLE_LABEL[c.role]}:</span> {c.detail}. <span className="muted">Your call; hold untouched if unsure.</span>

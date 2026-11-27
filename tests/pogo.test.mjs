@@ -339,3 +339,10 @@ assert.ok(shinyG.total > plain.total && shinyG.special && !plain.special);
 assert.equal(tradeFairness(plain, plain).verdict, "even");
 assert.equal(tradeFairness(plain, shinyG).verdict, "good");
 assert.ok(tradeValue(idx.byId.gible, { shadow: true }, idx).untradeable);
+
+// IVs to look for: a good species' transfer lists the targets per job (PvP: top spreads from the rank table)
+const { pvpTargets } = await import("../lib/pogo.js");
+const pt = pvpTargets(idx.byId.azumarill, "gl", data.cpm);
+assert.equal(pt.best.length, 3);
+assert.match(pt.shape, /^Attack 0–\d+, Defense \d+\+, HP \d+\+$/);
+assert.ok(decideBatch(parseBatch("13/10/10 rhyperior", idx).entries, idx)[0].good.every((g) => g.target));
