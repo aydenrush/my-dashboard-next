@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { getSetting, setSetting } from "@/lib/settings";
 import { PALETTE, TYPE_COLORS } from "@/lib/constants";
-import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, projects, wanted, SHINY_RATES, chanceIn, encountersFor, TRADE_LEVELS, tradeOdds, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
+import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, projects, wanted, SHINY_RATES, chanceIn, encountersFor, TRADE_LEVELS, tradeOdds, tradeValue, tradeFairness, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, gym: PALETTE.slate, trophy: PALETTE.slate };
 const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax", "oneoff", "legacy", "xxl", "old", "keep"];
@@ -256,6 +256,36 @@ function tradeTip(good) {
   return null;
 }
 
+// one side of the fairness check: a name box (partial names work) and the traits that survive a trade
+const FAIR_FLAGS = [["shiny", "Shiny"], ["costume", "Costume"], ["background", "Background"], ["xxl", "XXL"], ["shadow", "Shadow"]];
+function TradeSide({ title, side, set, idx }) {
+  const species = side.name.trim() ? lookupSpecies(side.name, idx) : null;
+  const v = species && tradeValue(species, side.flags, idx);
+  return (
+    <div className="card" style={{ padding: "10px 12px" }}>
+      <strong>{title}</strong>
+      <input value={side.name} onChange={(e) => set({ ...side, name: e.target.value })} placeholder="Pokémon" aria-label={`${title}: Pokémon`}
+        style={{ display: "block", width: "100%", boxSizing: "border-box", padding: "6px 8px", font: "inherit", margin: "6px 0" }} />
+      <div className="row" style={{ gap: 4, marginBottom: 6 }}>
+        {FAIR_FLAGS.map(([k, label]) => (
+          <button key={k} type="button" aria-pressed={!!side.flags[k]} onClick={() => set({ ...side, flags: { ...side.flags, [k]: !side.flags[k] } })}
+            className={`btn${side.flags[k] ? " btn-primary" : ""}`} style={{ padding: "2px 10px", fontSize: "0.8rem", minHeight: 0 }}>{label}</button>
+        ))}
+      </div>
+      {side.name.trim() && !species && <div className="muted" style={{ fontSize: "0.85rem" }}>Don't know "{side.name}"</div>}
+      {species && (
+        <div style={{ fontSize: "0.85rem" }}>
+          <div><strong>{species.name}</strong><Types s={species} /></div>
+          {v.untradeable && <div style={{ color: PALETTE.rose }}>{v.untradeable}.</div>}
+          {v.parts.length === 0 && <div className="muted">Nothing that holds value after a trade.</div>}
+          {v.parts.map((p) => <div key={p.why}><span className="muted">+{p.pts}</span> {p.why}</div>)}
+          <div style={{ marginTop: 4, fontWeight: 600 }}>{v.total} points</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
 function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
   const e = x.result.entry, j = x.jobs[0];
@@ -428,6 +458,7 @@ export default function PokemonGoPage() {
   const [tradeLevel, setTradeLevel] = useState("best"); // Trade tab
   const [tradeSpecial, setTradeSpecial] = useState(false);
   const [tradeNew, setTradeNew] = useState(false);
+  const [tradeSides, setTradeSides] = useState({ give: { name: "", flags: {} }, get: { name: "", flags: {} } }); // fairness check
   const [boxQ, setBoxQ] = useState(""); // box search / filter / sort
   const [boxFilter, setBoxFilter] = useState("all");
   const [boxSort, setBoxSort] = useState("newest");
@@ -1031,6 +1062,37 @@ export default function PokemonGoPage() {
                 Special trades (shiny, legendary, mythical or not yet registered) are limited to one a day. Friend level costs the same as Good. Trade events can discount these; check the in-game price before a big one.
               </div>
             </div>
+
+            {idx && (() => { // needs the Pokémon data loaded
+              const giveS = tradeSides.give.name.trim() ? lookupSpecies(tradeSides.give.name, idx) : null;
+              const getS = tradeSides.get.name.trim() ? lookupSpecies(tradeSides.get.name, idx) : null;
+              const give = giveS && tradeValue(giveS, tradeSides.give.flags, idx), get = getS && tradeValue(getS, tradeSides.get.flags, idx);
+              const fair = give && get && tradeFairness(give, get);
+              // a pick that fills a gap in your box is worth a bit more to you
+              const gap = getS && wantedList.some((w) => (idx.byId[w.species.id.replace(/_shadow$|_(mega|primal).*$/, "")] || w.species).family === getS.family);
+              const VERDICT_TEXT = { even: ["About even", PALETTE.emerald], good: ["Good for you", PALETTE.emerald], giving: ["You're giving up more", PALETTE.amber] };
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ marginBottom: 6 }}><strong>Is it fair?</strong> <span className="muted" style={{ fontSize: "0.82rem" }}>rough value of each side; IVs re-roll, so only the species and traits that survive count</span></div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 8 }}>
+                    <TradeSide title="You give" side={tradeSides.give} set={(v) => setTradeSides((t) => ({ ...t, give: v }))} idx={idx} />
+                    <TradeSide title="You get" side={tradeSides.get} set={(v) => setTradeSides((t) => ({ ...t, get: v }))} idx={idx} />
+                  </div>
+                  {fair && (
+                    <div className="card" style={{ padding: "10px 12px", marginTop: 8 }}>
+                      <div style={{ fontSize: "1.1rem", fontWeight: 700, color: VERDICT_TEXT[fair.verdict][1] }}>{VERDICT_TEXT[fair.verdict][0]}</div>
+                      <div className="muted" style={{ fontSize: "0.85rem" }}>
+                        {give.total} vs {get.total} points.
+                        {gap && ` ${getS.name} fills a gap in your box (it's on your Wanted list), so it's worth a bit more to you.`}
+                        {(give.special || get.special) && " This is a special trade: it uses each player's one special trade for the day and costs more Stardust (see above)."}
+                        {(give.untradeable || get.untradeable) && " One side can't be traded at all."}
+                        {" "}Fairness is partly personal (a regional is common where it lives), so treat this as a sanity check.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <strong>What the trade can roll</strong>
             <p className="muted" style={{ marginTop: 4 }}>

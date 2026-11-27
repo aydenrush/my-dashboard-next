@@ -331,3 +331,11 @@ assert.ok(Math.abs(tradeOdds(1).pvpLowAtk - 2 / 15) < 1e-9);
 assert.equal(tradeOdds(5).pvpLowAtk, 0);
 assert.ok(Math.abs(tradeOdds(12).hundo - 1 / 64) < 1e-12);
 assert.ok(Math.abs(tradeOdds(12).raid15 - 1 / 4) < 1e-12);
+
+// trade fairness: a shiny is worth more than the same species plain; Shadows can't be traded
+const { tradeValue, tradeFairness } = await import("../lib/pogo.js");
+const plain = tradeValue(idx.byId.gible, {}, idx), shinyG = tradeValue(idx.byId.gible, { shiny: true }, idx);
+assert.ok(shinyG.total > plain.total && shinyG.special && !plain.special);
+assert.equal(tradeFairness(plain, plain).verdict, "even");
+assert.equal(tradeFairness(plain, shinyG).verdict, "good");
+assert.ok(tradeValue(idx.byId.gible, { shadow: true }, idx).untradeable);
