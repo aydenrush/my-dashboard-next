@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { askConfirm } from "@/lib/confirm";
 import { getSetting, setSetting } from "@/lib/settings";
 import { PALETTE, TYPE_COLORS } from "@/lib/constants";
-import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, projects, wanted, SHINY_RATES, chanceIn, encountersFor, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
+import { indexSpecies, parseBatch, decideBatch, transferList, tradeList, explain, lookupSpecies, flagsToList, listToFlags, projects, wanted, SHINY_RATES, chanceIn, encountersFor, TRADE_LEVELS, tradeOdds, pickableNames, ROLE_LABEL, RULES, BORDER } from "@/lib/pogo";
 
 const ROLE_COLOR = { raid: PALETTE.rose, max: PALETTE.violet, gl: PALETTE.blue, ul: PALETTE.amber, ml: PALETTE.emerald, gym: PALETTE.slate, trophy: PALETTE.slate };
 const FLAG_ORDER = ["mighty", "shadow", "purified", "lucky", "shiny", "costume", "background", "dynamax", "gigantamax", "oneoff", "legacy", "xxl", "old", "keep"];
@@ -246,6 +246,16 @@ const Badges = ({ e }) => (
   </span>
 );
 
+// which friendship level to trade at, from what the species is good for: PvP wants low Attack (Good Friend),
+// raids and Master League want high IVs (Best Friend or Lucky)
+function tradeTip(good) {
+  const pvp = good.some((g) => g.job === "gl" || g.job === "ul"), hi = good.some((g) => g.job.startsWith("raid") || g.job === "ml");
+  if (pvp && hi) return "Trade with a Good Friend for a PvP re-roll, or Best Friend / Lucky for raids.";
+  if (pvp) return "Trade with a Good Friend: it's the only level where 0–2 Attack stays likely.";
+  if (hi) return "Trade with a Best Friend, or better, as a Lucky trade (floors IVs at 12).";
+  return null;
+}
+
 // one project: rank, Pokémon, its jobs, and what to do (evolve / power up), with Done when it's in your box
 function ProjectCard({ n, x, idx, onDone, onEvolve, inBox, family }) {
   const e = x.result.entry, j = x.jobs[0];
@@ -415,6 +425,9 @@ export default function PokemonGoPage() {
   const [verdictFilter, setVerdictFilter] = useState("all");
   const [oddsCustom, setOddsCustom] = useState(""); // Shiny odds: your own "1 in N" (empty until you type)
   const [oddsAfter, setOddsAfter] = useState(""); // and "after N encounters"
+  const [tradeLevel, setTradeLevel] = useState("best"); // Trade tab
+  const [tradeSpecial, setTradeSpecial] = useState(false);
+  const [tradeNew, setTradeNew] = useState(false);
   const [boxQ, setBoxQ] = useState(""); // box search / filter / sort
   const [boxFilter, setBoxFilter] = useState("all");
   const [boxSort, setBoxSort] = useState("newest");
@@ -683,7 +696,7 @@ export default function PokemonGoPage() {
 
   // which verdicts the Check tab shows ("all" or one verdict)
   const shownResults = results ? (verdictFilter === "all" ? results : results.filter((r) => r.verdict === verdictFilter)) : null;
-  const TABS = [["check", `Check${batch.length ? ` (${batch.length})` : ""}`], ["plan", `Plan${openProjects.length ? ` (${openProjects.length})` : ""}`], ["box", `Box (${boxEntries.length})`], ["odds", "Shiny odds"]];
+  const TABS = [["check", `Check${batch.length ? ` (${batch.length})` : ""}`], ["plan", `Plan${openProjects.length ? ` (${openProjects.length})` : ""}`], ["box", `Box (${boxEntries.length})`], ["odds", "Shiny odds"], ["trade", "Trade"]];
 
   return (
     <div className="pogo">
@@ -806,7 +819,7 @@ export default function PokemonGoPage() {
                 ))}
                 {r.trade.map((c) => (
                   <div key={c.kind} style={{ fontSize: "0.85rem", marginTop: 4 }}>
-                    <span style={{ color: PALETTE.violet }}>Trade bait:</span> {c.behind ? <>duplicate {c.kind}, you already keep {c.behind}.</> : <>{c.note}.</>} <span className="muted">Don't power it up; trade it.</span>
+                    <span style={{ color: PALETTE.violet }}>Trade bait:</span> {c.behind ? <>duplicate {c.kind}, you already keep {c.behind}.</> : <>{c.note}.</>} <span className="muted">Don't power it up; trade it.{tradeTip(r.good) ? ` ${tradeTip(r.good)}` : ""}</span>
                   </div>
                 ))}
                 {r.hold.map((g) => (
@@ -988,6 +1001,69 @@ export default function PokemonGoPage() {
                 </tbody>
               </table>
             </div>
+          </>
+        );
+      })()}
+
+      {tab === "trade" && (() => {
+        const lvl = TRADE_LEVELS.find((l) => l.key === tradeLevel);
+        const cost = tradeSpecial && tradeNew ? lvl.specialNew : tradeSpecial || tradeNew ? lvl.newOrSpecial : lvl.regular;
+        const COLS = [["raid15", "15 Attack", "raid keeper rule"], ["raidIdeal", "15 / 14+ / 14+", "Master League / best raiders"], ["hundo", "Hundo", "15/15/15"],
+          ["pvpLowAtk", "0–2 Attack", "Great / Ultra League shape"], ["pvpIdeal", "PvP ideal", "0–2 Atk, 12+ Def & HP"]];
+        const rows = TRADE_LEVELS.map((l) => ({ ...l, odds: tradeOdds(l.floor) }));
+        const best = Object.fromEntries(COLS.map(([k]) => [k, Math.max(...rows.map((r) => r.odds[k]))]));
+        const pct = (p) => (p === 0 ? "never" : p >= 0.1 ? `${Math.round(p * 100)}%` : `1 in ${Math.round(1 / p).toLocaleString()}`);
+        const th = { textAlign: "right", padding: "6px 10px", fontWeight: 600, whiteSpace: "nowrap", borderBottom: "1px solid var(--border)" };
+        const td = { textAlign: "right", padding: "6px 10px", fontVariantNumeric: "tabular-nums", borderBottom: "1px solid var(--border)" };
+        return (
+          <>
+            <div className="card" style={{ padding: "10px 12px", marginBottom: 14 }}>
+              <strong>Stardust cost</strong>
+              <div className="row" style={{ alignItems: "center", marginTop: 8, marginBottom: 6 }}>
+                <select value={tradeLevel} onChange={(e) => setTradeLevel(e.target.value)} aria-label="Friendship level">
+                  {TRADE_LEVELS.filter((l) => l.regular).map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
+                </select>
+                <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={tradeSpecial} onChange={(e) => setTradeSpecial(e.target.checked)} /> Shiny, legendary or mythical</label>
+                <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={tradeNew} onChange={(e) => setTradeNew(e.target.checked)} /> New to their Pokédex</label>
+              </div>
+              <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>{cost.toLocaleString()} Stardust</div>
+              <div className="muted" style={{ fontSize: "0.8rem" }}>
+                Special trades (shiny, legendary, mythical or not yet registered) are limited to one a day. Friend level costs the same as Good. Trade events can discount these; check the in-game price before a big one.
+              </div>
+            </div>
+
+            <strong>What the trade can roll</strong>
+            <p className="muted" style={{ marginTop: 4 }}>
+              Trading re-rolls the IVs, each one evenly from the friendship floor up to 15. Higher friendship raises the floor: great for raiders,
+              bad for PvP, because a Best Friend floor of 5 can never roll the 0–2 Attack Great/Ultra League spreads.
+            </p>
+            <div className="card" style={{ padding: 0, overflowX: "auto" }}>
+              <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "0.88rem" }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...th, textAlign: "left" }}>Trade</th>
+                    <th style={th}>IV floor</th>
+                    {COLS.map(([k, label, hint]) => <th key={k} style={th} title={hint}>{label}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.key}>
+                      <td style={{ ...td, textAlign: "left" }}><strong>{r.label}</strong></td>
+                      <td style={td}>{r.floor}/{r.floor}/{r.floor}</td>
+                      {COLS.map(([k]) => (
+                        <td key={k} style={{ ...td, fontWeight: r.odds[k] === best[k] && best[k] > 0 ? 700 : 400, color: r.odds[k] === best[k] && best[k] > 0 ? PALETTE.emerald : undefined }}>{pct(r.odds[k])}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className="muted" style={{ fontSize: "0.85rem", marginTop: 10, paddingLeft: 18 }}>
+              <li><strong>Re-rolling a PvP pick:</strong> trade with a Good Friend. It's the only level where 0–2 Attack stays likely.</li>
+              <li><strong>Re-rolling a raider:</strong> Best Friend or, better, a Lucky trade (Lucky Friends guarantee one; older catches have better odds).</li>
+              <li>Shadows and most mythicals can't be traded.</li>
+            </ul>
           </>
         );
       })()}

@@ -324,3 +324,10 @@ const { chanceIn, encountersFor } = await import("../lib/pogo.js");
 assert.equal(encountersFor(20, 0.5), 14);
 assert.equal(encountersFor(512, 0.5), 355);
 assert.ok(Math.abs(chanceIn(20, 14) - 0.5123) < 0.001);
+
+// trades: floor 1 (Good) can roll 0-2 Attack 2/15 of the time; Best (floor 5) never can; Lucky hundo is 1/64
+const { tradeOdds } = await import("../lib/pogo.js");
+assert.ok(Math.abs(tradeOdds(1).pvpLowAtk - 2 / 15) < 1e-9);
+assert.equal(tradeOdds(5).pvpLowAtk, 0);
+assert.ok(Math.abs(tradeOdds(12).hundo - 1 / 64) < 1e-12);
+assert.ok(Math.abs(tradeOdds(12).raid15 - 1 / 4) < 1e-12);
